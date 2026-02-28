@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>💰 App Nómina</title>
     <style>
@@ -353,11 +354,11 @@
                 </div>
             </div>
             <div class="header-buttons">
-                <button class="btn" onclick="app.importFromDrive()" style="background:#4285f4; color:white; display:flex; align-items:center; gap:6px;">
-                    📲 Bajar del Reloj
+                <button class="btn" id="driveSyncBtn" onclick="app.driveSync()" style="background:#4285f4; color:white; display:flex; align-items:center; gap:6px;">
+                    ☁️ <span id="driveSyncLabel">Conectar Drive</span>
                 </button>
-                <button class="btn" onclick="app.exportToDrive()" style="background:#27ae60; color:white; display:flex; align-items:center; gap:6px;">
-                    ☁️ Exportar a Drive
+                <button class="btn" onclick="app.driveDownloadClock()" style="background:#8e44ad; color:white; display:flex; align-items:center; gap:6px;">
+                    📲 Bajar del Reloj
                 </button>
                 <button class="btn btn-primary" onclick="app.importAttendances()">
                     📥 Importar Asistencias
@@ -3702,65 +3703,158 @@
             
             // EXPORTAR/IMPORTAR
 
-            exportToDrive() {
-                const data = {
-                    exportType: 'backup_nomina',
-                    exportDate: new Date().toISOString(),
-                    source: "Ana's Cleaning Nomina",
-                    employees: this.employees,
-                    attendances: this.attendances,
-                    payrollRecords: this.payrollRecords,
-                    savedPayrollPeriods: this.savedPayrollPeriods,
-                    adminPin: this.adminPin,
-                    workConfig: this.workConfig
-                };
+            // ══════════════════════════════════════
+            // GOOGLE DRIVE SYNC
+            // ══════════════════════════════════════
+            CLIENT_ID: '513180841052-tros7o0bo6v5oa9gkvvrio0if20rfdn2.apps.googleusercontent.com',
+            SCOPES: 'https://www.googleapis.com/auth/drive.file',
+            FOLDER_NAME: 'AnasCleaningNomina',
+            driveToken: null,
+            driveConnected: false,
+            driveFolderId: null,
+            autoSyncInterval: null,
 
-                const fileName = `anas_nomina_${new Date().toISOString().split('T')[0]}.json`;
-                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = fileName;
-                a.click();
+            driveSync() {
+                if (this.driveConnected) {
+                    this.driveSyncNow();
+                } else {
+                    this.driveConnect();
+                }
+            },
 
-                setTimeout(() => {
-                    alert(`✅ Archivo listo: ${fileName}\n\n📌 PASOS:\n1. El archivo se descargó\n2. Súbelo a tu carpeta AnasCleaningNomina en Google Drive\n\nAsí tendrás respaldo actualizado de toda la nómina.`);
-                }, 500);
+            driveConnect() {
+                const client = google.accounts.oauth2.initTokenClient({
+                    client_id: this.CLIENT_ID,
+                    scope: this.SCOPES,
+                    callback: async (response) => {
+                        if (response.error) { alert('❌ Error: ' + response.error); return; }
+                        this.driveToken = response.access_token;
+                        this.driveConnected = true;
+                        document.getElementById('driveSyncLabel').textContent = 'Sincronizar';
+                        document.getElementById('driveSyncBtn').style.background = '#27ae60';
+                        await this.driveGetOrCreateFolder();
+                        this.startAutoSync();
+                        await this.driveSyncNow();
+                        alert('✅ Conectado a Google Drive\nSincronización automática cada 5 minutos activada.');
+                    }
+                });
+                client.requestAccessToken();
+            },
+
+            async driveGetOrCreateFolder() {
+                const res = await fetch(
+                    `https://www.googleapis.com/drive/v3/files?q=name='${this.FOLDER_NAME}'+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false`,
+                    { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                );
+                const data = await res.json();
+                if (data.files && data.files.length > 0) {
+                    this.driveFolderId = data.files[0].id;
+                } else {
+                    const r = await fetch('https://www.googleapis.com/drive/v3/files', {
+                        method: 'POST',
+                        headers: { Authorization: `Bearer ${this.driveToken}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: this.FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+                    });
+                    const d = await r.json();
+                    this.driveFolderId = d.id;
+                }
+            },
+
+            async driveUploadFile(fileName, fileContent) {
+                const searchRes = await fetch(
+                    `https://www.googleapis.com/drive/v3/files?q=name='${fileName}'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                    { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                );
+                const searchData = await searchRes.json();
+                const fileId = searchData.files && searchData.files.length > 0 ? searchData.files[0].id : null;
+                const metadata = { name: fileName, parents: fileId ? undefined : [this.driveFolderId] };
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', new Blob([fileContent], { type: 'application/json' }));
+                await fetch(
+                    fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+                           : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                    { method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${this.driveToken}` }, body: form }
+                );
+            },
+
+            async driveSyncNow() {
+                if (!this.driveConnected || !this.driveFolderId) return;
+                try {
+                    document.getElementById('driveSyncLabel').textContent = 'Sincronizando...';
+                    const data = {
+                        exportType: 'nomina_sync', exportDate: new Date().toISOString(),
+                        source: "Ana's Cleaning Nomina",
+                        employees: this.employees, attendances: this.attendances,
+                        payrollRecords: this.payrollRecords, savedPayrollPeriods: this.savedPayrollPeriods,
+                        adminPin: this.adminPin, workConfig: this.workConfig
+                    };
+                    await this.driveUploadFile('anas_nomina_sync.json', JSON.stringify(data, null, 2));
+                    const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    document.getElementById('driveSyncLabel').textContent = `Sync ${now}`;
+                    document.getElementById('driveSyncBtn').style.background = '#27ae60';
+                } catch(err) {
+                    document.getElementById('driveSyncLabel').textContent = '⚠️ Error';
+                    document.getElementById('driveSyncBtn').style.background = '#e74c3c';
+                }
+            },
+
+            async driveDownloadClock() {
+                if (!this.driveConnected) { alert('Primero conecta Google Drive ☁️'); return; }
+                try {
+                    const res = await fetch(
+                        `https://www.googleapis.com/drive/v3/files?q=name='anas_reloj_sync.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const data = await res.json();
+                    if (!data.files || data.files.length === 0) {
+                        alert('⚠️ No se encontró archivo del Reloj en Drive.\nConecta Drive en el Reloj primero.');
+                        return;
+                    }
+                    const fileRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const clockData = await fileRes.json();
+                    let added = 0; let skipped = 0;
+                    (clockData.attendances || []).forEach(att => {
+                        const exists = this.attendances.find(a => a.employeeId === att.employeeId && a.date === att.date);
+                        if (exists) { skipped++; } else { this.attendances.push(att); added++; }
+                    });
+                    this.save();
+                    this.refreshAttendances();
+                    const syncTime = clockData.exportDate ? new Date(clockData.exportDate).toLocaleString('en-US') : '—';
+                    alert(`✅ Asistencias importadas\n\n✅ Agregadas: ${added}\n⏭️ Ya existían: ${skipped}\n\nÚltima sync del Reloj: ${syncTime}`);
+                } catch(err) {
+                    alert('❌ Error: ' + err.message);
+                }
+            },
+
+            startAutoSync() {
+                if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
+                this.autoSyncInterval = setInterval(() => {
+                    if (this.driveConnected) this.driveSyncNow();
+                }, 5 * 60 * 1000);
             },
 
             importFromDrive() {
-                // Simple file picker - user selects the JSON exported from Reloj
+                // Legacy manual import - keep as fallback
                 const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = '.json';
+                input.type = 'file'; input.accept = '.json';
                 input.onchange = (e) => {
                     const reader = new FileReader();
                     reader.onload = (event) => {
                         try {
                             const data = JSON.parse(event.target.result);
-                            
-                            if (!data.attendances || !Array.isArray(data.attendances)) {
-                                alert('❌ Archivo inválido. Usa el archivo exportado desde el Reloj Checador.');
-                                return;
-                            }
-                            
+                            if (!data.attendances) { alert('❌ Archivo inválido'); return; }
                             let added = 0; let skipped = 0;
                             data.attendances.forEach(att => {
-                                const exists = this.attendances.find(a =>
-                                    a.employeeId === att.employeeId && a.date === att.date
-                                );
-                                if (exists) { skipped++; }
-                                else { this.attendances.push(att); added++; }
+                                const exists = this.attendances.find(a => a.employeeId === att.employeeId && a.date === att.date);
+                                if (exists) skipped++; else { this.attendances.push(att); added++; }
                             });
-                            
-                            this.save();
-                            this.refreshAttendances();
-                            
-                            const syncDate = data.exportDate ? new Date(data.exportDate).toLocaleString('en-US') : '—';
-                            alert(`✅ Asistencias importadas del Reloj\n\n✅ Agregadas: ${added}\n⏭️ Ya existían: ${skipped}\n\nExportado el: ${syncDate}`);
-                        } catch(err) {
-                            alert('❌ Error al importar: ' + err.message);
-                        }
+                            this.save(); this.refreshAttendances();
+                            alert(`✅ Agregadas: ${added} | Ya existían: ${skipped}`);
+                        } catch(err) { alert('❌ Error: ' + err.message); }
                     };
                     reader.readAsText(e.target.files[0]);
                 };
@@ -3838,6 +3932,7 @@
             
             // PERSISTENCIA
             save() {
+                if (this.driveConnected) setTimeout(() => this.driveSyncNow(), 500);
                 localStorage.setItem('anas_employees', JSON.stringify(this.employees));
                 localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
                 localStorage.setItem('anas_payroll', JSON.stringify(this.payrollRecords));
