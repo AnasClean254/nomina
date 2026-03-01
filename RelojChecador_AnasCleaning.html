@@ -1030,7 +1030,10 @@
 
                     this.save();
                     this.updateAdminStats();
-                    // Silent sync - no alert
+                    // Update sync label
+                    const syncNow = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    document.getElementById('clockDriveSyncLabel').textContent = `Sync ${syncNow}`;
+                    document.getElementById('clockDriveSyncBtn').style.background = '#27ae60';
                 } catch(err) {
                     alert('❌ Error al bajar datos de Nómina: ' + err.message);
                 }
