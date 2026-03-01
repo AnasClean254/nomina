@@ -2207,10 +2207,10 @@
                             <td><strong>${att.hours ? att.hours.toFixed(2) : '-'} hrs</strong></td>
                             <td>${status}</td>
                             <td style="display:flex; gap:5px;">
-                                <button class="btn btn-primary btn-sm" onclick="app.editAttendance('${att.id}')">
+                                <button class="btn btn-primary btn-sm" data-id="${att.id}" onclick="app.editAttendance(this.getAttribute('data-id'))">
                                     ✏️ Editar
                                 </button>
-                                <button class="btn btn-sm" style="background:#e74c3c; color:white;" onclick="app.deleteAttendance('${att.id}')">
+                                <button class="btn btn-sm" style="background:#e74c3c; color:white;" data-id="${att.id}" onclick="app.deleteAttendance(this.getAttribute('data-id'))">
                                     🗑️
                                 </button>
                             </td>
