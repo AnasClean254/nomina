@@ -569,7 +569,8 @@
                 document.getElementById('totalHours').textContent = totalHours.toFixed(1) + ' hrs';
                 
                 // Última entrada
-                const today = new Date().toISOString().split('T')[0];
+                const _now = new Date();
+                const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
                 const todayAttendances = this.attendances.filter(a => 
                     a.employeeId === this.currentEmployee.id && a.date === today
                 );
@@ -600,7 +601,7 @@
             
             checkIn() {
                 const now = new Date();
-                const date = now.toISOString().split('T')[0];
+                const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
                 const time = now.toTimeString().split(' ')[0].substring(0, 5);
                 
                 // Verificar si ya hay entrada hoy sin salida
@@ -642,7 +643,7 @@
             
             checkOut() {
                 const now = new Date();
-                const date = now.toISOString().split('T')[0];
+                const date = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
                 const time = now.toTimeString().split(' ')[0].substring(0, 5);
                 
                 // Buscar entrada sin salida
@@ -1160,7 +1161,8 @@
             
             exportDaily() {
                 // Preparar datos para exportar
-                const today = new Date().toISOString().split('T')[0];
+                const _now = new Date();
+                const today = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
                 const todayAttendances = this.attendances.filter(a => a.date === today);
                 
                 const exportData = {
