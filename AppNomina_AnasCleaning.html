@@ -1775,6 +1775,13 @@
                 document.getElementById('attCheckOut').onchange = () => this.updateAttendancePreview();
             },
             
+            deleteAttendance(id) {
+                if (!confirm('¿Eliminar este registro de asistencia?')) return;
+                this.attendances = this.attendances.filter(a => a.id !== id && String(a.id) !== String(id));
+                this.save();
+                this.refreshAttendances();
+            },
+
             editAttendance(id) {
                 const att = this.attendances.find(a => a.id === id);
                 if (!att) return;
@@ -2199,9 +2206,12 @@
                             <td>${this.formatTime12Hour(att.checkOut)}</td>
                             <td><strong>${att.hours ? att.hours.toFixed(2) : '-'} hrs</strong></td>
                             <td>${status}</td>
-                            <td>
+                            <td style="display:flex; gap:5px;">
                                 <button class="btn btn-primary btn-sm" onclick="app.editAttendance('${att.id}')">
                                     ✏️ Editar
+                                </button>
+                                <button class="btn btn-sm" style="background:#e74c3c; color:white;" onclick="app.deleteAttendance('${att.id}')">
+                                    🗑️
                                 </button>
                             </td>
                         </tr>
