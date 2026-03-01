@@ -3733,7 +3733,12 @@
                         document.getElementById('driveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
                         this.startAutoSync();
-                        await this.driveSyncNow();
+                        // First download existing data from Drive
+                        const downloaded = await this.driveDownloadNomina();
+                        if (!downloaded) {
+                            // No existing data, upload current
+                            await this.driveSyncNow();
+                        }
                         alert('✅ Conectado a Google Drive\nSincronización automática cada 5 minutos activada.');
                     }
                 });
@@ -3798,6 +3803,50 @@
                 }
             },
 
+            async driveDownloadNomina() {
+                // Download anas_nomina_sync.json and load into localStorage
+                try {
+                    const searchRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_sync.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const searchData = await searchRes.json();
+                    if (!searchData.files || searchData.files.length === 0) return false;
+
+                    const fileRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files/${searchData.files[0].id}?alt=media`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const data = await fileRes.json();
+
+                    // Load data into app
+                    if (data.employees) this.employees = data.employees;
+                    if (data.attendances) this.attendances = data.attendances;
+                    if (data.payrollRecords) this.payrollRecords = data.payrollRecords;
+                    if (data.savedPayrollPeriods) this.savedPayrollPeriods = data.savedPayrollPeriods;
+                    if (data.workConfig) this.workConfig = data.workConfig;
+
+                    // Save to localStorage
+                    localStorage.setItem('anas_employees', JSON.stringify(this.employees));
+                    localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
+                    localStorage.setItem('anas_payroll', JSON.stringify(this.payrollRecords));
+                    localStorage.setItem('anas_payroll_periods', JSON.stringify(this.savedPayrollPeriods));
+                    localStorage.setItem('anas_workConfig', JSON.stringify(this.workConfig));
+
+                    // Refresh UI
+                    this.refreshEmployees();
+                    this.refreshAttendances();
+                    this.refreshChecks();
+
+                    const syncTime = data.exportDate ? new Date(data.exportDate).toLocaleString('en-US') : '—';
+                    document.getElementById('driveSyncLabel').textContent = `Sync ${new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}`;
+                    return true;
+                } catch(err) {
+                    console.error('Download nomina error:', err);
+                    return false;
+                }
+            },
+
             async driveDownloadClock() {
                 if (!this.driveConnected) { alert('Primero conecta Google Drive ☁️'); return; }
                 try {
@@ -3831,8 +3880,11 @@
 
             startAutoSync() {
                 if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
-                this.autoSyncInterval = setInterval(() => {
-                    if (this.driveConnected) this.driveSyncNow();
+                this.autoSyncInterval = setInterval(async () => {
+                    if (this.driveConnected) {
+                        await this.driveDownloadNomina();
+                        await this.driveSyncNow();
+                    }
                 }, 5 * 60 * 1000);
             },
 
