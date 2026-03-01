@@ -396,6 +396,11 @@
                     <div id="overtimeEmployees"></div>
                 </div>
             </div>
+
+            <div id="adminAbsentSection" style="margin-bottom: 15px; padding: 15px; background: #fdecea; border-radius: 8px; display: none;">
+                <div style="font-weight: bold; color: #c0392b; margin-bottom: 8px;">⚠️ Sin registro hoy:</div>
+                <div id="adminAbsentList"></div>
+            </div>
             
             <button class="btn" style="width: 100%; background: #27ae60; margin-bottom: 15px;" onclick="app.adminExportWeek()">
                 📤 Exportar Esta Semana
@@ -405,13 +410,7 @@
                 ☁️ <span id="clockDriveSyncLabel">Conectar Drive</span>
             </button>
             
-            <button class="btn" style="width: 100%; background: #3498db; margin-bottom: 15px;" onclick="app.adminExportAll()">
-                📦 Exportar Todos los Datos
-            </button>
-            
-            <button class="btn" style="width: 100%; background: #9b59b6; margin-bottom: 15px;" onclick="app.importConfig()">
-                📥 Importar Datos de Empleados
-            </button>
+
             
             <button class="btn" style="width: 100%; background: #e74c3c; margin-bottom: 15px;" onclick="app.clearAllAttendances()">
                 🗑️ Limpiar Asistencias
@@ -722,6 +721,22 @@
             },
             
             updateAdminStats() {
+                // Update absent employees for today
+                const _n = new Date();
+                const todayStr = `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}-${String(_n.getDate()).padStart(2,'0')}`;
+                const presentToday = new Set(this.attendances.filter(a => a.date === todayStr).map(a => a.employeeId));
+                const absentToday = this.employees.filter(e => !presentToday.has(e.id));
+                const absentSection = document.getElementById('adminAbsentSection');
+                const absentList = document.getElementById('adminAbsentList');
+                if (absentSection && absentList) {
+                    if (absentToday.length > 0) {
+                        absentSection.style.display = 'block';
+                        absentList.innerHTML = absentToday.sort((a,b) => a.name.localeCompare(b.name))
+                            .map(e => `<div style="padding: 4px 0; color: #c0392b;">• ${e.name}</div>`).join('');
+                    } else {
+                        absentSection.style.display = 'none';
+                    }
+                }
                 const weekStart = this.getWeekStart();
                 const weekEnd = new Date(weekStart);
                 weekEnd.setDate(weekStart.getDate() + 6);
