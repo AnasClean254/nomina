@@ -1120,8 +1120,14 @@
             employees: [],
             attendances: [],
             payrollRecords: [],
-    
-                savedPayrollPeriods: [],
+            savedPayrollPeriods: [],
+            CLIENT_ID: '513180841052-tros7o0bo6v5oa9gkvvrio0if20rfdn2.apps.googleusercontent.com',
+            SCOPES: 'https://www.googleapis.com/auth/drive.file',
+            FOLDER_NAME: 'AnasCleaningNomina',
+            driveToken: null,
+            driveConnected: false,
+            driveFolderId: null,
+            autoSyncInterval: null,
             adminPin: '0000', // PIN por defecto
             workConfig: {
                 startTime: '08:00',
@@ -3706,13 +3712,6 @@
             // ══════════════════════════════════════
             // GOOGLE DRIVE SYNC
             // ══════════════════════════════════════
-            CLIENT_ID: '513180841052-tros7o0bo6v5oa9gkvvrio0if20rfdn2.apps.googleusercontent.com',
-            SCOPES: 'https://www.googleapis.com/auth/drive.file',
-            FOLDER_NAME: 'AnasCleaningNomina',
-            driveToken: null,
-            driveConnected: false,
-            driveFolderId: null,
-            autoSyncInterval: null,
 
             driveSync() {
                 if (this.driveConnected) {
