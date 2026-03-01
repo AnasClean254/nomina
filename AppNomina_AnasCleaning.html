@@ -1783,7 +1783,7 @@
             },
 
             editAttendance(id) {
-                const att = this.attendances.find(a => a.id === id);
+                const att = this.attendances.find(a => String(a.id) === String(id));
                 if (!att) return;
                 
                 document.getElementById('attendanceModalTitle').textContent = '✏️ Editar Asistencia';
