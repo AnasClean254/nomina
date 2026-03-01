@@ -867,6 +867,9 @@
             driveConnected: false,
             driveFolderId: null,
             autoSyncInterval: null,
+            tokenClient: null,
+            tokenExpiry: null,
+            firstConnect: true,
 
             driveSync() {
                 if (this.driveConnected) {
@@ -877,23 +880,37 @@
             },
 
             driveConnect() {
-                const client = google.accounts.oauth2.initTokenClient({
+                this.tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: this.CLIENT_ID,
                     scope: this.SCOPES,
+                    prompt: '',
                     callback: async (response) => {
                         if (response.error) { alert('❌ Error: ' + response.error); return; }
                         this.driveToken = response.access_token;
                         this.driveConnected = true;
+                        this.tokenExpiry = Date.now() + (55 * 60 * 1000); // 55 min
                         document.getElementById('clockDriveSyncLabel').textContent = 'Sincronizar';
                         document.getElementById('clockDriveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
                         await this.driveDownloadFromNomina();
                         this.startAutoSync();
                         await this.driveSyncNow();
-                        alert('✅ Conectado a Google Drive\nEmpleados y asistencias sincronizados automáticamente.');
+                        if (!this.firstConnect) {
+                            alert('✅ Conectado a Google Drive\nEmpleados y asistencias sincronizados automáticamente.');
+                        }
+                        this.firstConnect = false;
                     }
                 });
-                client.requestAccessToken();
+                this.firstConnect = true;
+                this.tokenClient.requestAccessToken({ prompt: '' });
+            },
+
+            async refreshTokenIfNeeded() {
+                if (!this.tokenClient) return;
+                if (!this.tokenExpiry || Date.now() > this.tokenExpiry) {
+                    // Token expired - refresh silently
+                    this.tokenClient.requestAccessToken({ prompt: '' });
+                }
             },
 
             async driveGetOrCreateFolder() {
@@ -917,6 +934,7 @@
 
             async driveSyncNow() {
                 if (!this.driveConnected || !this.driveFolderId) return;
+                await this.refreshTokenIfNeeded();
                 try {
                     document.getElementById('clockDriveSyncLabel').textContent = 'Sincronizando...';
                     const data = {
