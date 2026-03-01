@@ -3724,12 +3724,8 @@
                         document.getElementById('driveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
                         this.startAutoSync();
-                        // First download existing data from Drive
-                        const downloaded = await this.driveDownloadNomina();
-                        if (!downloaded) {
-                            // No existing data, upload current
-                            await this.driveSyncNow();
-                        }
+                        // Upload current data to Drive (Nomina is source of truth)
+                        await this.driveSyncNow();
                         alert('✅ Conectado a Google Drive\nSincronización automática cada 5 minutos activada.');
                     }
                 });
@@ -3873,7 +3869,6 @@
                 if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
                 this.autoSyncInterval = setInterval(async () => {
                     if (this.driveConnected) {
-                        await this.driveDownloadNomina();
                         await this.driveSyncNow();
                     }
                 }, 5 * 60 * 1000);
