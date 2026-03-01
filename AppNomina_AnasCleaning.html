@@ -1498,7 +1498,7 @@
                 document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
                 
                 if (tab === 'attendances') this.refreshAttendances();
-                if (tab === 'payroll') this.refreshPayroll();
+                // payroll calculated on demand
                 if (tab === 'timecards') this.refreshTimeCards();
                 if (tab === 'checks') this.refreshChecks();
                 if (tab === 'history') { this.refreshHistory(); this.renderSavedPayrollList(); }
@@ -2354,29 +2354,10 @@
                 }
                 
                 // Filtrar asistencias por rango de fechas
-                console.log('=== DEBUG CÁLCULO NÓMINA ===');
-                console.log('Start Date:', startDate);
-                console.log('End Date:', endDate);
-                console.log('Total attendances in system:', this.attendances.length);
-                
                 const periodAttendances = this.attendances.filter(a => {
                     const date = new Date(a.date + 'T00:00:00');
-                    const matches = date >= startDate && date <= endDate && a.hours;
-                    console.log(`  ${a.employeeName} - ${a.date}: ${a.hours} hrs - Matches: ${matches}`);
-                    return matches;
+                    return date >= startDate && date <= endDate && a.hours;
                 });
-                
-                console.log('Period attendances found:', periodAttendances.length);
-                console.log('Total hours:', periodAttendances.reduce((sum, a) => sum + a.hours, 0));
-                
-                // Si no hay asistencias, mostrar alert de debug
-                if (periodAttendances.length === 0) {
-                    alert('⚠️ DEBUG: No se encontraron asistencias en este período.\n\n' +
-                          'Start: ' + startDate.toISOString().split('T')[0] + '\n' +
-                          'End: ' + endDate.toISOString().split('T')[0] + '\n\n' +
-                          'Total asistencias en sistema: ' + this.attendances.length + '\n\n' +
-                          'Abre la Consola (F12) para más detalles.');
-                }
                 
                 // Mostrar período seleccionado
                 const formatDate = (d) => {
@@ -2555,7 +2536,7 @@
                             <td>${p.regularHours.toFixed(2)} hrs</td>
                             ${this.workConfig.enableOvertime ? `<td style="color: #e67e22; font-weight: bold;">${p.overtimeHours.toFixed(2)} hrs (1.5x)</td>` : ''}
                             <td><strong>${p.totalHours.toFixed(2)} hrs</strong></td>
-                            <td>$${this.formatMoney(emp.rate)}/hr</td>
+                            <td>$${this.formatMoney(p.rate)}/hr</td>
                             <td><strong style="color: #27ae60;">$${this.formatMoney(p.grossPay)}</strong></td>
                             ${this.workConfig.enableLateDeduction ? `<td style="color: #e74c3c;">${p.lateMinutes > 0 ? `-${p.lateMinutes} min (-$${this.formatMoney(p.latePenalty)})` : '—'}</td>` : ''}
                             <td style="color: #e74c3c;">${p.empDeduction > 0 ? `-${p.empDeduction}% (-$${this.formatMoney(p.deductions)})` : '—'}</td>
