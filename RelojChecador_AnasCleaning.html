@@ -886,9 +886,10 @@
                         document.getElementById('clockDriveSyncLabel').textContent = 'Sincronizar';
                         document.getElementById('clockDriveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
+                        await this.driveDownloadFromNomina();
                         this.startAutoSync();
                         await this.driveSyncNow();
-                        alert('✅ Conectado a Google Drive\nAsistencias se sincronizan automáticamente.');
+                        alert('✅ Conectado a Google Drive\nEmpleados y asistencias sincronizados automáticamente.');
                     }
                 });
                 client.requestAccessToken();
@@ -949,12 +950,68 @@
 
             startAutoSync() {
                 if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
-                this.autoSyncInterval = setInterval(() => {
-                    if (this.driveConnected) this.driveSyncNow();
+                this.autoSyncInterval = setInterval(async () => {
+                    if (this.driveConnected) {
+                        await this.driveDownloadFromNomina();
+                        await this.driveSyncNow();
+                    }
                 }, 5 * 60 * 1000);
             },
 
-                        adminExportWeek() {
+            async driveDownloadFromNomina() {
+                if (!this.driveConnected || !this.driveFolderId) return;
+                try {
+                    const res = await fetch(
+                        `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_sync.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const data = await res.json();
+                    if (!data.files || data.files.length === 0) return;
+
+                    const fileRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files/${data.files[0].id}?alt=media`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const nominaData = await fileRes.json();
+
+                    // Update employees
+                    if (nominaData.employees && nominaData.employees.length > 0) {
+                        this.employees = nominaData.employees;
+                    }
+
+                    // Update workConfig
+                    if (nominaData.workConfig) {
+                        this.workConfig = nominaData.workConfig;
+                    }
+
+                    // Update adminPin
+                    if (nominaData.adminPin) {
+                        this.adminPin = nominaData.adminPin;
+                    }
+
+                    // Merge attendances without duplicates
+                    if (nominaData.attendances) {
+                        let added = 0;
+                        nominaData.attendances.forEach(att => {
+                            const exists = this.attendances.find(a =>
+                                a.employeeId === att.employeeId && a.date === att.date
+                            );
+                            if (!exists) { this.attendances.push(att); added++; }
+                        });
+                    }
+
+                    this.save();
+                    this.updateAdminStats();
+                    // Show confirmation
+                    const empCount = nominaData.employees ? nominaData.employees.length : 0;
+                    const attCount = nominaData.attendances ? nominaData.attendances.length : 0;
+                    alert(`✅ Datos sincronizados desde Nómina:\n\n👥 Empleados: ${empCount}\n📋 Asistencias: ${attCount}`);
+                } catch(err) {
+                    alert('❌ Error al bajar datos de Nómina: ' + err.message);
+                }
+            },
+
+            adminExportWeek() {
                 this.downloadWeekly();
                 this.showSuccess('Archivo de la semana descargado');
             },
