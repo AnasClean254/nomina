@@ -3851,15 +3851,23 @@
                         { headers: { Authorization: `Bearer ${this.driveToken}` } }
                     );
                     const clockData = await fileRes.json();
-                    let added = 0; let skipped = 0;
+                    let added = 0; let updated = 0;
                     (clockData.attendances || []).forEach(att => {
-                        const exists = this.attendances.find(a => a.employeeId === att.employeeId && a.date === att.date);
-                        if (exists) { skipped++; } else { this.attendances.push(att); added++; }
+                        const idx = this.attendances.findIndex(a => a.employeeId === att.employeeId && a.date === att.date);
+                        if (idx >= 0) {
+                            // Update existing record - important for checkOut updates
+                            this.attendances[idx] = att;
+                            updated++;
+                        } else {
+                            this.attendances.push(att);
+                            added++;
+                        }
                     });
                     this.save();
                     this.refreshAttendances();
                     const syncTime = clockData.exportDate ? new Date(clockData.exportDate).toLocaleString('en-US') : '—';
-                    alert(`✅ Asistencias importadas\n\n✅ Agregadas: ${added}\n⏭️ Ya existían: ${skipped}\n\nÚltima sync del Reloj: ${syncTime}`);
+                    // Silent auto-sync - update label only
+                    document.getElementById('driveSyncLabel').textContent = `Sync ${new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}`;
                 } catch(err) {
                     alert('❌ Error: ' + err.message);
                 }
@@ -3891,7 +3899,7 @@
                                 if (exists) skipped++; else { this.attendances.push(att); added++; }
                             });
                             this.save(); this.refreshAttendances();
-                            alert(`✅ Agregadas: ${added} | Ya existían: ${skipped}`);
+                            alert(`✅ Asistencias importadas del Reloj\nAgregadas: ${added} | Ya existían: ${skipped}`);
                         } catch(err) { alert('❌ Error: ' + err.message); }
                     };
                     reader.readAsText(e.target.files[0]);
