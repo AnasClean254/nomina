@@ -413,6 +413,10 @@
                 📥 Importar Datos de Empleados
             </button>
             
+            <button class="btn" style="width: 100%; background: #e74c3c; margin-bottom: 15px;" onclick="app.clearAllAttendances()">
+                🗑️ Limpiar Asistencias
+            </button>
+            
             <button class="btn-logout" onclick="app.logout()">🔙 Cerrar Sesión</button>
         </div>
     </div>
@@ -1028,6 +1032,14 @@
                 } catch(err) {
                     alert('❌ Error al bajar datos de Nómina: ' + err.message);
                 }
+            },
+
+            clearAllAttendances() {
+                if (!confirm('⚠️ ¿Limpiar TODAS las asistencias del Reloj?\n\nEsto NO afecta la Nómina.\nLuego reconecta Drive para bajar datos actualizados.')) return;
+                this.attendances = [];
+                this.save();
+                this.updateAdminStats();
+                alert('✅ Asistencias limpiadas.\n\nAhora reconecta Drive para bajar los datos de la Nómina.');
             },
 
             adminExportWeek() {

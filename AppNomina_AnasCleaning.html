@@ -3869,7 +3869,8 @@
                 if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
                 this.autoSyncInterval = setInterval(async () => {
                     if (this.driveConnected) {
-                        await this.driveSyncNow();
+                        await this.driveDownloadClock(); // Bajar asistencias del Reloj
+                        await this.driveSyncNow();       // Subir datos de Nómina
                     }
                 }, 5 * 60 * 1000);
             },
