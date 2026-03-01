@@ -779,6 +779,7 @@
                     <div class="form-group">
                         <label>Período:</label>
                         <select id="filterPeriod" onchange="app.handlePeriodChange()">
+                            <option value="today">📅 Hoy</option>
                             <option value="week">Esta semana</option>
                             <option value="lastweek">Semana pasada</option>
                             <option value="month">Este mes</option>
@@ -1128,6 +1129,8 @@
             driveConnected: false,
             driveFolderId: null,
             autoSyncInterval: null,
+            tokenClient: null,
+            tokenExpiry: null,
             adminPin: '0000', // PIN por defecto
             workConfig: {
                 startTime: '08:00',
@@ -2045,7 +2048,11 @@
                 const now = new Date();
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
                 
-                if (filterPeriod === 'week') {
+                if (filterPeriod === 'today') {
+                    const todayStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+                    filtered = filtered.filter(a => a.date === todayStr);
+
+                } else if (filterPeriod === 'week') {
                     // Esta semana (desde lunes)
                     const dayOfWeek = today.getDay();
                     const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
@@ -3713,13 +3720,15 @@
             },
 
             driveConnect() {
-                const client = google.accounts.oauth2.initTokenClient({
+                this.tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: this.CLIENT_ID,
                     scope: this.SCOPES,
+                    prompt: '',
                     callback: async (response) => {
                         if (response.error) { alert('❌ Error: ' + response.error); return; }
                         this.driveToken = response.access_token;
                         this.driveConnected = true;
+                        this.tokenExpiry = Date.now() + (55 * 60 * 1000); // 55 min
                         document.getElementById('driveSyncLabel').textContent = 'Sincronizar';
                         document.getElementById('driveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
@@ -3729,7 +3738,14 @@
                         alert('✅ Conectado a Google Drive\nSincronización automática cada 5 minutos activada.');
                     }
                 });
-                client.requestAccessToken();
+                this.tokenClient.requestAccessToken({ prompt: '' });
+            },
+
+            async refreshTokenIfNeeded() {
+                if (!this.tokenClient) return;
+                if (!this.tokenExpiry || Date.now() > this.tokenExpiry) {
+                    this.tokenClient.requestAccessToken({ prompt: '' });
+                }
             },
 
             async driveGetOrCreateFolder() {
@@ -3771,6 +3787,7 @@
 
             async driveSyncNow() {
                 if (!this.driveConnected || !this.driveFolderId) return;
+                await this.refreshTokenIfNeeded();
                 try {
                     document.getElementById('driveSyncLabel').textContent = 'Sincronizando...';
                     const data = {
