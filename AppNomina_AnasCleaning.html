@@ -1122,7 +1122,7 @@
             attendances: [],
             payrollRecords: [],
             savedPayrollPeriods: [],
-            CLIENT_ID: '513180841052-tros7o0bo6v5oa9gkvvrio0if20rfdn2.apps.googleusercontent.com',
+            CLIENT_ID: '701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com',
             SCOPES: 'https://www.googleapis.com/auth/drive.file',
             FOLDER_NAME: 'AnasCleaningNomina',
             driveToken: null,
@@ -3752,8 +3752,13 @@
                         document.getElementById('driveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
                         this.startAutoSync();
-                        // Upload current data to Drive (Nomina is source of truth)
-                        await this.driveSyncNow();
+                        // Si no hay empleados locales, bajar de Drive primero
+                        if (this.employees.length === 0) {
+                            await this.driveDownloadNomina();
+                        } else {
+                            // Ya tiene datos, subir a Drive
+                            await this.driveSyncNow();
+                        }
                         // Show toast instead of blocking alert
                         const toast = document.createElement('div');
                         toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#27ae60;color:white;padding:15px 20px;border-radius:10px;z-index:9999;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
@@ -3884,7 +3889,7 @@
                     );
                     const data = await res.json();
                     if (!data.files || data.files.length === 0) {
-                        alert('⚠️ No se encontró archivo del Reloj en Drive.\nConecta Drive en el Reloj primero.');
+                        console.log('Reloj sync file not found yet - skipping');
                         return;
                     }
                     const fileRes = await fetch(
