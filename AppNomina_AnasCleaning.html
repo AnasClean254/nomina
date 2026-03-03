@@ -1889,11 +1889,11 @@
                 
                 if (attId) {
                     // EDITAR
-                    const att = this.attendances.find(a => a.id === attId);
+                    const att = this.attendances.find(a => String(a.id) === String(attId));
                     if (att) {
                         // Verificar duplicado (excepto el registro actual)
                         const duplicate = this.attendances.find(a => 
-                            a.id !== attId && 
+                            String(a.id) !== String(attId) && 
                             a.employeeId === empId && 
                             a.date === date
                         );
