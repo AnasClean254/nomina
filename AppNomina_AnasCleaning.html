@@ -1910,6 +1910,9 @@
                         att.checkIn = checkIn;
                         att.checkOut = checkOut;
                         att.hours = checkOut ? hours : null;
+                        this.save();
+                        this.closeAttendanceModal();
+                        this.refreshAttendances();
                         alert('✅ Registro actualizado correctamente');
                     }
                 } else {
