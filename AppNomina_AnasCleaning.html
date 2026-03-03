@@ -3901,9 +3901,16 @@
                     (clockData.attendances || []).forEach(att => {
                         const idx = this.attendances.findIndex(a => a.employeeId === att.employeeId && a.date === att.date);
                         if (idx >= 0) {
-                            // Update existing record - important for checkOut updates
-                            this.attendances[idx] = att;
-                            updated++;
+                            const local = this.attendances[idx];
+                            // Only update if incoming has MORE info
+                            if (!local.checkOut && att.checkOut) {
+                                this.attendances[idx] = att;
+                                updated++;
+                            } else if (local.checkOut && att.checkOut) {
+                                // Both have checkOut - keep the most recent
+                                this.attendances[idx] = att;
+                                updated++;
+                            }
                         } else {
                             this.attendances.push(att);
                             added++;

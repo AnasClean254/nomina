@@ -1032,14 +1032,23 @@
                         this.adminPin = nominaData.adminPin;
                     }
 
-                    // Merge attendances without duplicates
+                    // Merge attendances - smart merge, never overwrite local checkOut with empty
                     if (nominaData.attendances) {
-                        let added = 0;
                         nominaData.attendances.forEach(att => {
-                            const exists = this.attendances.find(a =>
+                            const idx = this.attendances.findIndex(a =>
                                 a.employeeId === att.employeeId && a.date === att.date
                             );
-                            if (!exists) { this.attendances.push(att); added++; }
+                            if (idx < 0) {
+                                // New record - add it
+                                this.attendances.push(att);
+                            } else {
+                                const local = this.attendances[idx];
+                                // Only update if incoming has MORE info (e.g. has checkOut and local doesn't)
+                                if (!local.checkOut && att.checkOut) {
+                                    this.attendances[idx] = att;
+                                }
+                                // Never overwrite a local checkOut with empty
+                            }
                         });
                     }
 
