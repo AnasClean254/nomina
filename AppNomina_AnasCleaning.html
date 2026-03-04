@@ -2213,7 +2213,11 @@
                     
                     if (rangeStart && rangeEnd && filterPeriod !== 'all' && filterPeriod !== 'custom' && filterPeriod !== 'last15' && filterPeriod !== 'last30') {
                         periodLabelEl.style.display = 'block';
-                        periodLabelEl.innerHTML = `<strong>${fmtDate(rangeStart)} - ${fmtDate(rangeEnd)}</strong><br><span style="color:#999;">${periodName}</span>`;
+                        periodLabelEl.style.background = '#f0f4ff';
+                        periodLabelEl.style.padding = '6px 10px';
+                        periodLabelEl.style.borderRadius = '6px';
+                        periodLabelEl.style.marginTop = '6px';
+                        periodLabelEl.innerHTML = `<strong style="color:#2c3e50;">${fmtDate(rangeStart)} - ${fmtDate(rangeEnd)}</strong><br><span style="color:#7f8c8d; font-size:0.8rem;">${periodName}</span>`;
                     } else {
                         periodLabelEl.style.display = 'none';
                     }
