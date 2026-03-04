@@ -3545,7 +3545,8 @@
                     start: startStr,
                     end: endStr,
                     label,
-                    savedAt: new Date().toISOString()
+                    savedAt: new Date().toISOString(),
+                    payroll: JSON.parse(JSON.stringify(this.payrollRecords || []))
                 });
                 this.saveData();
                 alert('✅ Nómina guardada en historial');
@@ -3921,9 +3922,9 @@
                     const totalDeducciones = empleados.reduce((sum, e) => sum + (e.deductions || 0) + (e.latePenalty || 0), 0);
                     return {
                         periodoId:    period.id || '',
-                        fechaInicio:  period.startDate || '',
-                        fechaFin:     period.endDate || '',
-                        etiqueta:     period.label || `${period.startDate} - ${period.endDate}`,
+                        fechaInicio:  period.start || period.startDate || '',
+                        fechaFin:     period.end || period.endDate || '',
+                        etiqueta:     period.label || `${period.start} - ${period.end}`,
                         numEmpleados: empleados.length,
                         totalHoras:   Math.round(totalHoras * 100) / 100,
                         totalBruto:   Math.round(totalBruto * 100) / 100,
