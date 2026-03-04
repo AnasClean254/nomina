@@ -2529,16 +2529,20 @@
                 const totalDeductions = payroll.reduce((sum, p) => sum + p.deductions, 0);
                 const totalNet = payroll.reduce((sum, p) => sum + p.netPay, 0);
                 
-                // Formato de fecha USA
-                const startParts = startDate.toISOString().split('T')[0].split('-');
-                const endParts = endDate.toISOString().split('T')[0].split('-');
-                const startUSA = `${startParts[1]}/${startParts[2]}/${startParts[0]}`;
-                const endUSA = `${endParts[1]}/${endParts[2]}/${endParts[0]}`;
+                // Formato de fecha USA - usar fecha local, no UTC
+                const fmtLocal = (d) => {
+                    const mm = String(d.getMonth()+1).padStart(2,'0');
+                    const dd = String(d.getDate()).padStart(2,'0');
+                    const yyyy = d.getFullYear();
+                    return `${mm}/${dd}/${yyyy}`;
+                };
+                const startUSA = fmtLocal(startDate);
+                const endUSA = fmtLocal(endDate);
                 
                 let html = `
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                         <h3 style="margin:0;">Período: ${startUSA} - ${endUSA}</h3>
-                        <button class="btn btn-success" onclick="app.savePayrollPeriod('${startDate.toISOString().split('T')[0]}','${endDate.toISOString().split('T')[0]}')" style="white-space:nowrap;">
+                        <button class="btn btn-success" onclick="app.savePayrollPeriod('${startDate.getFullYear()}-${String(startDate.getMonth()+1).padStart(2,'0')}-${String(startDate.getDate()).padStart(2,'0')}','${endDate.getFullYear()}-${String(endDate.getMonth()+1).padStart(2,'0')}-${String(endDate.getDate()).padStart(2,'0')}')" style="white-space:nowrap;">
                             💾 Guardar Nómina
                         </button>
                     </div>
