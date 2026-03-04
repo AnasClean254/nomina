@@ -789,6 +789,7 @@
                             <option value="all">Todo</option>
                             <option value="custom">📅 Personalizado</option>
                         </select>
+                        <div id="periodDateRange" style="margin-top:6px; font-size:0.85rem; color:#666; text-align:center; display:none;"></div>
                     </div>
                     <div class="form-group">
                         <label>Ordenar por:</label>
@@ -2047,6 +2048,22 @@
                     filtered = filtered.filter(a => a.employeeId === filterEmp);
                 }
                 
+                // Helper fecha local
+                const fmtDate = (d) => {
+                    const mm = String(d.getMonth()+1).padStart(2,'0');
+                    const dd = String(d.getDate()).padStart(2,'0');
+                    const yyyy = d.getFullYear();
+                    return `${mm}/${dd}/${yyyy}`;
+                };
+                
+                // Period label names
+                const periodNames = {
+                    today: 'Hoy', week: 'Esta semana', lastweek: 'Semana pasada',
+                    month: 'Este mes', lastmonth: 'Mes pasado',
+                    last15: 'Últimos 15 días', last30: 'Últimos 30 días',
+                    all: 'Todo', custom: 'Personalizado'
+                };
+                
                 // Filtro por período
                 const now = new Date();
                 const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -2168,6 +2185,39 @@
                 document.getElementById('statDays').textContent = uniqueDays;
                 document.getElementById('statHours').textContent = totalHours.toFixed(2);
                 document.getElementById('statHoursLabel').textContent = hoursLabel;
+                
+                // Update period date range label
+                const periodLabelEl = document.getElementById('periodDateRange');
+                if (periodLabelEl) {
+                    const weekStartDay = this.workConfig.weekStartDay || 1;
+                    const dayOfWeek = today.getDay();
+                    const daysBack = (dayOfWeek - weekStartDay + 7) % 7;
+                    let rangeStart, rangeEnd, periodName = periodNames[filterPeriod] || '';
+                    
+                    if (filterPeriod === 'today') {
+                        rangeStart = rangeEnd = today;
+                    } else if (filterPeriod === 'week') {
+                        rangeStart = new Date(today); rangeStart.setDate(today.getDate() - daysBack);
+                        rangeEnd = new Date(rangeStart); rangeEnd.setDate(rangeStart.getDate() + 6);
+                    } else if (filterPeriod === 'lastweek') {
+                        const ws = new Date(today); ws.setDate(today.getDate() - daysBack);
+                        rangeStart = new Date(ws); rangeStart.setDate(ws.getDate() - 7);
+                        rangeEnd = new Date(rangeStart); rangeEnd.setDate(rangeStart.getDate() + 6);
+                    } else if (filterPeriod === 'month') {
+                        rangeStart = new Date(today.getFullYear(), today.getMonth(), 1);
+                        rangeEnd = today;
+                    } else if (filterPeriod === 'lastmonth') {
+                        rangeStart = new Date(today.getFullYear(), today.getMonth()-1, 1);
+                        rangeEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+                    }
+                    
+                    if (rangeStart && rangeEnd && filterPeriod !== 'all' && filterPeriod !== 'custom' && filterPeriod !== 'last15' && filterPeriod !== 'last30') {
+                        periodLabelEl.style.display = 'block';
+                        periodLabelEl.innerHTML = `<strong>${fmtDate(rangeStart)} - ${fmtDate(rangeEnd)}</strong><br><span style="color:#999;">${periodName}</span>`;
+                    } else {
+                        periodLabelEl.style.display = 'none';
+                    }
+                }
                 
                 // Tabla
                 const container = document.getElementById('attendancesTable');
