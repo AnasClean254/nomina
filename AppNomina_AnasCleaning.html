@@ -3816,6 +3816,9 @@
                         this.driveToken = response.access_token;
                         this.driveConnected = true;
                         this.tokenExpiry = Date.now() + (55 * 60 * 1000); // 55 min
+                        // Compartir token con Scheduler
+                        localStorage.setItem('anas_drive_token', response.access_token);
+                        localStorage.setItem('anas_drive_token_expiry', this.tokenExpiry);
                         document.getElementById('driveSyncLabel').textContent = 'Sincronizar';
                         document.getElementById('driveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
@@ -3895,6 +3898,10 @@
                         adminPin: this.adminPin, workConfig: this.workConfig
                     };
                     await this.driveUploadFile('anas_nomina_sync.json', JSON.stringify(data, null, 2));
+
+                    // 💰 Guardar totales de nómina para Scheduler/Finanzas
+                    await this.driveUploadTotales();
+
                     const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
                     document.getElementById('driveSyncLabel').textContent = `Sync ${now}`;
                     document.getElementById('driveSyncBtn').style.background = '#27ae60';
@@ -3902,6 +3909,56 @@
                     document.getElementById('driveSyncLabel').textContent = '⚠️ Error';
                     document.getElementById('driveSyncBtn').style.background = '#e74c3c';
                 }
+            },
+
+            async driveUploadTotales() {
+                // Calcular totales por período desde savedPayrollPeriods
+                const periodos = (this.savedPayrollPeriods || []).map(period => {
+                    const empleados = period.payroll || [];
+                    const totalBruto = empleados.reduce((sum, e) => sum + (e.grossPay || 0), 0);
+                    const totalNeto  = empleados.reduce((sum, e) => sum + (e.netPay || 0), 0);
+                    const totalHoras = empleados.reduce((sum, e) => sum + (e.totalHours || 0), 0);
+                    const totalDeducciones = empleados.reduce((sum, e) => sum + (e.deductions || 0) + (e.latePenalty || 0), 0);
+                    return {
+                        periodoId:    period.id || '',
+                        fechaInicio:  period.startDate || '',
+                        fechaFin:     period.endDate || '',
+                        etiqueta:     period.label || `${period.startDate} - ${period.endDate}`,
+                        numEmpleados: empleados.length,
+                        totalHoras:   Math.round(totalHoras * 100) / 100,
+                        totalBruto:   Math.round(totalBruto * 100) / 100,
+                        totalDeducciones: Math.round(totalDeducciones * 100) / 100,
+                        totalNeto:    Math.round(totalNeto * 100) / 100
+                    };
+                });
+
+                // También incluir período actual (no guardado aún)
+                const currentPayroll = this.payrollRecords || [];
+                if (currentPayroll.length > 0) {
+                    const totalBruto = currentPayroll.reduce((sum, e) => sum + (e.grossPay || 0), 0);
+                    const totalNeto  = currentPayroll.reduce((sum, e) => sum + (e.netPay || 0), 0);
+                    const totalHoras = currentPayroll.reduce((sum, e) => sum + (e.totalHours || 0), 0);
+                    const totalDeducciones = currentPayroll.reduce((sum, e) => sum + (e.deductions || 0) + (e.latePenalty || 0), 0);
+                    periodos.unshift({
+                        periodoId:    'current',
+                        fechaInicio:  this.workConfig?.periodStart || '',
+                        fechaFin:     this.workConfig?.periodEnd || '',
+                        etiqueta:     'Período Actual',
+                        numEmpleados: currentPayroll.length,
+                        totalHoras:   Math.round(totalHoras * 100) / 100,
+                        totalBruto:   Math.round(totalBruto * 100) / 100,
+                        totalDeducciones: Math.round(totalDeducciones * 100) / 100,
+                        totalNeto:    Math.round(totalNeto * 100) / 100
+                    });
+                }
+
+                const totalesData = {
+                    exportType:   'nomina_totales',
+                    exportDate:   new Date().toISOString(),
+                    source:       "Ana's Cleaning Nomina",
+                    periodos:     periodos
+                };
+                await this.driveUploadFile('anas_nomina_totales.json', JSON.stringify(totalesData, null, 2));
             },
 
             async driveDownloadNomina() {
