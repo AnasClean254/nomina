@@ -2562,6 +2562,7 @@
                 if (sortBy === 'alpha') payrollArr.sort((a,b) => a.employeeName.localeCompare(b.employeeName));
                 else if (sortBy === 'pay') payrollArr.sort((a,b) => b.netPay - a.netPay);
                 else if (sortBy === 'late') payrollArr.sort((a,b) => b.lateMinutes - a.lateMinutes);
+                this.payrollRecords = payrollArr; // Guardar para exportar a Drive
                 this.displayPayrollResults(payrollArr, startDate, endDate);
             },
             
