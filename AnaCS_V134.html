@@ -2708,10 +2708,11 @@ class Scheduler {
             const subcat = g.subcategoria || 'N/A';
             
             if (!gastosPorCategoria[cat]) {
-                gastosPorCategoria[cat] = { total: 0, subcategorias: {} };
+                gastosPorCategoria[cat] = { total: 0, count: 0, subcategorias: {} };
             }
             
             gastosPorCategoria[cat].total += g.monto;
+            gastosPorCategoria[cat].count += 1;
             
             if (!gastosPorCategoria[cat].subcategorias[subcat]) {
                 gastosPorCategoria[cat].subcategorias[subcat] = 0;
@@ -2774,6 +2775,7 @@ class Scheduler {
                     <div style="padding: 5px 0; font-size: 0.9rem; color: #495057;">
                         <div style="display: flex; align-items: center;">
                             <span style="font-weight: 500;">${cat}</span>
+                            <span style="color:#6c757d; font-size:0.8rem; margin-left:6px;">(${catData.count})</span>
                             <span style="flex: 1; border-bottom: 1px dotted #ccc; margin: 0 10px;"></span>
                             <span>$${catData.total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                             ${hasSubcats ? `<button onclick="var el=document.getElementById('${catId}'); el.style.display=el.style.display==='none'?'block':'none'; this.textContent=el.style.display==='none'?'▶ Ver':'▼ Ocultar';" style="margin-left:10px; background:none; border:1px solid #ccc; border-radius:4px; padding:2px 8px; font-size:0.75rem; cursor:pointer; color:#666;">▶ Ver</button>` : ''}
