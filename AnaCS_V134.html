@@ -2762,30 +2762,32 @@ class Scheduler {
                     </div>
         `;
         
-        // Desglose de gastos
+        // Desglose de gastos con categorías colapsables
         if (Object.keys(gastosPorCategoria).length > 0) {
             html += `<div style="padding-left: 20px; margin-top: 10px;">`;
-            Object.keys(gastosPorCategoria).sort().forEach(cat => {
+            Object.keys(gastosPorCategoria).sort().forEach((cat, idx) => {
                 const catData = gastosPorCategoria[cat];
+                const subkeys = Object.keys(catData.subcategorias).sort();
+                const hasSubcats = subkeys.length > 0;
+                const catId = 'cat_' + idx;
                 html += `
-                    <div style="display: flex; align-items: center; padding: 5px 0; font-size: 0.9rem; color: #495057;">
-                        <span style="font-weight: 500;">${cat}</span>
-                        <span style="flex: 1; border-bottom: 1px dotted #ccc; margin: 0 10px;"></span>
-                        <span>$${catData.total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                    <div style="padding: 5px 0; font-size: 0.9rem; color: #495057;">
+                        <div style="display: flex; align-items: center;">
+                            <span style="font-weight: 500;">${cat}</span>
+                            <span style="flex: 1; border-bottom: 1px dotted #ccc; margin: 0 10px;"></span>
+                            <span>$${catData.total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                            ${hasSubcats ? `<button onclick="var el=document.getElementById('${catId}'); el.style.display=el.style.display==='none'?'block':'none'; this.textContent=el.style.display==='none'?'▶ Ver':'▼ Ocultar';" style="margin-left:10px; background:none; border:1px solid #ccc; border-radius:4px; padding:2px 8px; font-size:0.75rem; cursor:pointer; color:#666;">▶ Ver</button>` : ''}
+                        </div>
+                        ${hasSubcats ? `<div id="${catId}" style="display:none; padding-left:15px; margin-top:4px;">` : ''}
+                        ${hasSubcats ? subkeys.map(subcat => `
+                            <div style="display:flex; align-items:center; padding:3px 0; font-size:0.85rem; color:#6c757d;">
+                                <span>• ${subcat}</span>
+                                <span style="flex:1; border-bottom:1px dotted #ddd; margin:0 8px;"></span>
+                                <span>$${catData.subcategorias[subcat].toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                            </div>`).join('') : ''}
+                        ${hasSubcats ? `</div>` : ''}
                     </div>
                 `;
-                
-                // Subcategorías (indentadas)
-                Object.keys(catData.subcategorias).sort().forEach(subcat => {
-                    const monto = catData.subcategorias[subcat];
-                    html += `
-                        <div style="display: flex; align-items: center; padding: 3px 0 3px 20px; font-size: 0.85rem; color: #6c757d;">
-                            <span>• ${subcat}</span>
-                            <span style="flex: 1; border-bottom: 1px dotted #ddd; margin: 0 8px;"></span>
-                            <span>$${monto.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                        </div>
-                    `;
-                });
             });
             html += `</div>`;
         }
