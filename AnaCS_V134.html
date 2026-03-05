@@ -2853,6 +2853,9 @@ class Scheduler {
             if (totales && totales.periodos) {
                 this.nominaTotales = totales.periodos;
                 localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
+                // DEBUG
+                const debug = this.nominaTotales.map(p => `${p.etiqueta}: $${p.totalNeto} (${p.fechaInicio} - ${p.fechaFin})`).join('\n');
+                alert('📊 Nómina importada:\n' + (debug || 'Sin períodos'));
                 btn.textContent = '✅ Nómina importada';
                 btn.style.background = '#27ae60';
                 this.refreshFinance();
