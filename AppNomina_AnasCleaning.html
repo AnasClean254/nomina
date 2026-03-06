@@ -3902,7 +3902,11 @@
                     await this.driveUploadFile('anas_nomina_sync.json', JSON.stringify(data, null, 2));
 
                     // 💰 Guardar totales de nómina para Scheduler/Finanzas
-                    await this.driveUploadTotales();
+                    try {
+                        await this.driveUploadTotales();
+                    } catch(e) {
+                        console.warn('driveUploadTotales error (non-critical):', e);
+                    }
 
                     const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
                     document.getElementById('driveSyncLabel').textContent = `Sync ${now}`;
