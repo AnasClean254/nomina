@@ -4633,8 +4633,8 @@ class Scheduler {
                     <small style="color:#666">${c.tel || 'Sin tel'} | ${c.address || 'Sin dirección'} | ${c.type}</small>
                 </span>
                 <div>
-                    <button onclick="app.editCli(${c.id})" style="background:none; border:none; cursor:pointer; font-size:1.2rem" title="Editar">✏️</button>
-                    <button onclick="app.delCli(${c.id})" style="background:none; border:none; cursor:pointer; font-size:1.2rem" title="Eliminar">❌</button>
+                    <button onclick="app.editCli('${c.id}')" style="background:none; border:none; cursor:pointer; font-size:1.2rem" title="Editar">✏️</button>
+                    <button onclick="app.delCli('${c.id}')" style="background:none; border:none; cursor:pointer; font-size:1.2rem" title="Eliminar">❌</button>
                 </div>
             </div>
         `;
