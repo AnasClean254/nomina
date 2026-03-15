@@ -1624,13 +1624,44 @@ class Scheduler {
         }
     }
 
-    rescheduleQuincenal(s) {
+    closeCancelModal() {
+        document.getElementById('cancelModal').style.display = 'none';
+        this._pendingCancelData = null;
+    }
+
+    confirmCancelModal() {
+        const data = this._pendingCancelData;
+        if (!data) return;
+        document.getElementById('cancelModal').style.display = 'none';
+
+        // Leer opciones del modal
+        const descontar = document.querySelector('input[name="cancelDiscount"]:checked').value === 'yes';
+        const reschedule = document.querySelector('input[name="cancelReschedule"]:checked')?.value === 'yes';
+        const rescheduleN = parseInt(document.getElementById('cancelRescheduleN').value) || 0;
+
+        data.deductIncome = descontar;
+        // Actualizar servicio
+        const idx = this.servs.findIndex(x => x.id == data.id);
+        if (idx >= 0) this.servs[idx] = data;
+
+        this.save();
+        this.render();
+        document.getElementById('serviceModal').style.display = 'none';
+
+        // Adelantar servicios futuros si aplica
+        const cli = this.clis.find(c => c.id == data.cliId);
+        if (cli && cli.type === 'quincenal' && reschedule) {
+            setTimeout(() => this.rescheduleQuincenal(data, rescheduleN), 200);
+        }
+        this._pendingCancelData = null;
+    }
+
+    rescheduleQuincenal(s, count) {
         if (!s) s = this.editing;
         if (!s) return;
         const cli = this.clis.find(c => c.id == s.cliId);
         if (!cli) return;
 
-        // Buscar servicios futuros del mismo cliente y grupo
         const futureServs = this.servs
             .filter(x => x.cliId == s.cliId && x.empId == s.empId && x.date > s.date)
             .sort((a,b) => a.date.localeCompare(b.date));
@@ -1640,35 +1671,17 @@ class Scheduler {
             return;
         }
 
-        // Mostrar las próximas fechas para que el usuario decida
-        const preview = futureServs.slice(0, 5).map((x, i) => {
-            const d = new Date(x.date + 'T00:00:00');
-            const dNew = new Date(d); dNew.setDate(d.getDate() - 7);
-            return `  ${i+1}. ${x.date} → ${dNew.toLocaleDateString('en-CA')}`;
-        }).join('\n');
-
-        const answer = prompt(
-            `Servicio cancelado: ${s.date}\n` +
-            `Cliente: ${cli.name}\n\n` +
-            `¿Cuántos servicios futuros adelantar una semana?\n` +
-            `(0 = todos, número = solo los primeros N)\n\n` +
-            `Próximas fechas que cambiarían:\n${preview}${futureServs.length > 5 ? '\n  ...' : ''}`
-        );
-        if (answer === null) return;
-        const count = parseInt(answer);
-        if (isNaN(count) || count < 0) { alert('Número inválido'); return; }
-
-        const toMove = count === 0 ? futureServs : futureServs.slice(0, count);
+        const n = (count === undefined || count === null) ? 0 : count;
+        const toMove = n === 0 ? futureServs : futureServs.slice(0, n);
 
         toMove.forEach(x => {
             const d = new Date(x.date + 'T00:00:00');
-            d.setDate(d.getDate() - 7); // adelantar 7 días
+            d.setDate(d.getDate() - 7);
             x.date = d.toLocaleDateString('en-CA');
         });
 
         this.save();
         this.render();
-        document.getElementById('serviceModal').style.display = 'none';
         alert(`✅ ${toMove.length} servicios adelantados una semana.`);
     }
 
@@ -1690,25 +1703,17 @@ class Scheduler {
         // Si se acaba de cancelar (no estaba cancelado antes)
         if (isCancelled && !wasAlreadyCancelled) {
             const cli = this.clis.find(c => c.id == data.cliId);
-            // Preguntar si descontar del ingreso
-            const descontar = confirm(
-                `Servicio cancelado: ${cli ? cli.name : ''} (${data.date})\n\n` +
-                `¿Descontar este servicio del ingreso?\n\n` +
-                `ACEPTAR = Sí, descontar (cliente no pagará)\n` +
-                `CANCELAR = No descontar (cliente paga aunque no se realizó)`
-            );
-            data.deductIncome = descontar;
-            // Actualizar el servicio con el nuevo campo
-            this.servs[this.servs.findIndex(x => x.id == data.id)] = data;
-            
-            // Si es quincenal, preguntar si adelantar servicios futuros
-            if (cli && cli.type === 'quincenal') {
-                this.save();
-                this.render();
-                document.getElementById('serviceModal').style.display = 'none';
-                setTimeout(() => this.rescheduleQuincenal(data), 300);
-                return;
-            }
+            const isQuincenal = cli && cli.type === 'quincenal';
+            // Guardar data pendiente y mostrar modal personalizado
+            this._pendingCancelData = data;
+            document.getElementById('cancelModalInfo').textContent = 
+                `${cli ? cli.name : ''} — ${data.date}`;
+            document.getElementById('cancelModalQuincenal').style.display = isQuincenal ? 'block' : 'none';
+            document.querySelector('input[name="cancelDiscount"][value="no"]').checked = true;
+            document.querySelector('input[name="cancelReschedule"][value="yes"]').checked = true;
+            document.getElementById('cancelRescheduleN').value = '0';
+            document.getElementById('cancelModal').style.display = 'flex';
+            return; // esperar confirmación del modal
         }
         else { 
             this.servs.push(data); 
@@ -1861,11 +1866,18 @@ class Scheduler {
         document.getElementById('finCli').innerHTML = '<option value="all">Todos</option>' + 
             sortedClis.map(c => `<option value="${c.id}">${c.name} - ${c.propId}</option>`).join('');
         
-        if(!document.getElementById('finStart').value) {
-            this.setFinFilter('day');
-        } else {
-            this.refreshFinance();
+        // Usar el rango de la semana visible en el calendario
+        const calStart = this.view === 'day' ? new Date(this.curDate) : this.getMon(this.curDate);
+        calStart.setHours(0,0,0,0);
+        const calEnd = new Date(calStart);
+        if (this.view === 'week') calEnd.setDate(calStart.getDate() + 6);
+        else if (this.view === 'month') {
+            calEnd.setMonth(this.curDate.getMonth() + 1);
+            calEnd.setDate(0);
         }
+        document.getElementById('finStart').value = calStart.toLocaleDateString('en-CA');
+        document.getElementById('finEnd').value = calEnd.toLocaleDateString('en-CA');
+        this.refreshFinance();
     }
     
     setFinFilter(period) {
@@ -7653,6 +7665,47 @@ document.addEventListener('click', function(e) {
         </button>
     </div>
 </div>
+<!-- Modal Cancelación -->
+<div id="cancelModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99998; display:flex; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; padding:24px; max-width:420px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <h3 style="margin:0 0 8px; color:#e74c3c;">❌ Servicio Cancelado</h3>
+        <p id="cancelModalInfo" style="color:#555; font-size:0.9rem; margin:0 0 20px;"></p>
+        
+        <div style="background:#fff3cd; border-radius:8px; padding:14px; margin-bottom:16px; border:1px solid #ffc107;">
+            <p style="margin:0 0 10px; font-weight:600; color:#856404;">¿Descontar del ingreso?</p>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+                <input type="radio" name="cancelDiscount" value="yes" style="width:16px; height:16px;">
+                <span style="font-size:0.9rem;"><strong>Sí, descontar</strong> — cliente no pagará este servicio</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                <input type="radio" name="cancelDiscount" value="no" checked style="width:16px; height:16px;">
+                <span style="font-size:0.9rem;"><strong>No descontar</strong> — cliente paga aunque no se realizó</span>
+            </label>
+        </div>
+
+        <div id="cancelModalQuincenal" style="display:none; background:#e8f5e9; border-radius:8px; padding:14px; margin-bottom:16px; border:1px solid #a5d6a7;">
+            <p style="margin:0 0 10px; font-weight:600; color:#1b5e20;">¿Adelantar servicios futuros?</p>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+                <input type="radio" name="cancelReschedule" value="yes" checked style="width:16px; height:16px;">
+                <span style="font-size:0.9rem;"><strong>Sí</strong> — adelantar una semana los próximos servicios</span>
+            </label>
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:10px;">
+                <input type="radio" name="cancelReschedule" value="no" style="width:16px; height:16px;">
+                <span style="font-size:0.9rem;"><strong>No</strong> — mantener fechas establecidas</span>
+            </label>
+            <div id="cancelRescheduleCount" style="margin-top:8px;">
+                <label style="font-size:0.85rem; color:#2e7d32;">¿Cuántos servicios adelantar? (0 = todos)</label>
+                <input type="number" id="cancelRescheduleN" value="0" min="0" style="width:80px; margin-left:8px; padding:4px 8px; border:1px solid #a5d6a7; border-radius:4px;">
+            </div>
+        </div>
+
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button onclick="app.closeCancelModal()" style="padding:8px 18px; border:1px solid #ccc; border-radius:6px; background:white; cursor:pointer;">Cancelar</button>
+            <button onclick="app.confirmCancelModal()" style="padding:8px 18px; background:#e74c3c; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">Confirmar</button>
+        </div>
+    </div>
+</div>
+
 <!-- Modal Screenshot Calendar -->
 <div id="screenshotModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.85); z-index:99999; overflow-y:auto; padding:20px; box-sizing:border-box;">
     <div style="max-width:600px; margin:0 auto;">
