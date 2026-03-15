@@ -799,6 +799,18 @@
                     <input type="number" id="mPriority" value="1" min="1" max="99" style="width:100px">
                     <small style="color:#666; display:block; margin-top:4px">1=primero, 2=segundo, 3=tercero...</small>
                 </div>
+                <div style="grid-column: span 2; display:flex; align-items:center; gap:12px; background:#fff3cd; padding:10px 14px; border-radius:8px; border:1px solid #ffc107;">
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0; font-weight:600; color:#856404;">
+                        <input type="checkbox" id="mCancelled" style="width:18px; height:18px; accent-color:#e74c3c;">
+                        ❌ Marcar como CANCELADO (no cuenta como ingreso)
+                    </label>
+                    <div id="rescheduleContainer" style="display:none; margin-left:auto;">
+                        <button type="button" onclick="app.rescheduleQuincenal()" 
+                            style="background:#8e44ad; color:white; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:0.85rem; font-weight:600;">
+                            📅 Desplazar servicios futuros
+                        </button>
+                    </div>
+                </div>
             </div>
             <div style="background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #eee; margin-bottom:20px">
                 <label><b>REPETICIÓN AUTOMÁTICA</b></label>
@@ -1392,11 +1404,19 @@ class Scheduler {
                         const ev = document.createElement('div'); ev.className = 'month-event';
                         const typeKeyM = c.type.toLowerCase().replace(/ /g,'');
                         const bgColor = this.getColor(typeKeyM); // siempre hex real
-                        ev.style.backgroundColor = bgColor;
-                        const textModeM = this.getTextMode(typeKeyM);
-                        ev.style.color = textModeM === 'auto' ? getTextColor(bgColor) : (textModeM === 'white' ? '#fff' : '#000');
-                        const prioPrefix = s.priority ? `${s.priority}. ` : '';
-                        ev.textContent = prioPrefix + c.name;
+                        const prioPrefixM = s.priority ? `${s.priority}. ` : '';
+                        if (s.cancelled) {
+                            ev.style.backgroundColor = '#ffffff';
+                            ev.style.color = '#aaa';
+                            ev.style.border = '1px solid #ddd';
+                            ev.style.textDecoration = 'line-through';
+                            ev.textContent = '❌ ' + prioPrefixM + c.name;
+                        } else {
+                            ev.style.backgroundColor = bgColor;
+                            const textModeM = this.getTextMode(typeKeyM);
+                            ev.style.color = textModeM === 'auto' ? getTextColor(bgColor) : (textModeM === 'white' ? '#fff' : '#000');
+                            ev.textContent = prioPrefixM + c.name;
+                        }
                         ev.title = `${c.name} — ${s.grupo}`;
                         ev.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
                         cell.appendChild(ev);
@@ -1488,15 +1508,24 @@ class Scheduler {
         daily.forEach(s => {
             const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
             const div = document.createElement('div'); div.className = 'service-event';
-            const typeKey4 = c.type.toLowerCase().replace(/ /g,'');
-            const bgColor4 = this.getColor(typeKey4); // siempre hex real — compatible Safari/iOS
-            div.style.backgroundColor = bgColor4;
-            const textMode4 = this.getTextMode(typeKey4);
-            div.style.color = textMode4 === 'auto' ? getTextColor(bgColor4) : (textMode4 === 'white' ? '#fff' : '#000');
             const prioNum = s.priority || '';
             const prioPrefix = prioNum ? `<b>${prioNum}.</b> ` : '';
             const showPropId = (c.type === 'airbnb' || c.type === 'unico');
-            div.innerHTML = `<div class="ev-prop">${prioPrefix}${showPropId ? c.name+': '+c.propId : c.name}</div>`;
+            const evLabel = showPropId ? c.name+': '+c.propId : c.name;
+            if (s.cancelled) {
+                div.style.backgroundColor = '#ffffff';
+                div.style.color = '#bbb';
+                div.style.border = '1px solid #ddd';
+                div.style.textDecoration = 'line-through';
+                div.innerHTML = `<div class="ev-prop">❌ ${prioPrefix}${evLabel}</div>`;
+            } else {
+                const typeKey4 = c.type.toLowerCase().replace(/ /g,'');
+                const bgColor4 = this.getColor(typeKey4);
+                div.style.backgroundColor = bgColor4;
+                const textMode4 = this.getTextMode(typeKey4);
+                div.style.color = textMode4 === 'auto' ? getTextColor(bgColor4) : (textMode4 === 'white' ? '#fff' : '#000');
+                div.innerHTML = `<div class="ev-prop">${prioPrefix}${evLabel}</div>`;
+            }
             div.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
             cell.appendChild(div);
         });
@@ -1540,7 +1569,12 @@ class Scheduler {
             document.getElementById('mDate').value = s.date; 
             document.getElementById('taskName').value = s.name || ''; 
             if(document.getElementById('mPriority')) document.getElementById('mPriority').value = s.priority || '3';
+            document.getElementById('mCancelled').checked = s.cancelled || false;
             document.getElementById('btnDel').style.display = 'inline-block';
+            // Mostrar botón desplazar si el cliente es quincenal
+            const cli = this.clis.find(c => c.id == s.cliId);
+            const isQuincenal = cli && cli.type === 'quincenal';
+            document.getElementById('rescheduleContainer').style.display = isQuincenal ? 'block' : 'none';
         } else {
             // NUEVO servicio - Limpiar TODOS los campos
             document.getElementById('mCli').value = ''; 
@@ -1550,6 +1584,8 @@ class Scheduler {
             if(document.getElementById('mPriority')) document.getElementById('mPriority').value = '1';
             document.getElementById('mRep').value = 'no';
             document.getElementById('mUntil').value = '';
+            document.getElementById('mCancelled').checked = false;
+            document.getElementById('rescheduleContainer').style.display = 'none';
             document.getElementById('btnDel').style.display = 'none';
             
             // Ocultar contenedores de repetición
@@ -1597,6 +1633,39 @@ class Scheduler {
         }
     }
 
+    rescheduleQuincenal() {
+        if (!this.editing) return;
+        const s = this.editing;
+        const cli = this.clis.find(c => c.id == s.cliId);
+        if (!cli) return;
+
+        const answer = prompt(
+            `¿Cuántos servicios futuros deseas desplazar una semana?\n\n` +
+            `(Escribe un número, ej: 3 = los próximos 3 servicios, 0 = todos)`
+        );
+        if (answer === null) return;
+        const count = parseInt(answer);
+        if (isNaN(count) || count < 0) { alert('Número inválido'); return; }
+
+        // Buscar servicios futuros del mismo cliente y grupo
+        const futureServs = this.servs
+            .filter(x => x.cliId == s.cliId && x.empId == s.empId && x.date > s.date)
+            .sort((a,b) => a.date.localeCompare(b.date));
+
+        const toMove = count === 0 ? futureServs : futureServs.slice(0, count);
+
+        toMove.forEach(x => {
+            const d = new Date(x.date + 'T00:00:00');
+            d.setDate(d.getDate() + 7);
+            x.date = d.toLocaleDateString('en-CA');
+        });
+
+        this.save();
+        this.render();
+        document.getElementById('serviceModal').style.display = 'none';
+        alert(`✅ ${toMove.length} servicios desplazados una semana.`);
+    }
+
     saveService(e) {
         e.preventDefault();
         const data = { 
@@ -1605,7 +1674,8 @@ class Scheduler {
             empId: document.getElementById('mEmp').value, 
             date: document.getElementById('mDate').value, 
             name: document.getElementById('taskName').value,
-            priority: document.getElementById('mPriority')?.value || '1'
+            priority: document.getElementById('mPriority')?.value || '1',
+            cancelled: document.getElementById('mCancelled').checked || false
         };
         if(this.editing) this.servs[this.servs.findIndex(x=>x.id==this.editing.id)]=data;
         else { 
