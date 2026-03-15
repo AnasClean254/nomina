@@ -4976,6 +4976,7 @@ class Scheduler {
     _previewGroupSMS(gName) {
         const startDate = this.view === 'day' ? new Date(this.curDate) : this.getMon(this.curDate);
         startDate.setHours(0,0,0,0);
+        this._currentSMSStartDate = new Date(startDate); // guardar para screenshot
         const text = this.generateGroupCalendar(gName, startDate);
 
         // Obtener teléfonos
@@ -5012,7 +5013,8 @@ class Scheduler {
 
     showScreenshotCalendar() {
         if (!this._currentSMSGroup) return;
-        const startDate = this.view === 'day' ? new Date(this.curDate) : this.getMon(this.curDate);
+        // Usar el mismo startDate que calculó _previewGroupSMS
+        const startDate = this._currentSMSStartDate ? new Date(this._currentSMSStartDate) : this.getMon(this.curDate);
         startDate.setHours(0,0,0,0);
         const gName = this._currentSMSGroup;
         const colors = {'Grupo A':'#2980b9','Grupo B':'#27ae60','Grupo C':'#8e44ad','Grupo D':'#e67e22','Grupo E':'#e74c3c'};
