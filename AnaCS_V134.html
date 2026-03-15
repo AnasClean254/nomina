@@ -807,7 +807,7 @@
                     <div id="rescheduleContainer" style="display:none; margin-left:auto;">
                         <button type="button" onclick="app.rescheduleQuincenal()" 
                             style="background:#8e44ad; color:white; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:0.85rem; font-weight:600;">
-                            📅 Desplazar servicios futuros
+                            ⬅️ Adelantar servicios futuros
                         </button>
                     </div>
                 </div>
@@ -1639,31 +1639,46 @@ class Scheduler {
         const cli = this.clis.find(c => c.id == s.cliId);
         if (!cli) return;
 
-        const answer = prompt(
-            `¿Cuántos servicios futuros deseas desplazar una semana?\n\n` +
-            `(Escribe un número, ej: 3 = los próximos 3 servicios, 0 = todos)`
-        );
-        if (answer === null) return;
-        const count = parseInt(answer);
-        if (isNaN(count) || count < 0) { alert('Número inválido'); return; }
-
         // Buscar servicios futuros del mismo cliente y grupo
         const futureServs = this.servs
             .filter(x => x.cliId == s.cliId && x.empId == s.empId && x.date > s.date)
             .sort((a,b) => a.date.localeCompare(b.date));
 
+        if (futureServs.length === 0) {
+            alert('No hay servicios futuros para adelantar.');
+            return;
+        }
+
+        // Mostrar las próximas fechas para que el usuario decida
+        const preview = futureServs.slice(0, 5).map((x, i) => {
+            const d = new Date(x.date + 'T00:00:00');
+            const dNew = new Date(d); dNew.setDate(d.getDate() - 7);
+            return `  ${i+1}. ${x.date} → ${dNew.toLocaleDateString('en-CA')}`;
+        }).join('\n');
+
+        const answer = prompt(
+            `Servicio cancelado: ${s.date}\n` +
+            `Cliente: ${cli.name}\n\n` +
+            `¿Cuántos servicios futuros adelantar una semana?\n` +
+            `(0 = todos, número = solo los primeros N)\n\n` +
+            `Próximas fechas que cambiarían:\n${preview}${futureServs.length > 5 ? '\n  ...' : ''}`
+        );
+        if (answer === null) return;
+        const count = parseInt(answer);
+        if (isNaN(count) || count < 0) { alert('Número inválido'); return; }
+
         const toMove = count === 0 ? futureServs : futureServs.slice(0, count);
 
         toMove.forEach(x => {
             const d = new Date(x.date + 'T00:00:00');
-            d.setDate(d.getDate() + 7);
+            d.setDate(d.getDate() - 7); // adelantar 7 días
             x.date = d.toLocaleDateString('en-CA');
         });
 
         this.save();
         this.render();
         document.getElementById('serviceModal').style.display = 'none';
-        alert(`✅ ${toMove.length} servicios desplazados una semana.`);
+        alert(`✅ ${toMove.length} servicios adelantados una semana.`);
     }
 
     saveService(e) {
