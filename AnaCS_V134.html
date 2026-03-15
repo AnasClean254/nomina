@@ -5012,8 +5012,8 @@ class Scheduler {
 
     showScreenshotCalendar() {
         if (!this._currentSMSGroup) return;
-        const startDate = new Date(this.curDate);
-        startDate.setDate(startDate.getDate() - startDate.getDay() + 1);
+        const startDate = this.view === 'day' ? new Date(this.curDate) : this.getMon(this.curDate);
+        startDate.setHours(0,0,0,0);
         const gName = this._currentSMSGroup;
         const colors = {'Grupo A':'#2980b9','Grupo B':'#27ae60','Grupo C':'#8e44ad','Grupo D':'#e67e22','Grupo E':'#e74c3c'};
         const color = colors[gName] || '#2c3e50';
