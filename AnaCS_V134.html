@@ -4964,8 +4964,11 @@ class Scheduler {
         for(let i = 0; i < 7; i++) {
             const d = new Date(startDate); d.setDate(startDate.getDate() + i);
             const dStr = d.toLocaleDateString('en-CA');
-            count += this.servs.filter(s => s.date === dStr &&
-                this.grupos[gName] && this.grupos[gName].includes(s.empId.toString())).length;
+            count += this.servs.filter(s => {
+                if (s.date !== dStr) return false;
+                if (s.empId === gName) return true;
+                return this.grupos[gName] && this.grupos[gName].includes(s.empId.toString());
+            }).length;
         }
         return count;
     }
