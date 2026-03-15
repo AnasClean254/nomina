@@ -6756,42 +6756,42 @@ class Scheduler {
             // Re-renderizar con datos nuevos
             this.refreshSels();
             this.render();
-
-            // Importar empleados automáticamente desde la App de Nómina
-            try {
-                const nominaSync = await this.driveReadFile('anas_nomina_sync.json');
-                if (nominaSync && nominaSync.employees && nominaSync.employees.length > 0) {
-                    let added = 0;
-                    nominaSync.employees.forEach(emp => {
-                        const exists = this.emps.find(e => e.name.trim().toLowerCase() === emp.name.trim().toLowerCase());
-                        if (!exists) {
-                            this.emps.push({ id: emp.id || `emp_${Date.now()}`, name: emp.name, rate: emp.rate || 0 });
-                            added++;
-                        }
-                    });
-                    if (added > 0) {
-                        localStorage.setItem('v35_emps', JSON.stringify(this.emps));
-                        console.log(`✅ ${added} empleados importados de la Nómina`);
-                    }
-                }
-            } catch(err) {
-                console.log('ℹ️ No se encontraron empleados en Drive');
-            }
-
-            // Importar nóminas automáticamente desde la App de Nómina
-            try {
-                const totales = await this.driveReadNominaTotales();
-                if (totales && totales.periodos) {
-                    this.nominaTotales = totales.periodos;
-                    localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
-                    console.log('✅ Nóminas importadas automáticamente:', this.nominaTotales.length, 'períodos');
-                    if (typeof this.refreshFinance === 'function') this.refreshFinance();
-                }
-            } catch(err) {
-                console.log('ℹ️ No se encontraron nóminas en Drive (normal si la App de Nómina no ha sincronizado)');
-            }
         } catch(err) {
             console.warn('driveDownloadData error:', err);
+        }
+
+        // Importar empleados y nóminas desde la App de Nómina — siempre al conectar
+        try {
+            const nominaSync = await this.driveReadFile('anas_nomina_sync.json');
+            if (nominaSync && nominaSync.employees && nominaSync.employees.length > 0) {
+                let added = 0;
+                nominaSync.employees.forEach(emp => {
+                    const exists = this.emps.find(e => e.name.trim().toLowerCase() === emp.name.trim().toLowerCase());
+                    if (!exists) {
+                        this.emps.push({ id: emp.id || `emp_${Date.now()}`, name: emp.name, rate: emp.rate || 0 });
+                        added++;
+                    }
+                });
+                if (added > 0) {
+                    localStorage.setItem('v35_emps', JSON.stringify(this.emps));
+                    console.log(`✅ ${added} empleados importados de la Nómina`);
+                    this.refreshSels();
+                }
+            }
+        } catch(err) {
+            console.log('ℹ️ No se encontraron empleados en Drive');
+        }
+
+        try {
+            const totales = await this.driveReadNominaTotales();
+            if (totales && totales.periodos) {
+                this.nominaTotales = totales.periodos;
+                localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
+                console.log('✅ Nóminas importadas:', this.nominaTotales.length, 'períodos');
+                if (typeof this.refreshFinance === 'function') this.refreshFinance();
+            }
+        } catch(err) {
+            console.log('ℹ️ No se encontraron nóminas en Drive');
         }
     }
 
