@@ -1152,7 +1152,7 @@ class Scheduler {
         this.isSyncing = false;
         this.pendingSync = false;
         this.CLIENT_ID = '701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com';
-        this.SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        this.SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
         this.FOLDER_NAME = 'AnasCleaningApp';
         // Convertir grupos (objeto) a groups (array) para el filtro
         this.groups = Object.keys(this.grupos).map((name, idx) => ({
@@ -4922,9 +4922,9 @@ class Scheduler {
     }
 
     _renderSMSGroups() {
-        // Label semana
-        const startDate = new Date(this.curDate);
-        startDate.setDate(startDate.getDate() - startDate.getDay() + 1);
+        // Label semana - usar getMon igual que el calendario principal
+        const startDate = this.getMon(this.curDate);
+        startDate.setHours(0,0,0,0);
         const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6);
         const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
         const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -4974,8 +4974,8 @@ class Scheduler {
     }
 
     _previewGroupSMS(gName) {
-        const startDate = new Date(this.curDate);
-        startDate.setDate(startDate.getDate() - startDate.getDay() + 1);
+        const startDate = this.getMon(this.curDate);
+        startDate.setHours(0,0,0,0);
         const text = this.generateGroupCalendar(gName, startDate);
 
         // Obtener teléfonos
