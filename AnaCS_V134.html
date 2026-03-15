@@ -4552,7 +4552,8 @@ class Scheduler {
     }
 
     editCli(id) {
-        // Abrir formulario al editar
+        // Asegurar que la sección de clientes esté visible
+        this.showSec('secCli');
         const form = document.getElementById('cliFormContainer');
         form.style.display = 'block';
         document.getElementById('cliFormTitle').textContent = '✏️ Editar Cliente';
