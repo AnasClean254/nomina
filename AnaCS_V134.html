@@ -893,36 +893,46 @@
                     <button onclick="app.importClientsCSV()" class="btn" style="background:#3498db; color:white; flex:1">📥 Importar CSV</button>
                     <button onclick="app.exportClientsCSV()" class="btn" style="background:#9b59b6; color:white; flex:1">📤 Exportar CSV</button>
                     <button onclick="app.downloadClientTemplate()" class="btn" style="background:#27ae60; color:white; flex:1">📋 Plantilla</button>
+                    <button onclick="app.toggleCliForm()" id="btnToggleCliForm" class="btn" style="background:#e67e22; color:white; flex:1">➕ Nuevo Cliente</button>
                 </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:15px">
-                    <input type="hidden" id="editCliId">
-                    <input type="text" id="nc" placeholder="Nombre del Dueño" style="grid-column:span 2">
-                    <input type="text" id="np" placeholder="ID Propiedad (solo AirBnB/Único)">
-                    <input type="number" id="pc" placeholder="Precio $">
-                    <input type="tel" id="tc" placeholder="Teléfono">
-                    <input type="text" id="dc" placeholder="Dirección">
-                    <select id="ntype" style="grid-column:span 2">
-                        <option value="unico">Único</option><option value="diario">Diario</option>
-                        <option value="2xsemana">2x Sem</option><option value="3xsemana">3x Sem</option>
-                        <option value="semanal">Semanal</option><option value="quincenal">Quincenal</option>
-                        <option value="mensual">Mensual</option><option value="airbnb">AirBnB</option>
-                    </select>
-                    <select id="cliServiceType" style="grid-column:span 2">
-                        <option value="residencial">🏠 Residencial</option>
-                        <option value="comercial">🏢 Comercial</option>
-                        <option value="airbnb">🏖️ AirBnB</option>
-                        <option value="construccion">🏗️ Construcción</option>
-                        <option value="unico">⭐ Único</option>
-                    </select>
-                    <select id="cliBillingPeriod" style="grid-column:span 2">
-                        <option value="weekly">📅 Facturar Semanalmente</option>
-                        <option value="biweekly">📅 Facturar Quincenalmente</option>
-                        <option value="monthly">📅 Facturar Mensualmente</option>
-                        <option value="perservice">📅 Facturar por Servicio</option>
-                    </select>
+
+                <!-- Formulario retráctil -->
+                <div id="cliFormContainer" style="display:none; background:#f8f9fa; border-radius:10px; padding:15px; margin-bottom:15px; border:2px solid #e67e22;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <strong id="cliFormTitle" style="color:#e67e22;">➕ Nuevo Cliente</strong>
+                        <button onclick="app.cancelCliForm()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:#999;">✕</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:15px">
+                        <input type="hidden" id="editCliId">
+                        <input type="text" id="nc" placeholder="Nombre del Dueño" style="grid-column:span 2">
+                        <input type="text" id="np" placeholder="ID Propiedad (solo AirBnB/Único)">
+                        <input type="number" id="pc" placeholder="Precio $">
+                        <input type="tel" id="tc" placeholder="Teléfono">
+                        <input type="text" id="dc" placeholder="Dirección">
+                        <select id="ntype" style="grid-column:span 2">
+                            <option value="unico">Único</option><option value="diario">Diario</option>
+                            <option value="2xsemana">2x Sem</option><option value="3xsemana">3x Sem</option>
+                            <option value="semanal">Semanal</option><option value="quincenal">Quincenal</option>
+                            <option value="mensual">Mensual</option><option value="airbnb">AirBnB</option>
+                        </select>
+                        <select id="cliServiceType" style="grid-column:span 2">
+                            <option value="residencial">🏠 Residencial</option>
+                            <option value="comercial">🏢 Comercial</option>
+                            <option value="airbnb">🏖️ AirBnB</option>
+                            <option value="construccion">🏗️ Construcción</option>
+                            <option value="unico">⭐ Único</option>
+                        </select>
+                        <select id="cliBillingPeriod" style="grid-column:span 2">
+                            <option value="weekly">📅 Facturar Semanalmente</option>
+                            <option value="biweekly">📅 Facturar Quincenalmente</option>
+                            <option value="monthly">📅 Facturar Mensualmente</option>
+                            <option value="perservice">📅 Facturar por Servicio</option>
+                        </select>
+                    </div>
+                    <button onclick="app.saveCli()" class="btn" style="width:100%; background:var(--success);">💾 GUARDAR CLIENTE</button>
                 </div>
-                <button onclick="app.saveCli()" class="btn" style="width:100%; background:var(--success); margin-bottom:15px">💾 GUARDAR CLIENTE</button>
-                <div id="listC" style="max-height:400px; overflow-y:auto; margin-top:15px"></div>
+
+                <div id="listC" style="max-height:450px; overflow-y:auto; margin-top:5px"></div>
             </div>
             
             <div id="secConfig" style="display:none">
@@ -4376,6 +4386,34 @@ class Scheduler {
         this.updateColor(type, color);
         this.updateColorPreview();
     }
+    toggleCliForm() {
+        const form = document.getElementById('cliFormContainer');
+        const btn = document.getElementById('btnToggleCliForm');
+        if (form.style.display === 'none') {
+            // Abrir para nuevo cliente
+            form.style.display = 'block';
+            document.getElementById('cliFormTitle').textContent = '➕ Nuevo Cliente';
+            btn.textContent = '✕ Cerrar';
+            document.getElementById('editCliId').value = '';
+            document.getElementById('nc').value = '';
+            document.getElementById('np').value = '';
+            document.getElementById('pc').value = '';
+            document.getElementById('tc').value = '';
+            document.getElementById('dc').value = '';
+            document.getElementById('ntype').value = 'semanal';
+            document.getElementById('cliServiceType').value = 'residencial';
+            document.getElementById('cliBillingPeriod').value = 'weekly';
+            document.getElementById('nc').focus();
+        } else {
+            this.cancelCliForm();
+        }
+    }
+
+    cancelCliForm() {
+        document.getElementById('cliFormContainer').style.display = 'none';
+        document.getElementById('btnToggleCliForm').textContent = '➕ Nuevo Cliente';
+    }
+
     saveCli() {
         const editId = document.getElementById('editCliId').value;
         const name = document.getElementById('nc').value.trim();
@@ -4470,10 +4508,14 @@ class Scheduler {
             this.clis.push(newCli);
         }
         
-        this.save(); this.renderCat(); this.refreshSels(); this.render();
+        this.save(); this.renderCat(); this.refreshSels(); this.render(); this.cancelCliForm();
     }
 
     editCli(id) {
+        // Abrir formulario al editar
+        document.getElementById('cliFormContainer').style.display = 'block';
+        document.getElementById('cliFormTitle').textContent = '✏️ Editar Cliente';
+        document.getElementById('btnToggleCliForm').textContent = '✕ Cerrar';
         const cli = this.clis.find(c => c.id == id);        if(!cli) return;
         
         // ✅ Si el cliente no tiene propId, usar el nombre
