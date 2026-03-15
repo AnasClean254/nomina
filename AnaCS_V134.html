@@ -1687,14 +1687,25 @@ class Scheduler {
         };
         if(this.editing) this.servs[this.servs.findIndex(x=>x.id==this.editing.id)]=data;
         
-        // Si se acaba de cancelar (no estaba cancelado antes), verificar recurrencia
+        // Si se acaba de cancelar (no estaba cancelado antes)
         if (isCancelled && !wasAlreadyCancelled) {
             const cli = this.clis.find(c => c.id == data.cliId);
+            // Preguntar si descontar del ingreso
+            const descontar = confirm(
+                `Servicio cancelado: ${cli ? cli.name : ''} (${data.date})\n\n` +
+                `¿Descontar este servicio del ingreso?\n\n` +
+                `ACEPTAR = Sí, descontar (cliente no pagará)\n` +
+                `CANCELAR = No descontar (cliente paga aunque no se realizó)`
+            );
+            data.deductIncome = descontar;
+            // Actualizar el servicio con el nuevo campo
+            this.servs[this.servs.findIndex(x => x.id == data.id)] = data;
+            
+            // Si es quincenal, preguntar si adelantar servicios futuros
             if (cli && cli.type === 'quincenal') {
                 this.save();
                 this.render();
                 document.getElementById('serviceModal').style.display = 'none';
-                // Preguntar si adelantar servicios futuros
                 setTimeout(() => this.rescheduleQuincenal(data), 300);
                 return;
             }
@@ -4588,6 +4599,9 @@ class Scheduler {
         }
         
         const filtered = this.servs.filter(s => {
+            // Excluir servicios cancelados que se deben descontar del ingreso
+            if (s.cancelled && s.deductIncome) return false;
+            
             // Filtro de fechas
             if(start && s.date < start) return false;
             if(end && s.date > end) return false;
@@ -5056,6 +5070,7 @@ class Scheduler {
             const d = new Date(startDate); d.setDate(startDate.getDate() + i);
             const dStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
             count += this.servs.filter(s => {
+                if (s.cancelled) return false;
                 if (s.date !== dStr) return false;
                 if (s.empId === gName) return true;
                 return this.grupos[gName] && this.grupos[gName].includes(s.empId.toString());
@@ -5122,6 +5137,7 @@ class Scheduler {
             const isToday = dateStr === new Date().toLocaleDateString('en-CA');
 
             const dailyServices = this.servs.filter(s => {
+                if (s.cancelled) return false; // excluir cancelados del screenshot
                 if (s.date !== dateStr) return false;
                 if (s.empId === gName) return true;
                 return this.grupos[gName] && this.grupos[gName].includes(s.empId.toString());
@@ -5238,6 +5254,7 @@ class Scheduler {
             const dateStr = date.toLocaleDateString('en-CA');
             
             const dailyServices = this.servs.filter(s => {
+                if (s.cancelled) return false; // excluir cancelados del SMS
                 if (s.date !== dateStr) return false;
                 if (s.empId === groupName) return true;
                 return this.grupos[groupName] && this.grupos[groupName].includes(s.empId.toString());
