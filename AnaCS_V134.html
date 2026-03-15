@@ -1245,6 +1245,20 @@ class Scheduler {
             return c;
         });
         
+        // Migración fee→price para clientes importados de Excel
+        let feeFixed = 0;
+        this.clis = this.clis.map(c => {
+            if ((c.fee || c.fee === 0) && !c.price) {
+                c.price = c.fee;
+                feeFixed++;
+            }
+            return c;
+        });
+        if (feeFixed > 0) {
+            localStorage.setItem('v35_clis', JSON.stringify(this.clis));
+            console.log(`✅ ${feeFixed} clientes migrados fee→price`);
+        }
+
         // Guardar cambios si hubo migración
         this.save();
         
@@ -6826,13 +6840,25 @@ class Scheduler {
                     'CADA MES':'mensual','CADA SEMANA':'semanal'
                 };
                 let added = 0;
-                rows.slice(1).forEach((row, i) => {
+                // Detectar si la primera fila es encabezado
+                const firstRow = rows[0] || [];
+                const isHeader = firstRow.some(cell =>
+                    typeof cell === 'string' && 
+                    ['name','client','address','phone','fee','type','precio','nombre','direccion','telefono'].some(k =>
+                        cell.toString().toLowerCase().includes(k)
+                    )
+                );
+                const dataRows = isHeader ? rows.slice(1) : rows;
+
+                let updated = 0;
+                dataRows.forEach((row, i) => {
                     const [name, address, phone, propId, fee, ctype] = row;
                     if (!name) return;
                     const t = typeMap[(ctype||'').toString().trim().toUpperCase()] || 'semanal';
                     const bp = ['semanal','2xsemana','3xsemana','diario'].includes(t) ? 'weekly' : (t==='quincenal' ? 'biweekly' : 'monthly');
                     const exists = this.clis.find(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
                     if (!exists) {
+                        // Cliente nuevo — agregar completo
                         this.clis.push({
                             id: `cli_excel_${i+1}_${Date.now()}`,
                             name: name.trim(),
@@ -6840,15 +6866,21 @@ class Scheduler {
                             phone: phone ? phone.toString().trim() : '',
                             propId: propId ? propId.trim() : name.trim(),
                             fee: parseFloat(fee) || 0,
+                            price: parseFloat(fee) || 0,
                             type: t, serviceType: 'residencial',
                             billingPeriod: bp, active: true, notes: ''
                         });
                         added++;
+                    } else if (fee && (!exists.price || exists.price === 0)) {
+                        // Cliente existente sin precio — actualizar solo el precio
+                        exists.fee = parseFloat(fee) || 0;
+                        exists.price = parseFloat(fee) || 0;
+                        updated++;
                     }
                 });
                 this.save();
                 this.refreshSels();
-                alert(`✅ ${added} clientes importados correctamente.`);
+                alert(`✅ ${added} clientes nuevos importados.${updated > 0 ? '\n💲 ' + updated + ' precios actualizados.' : ''}`);
             } catch(err) {
                 alert('❌ Error: ' + err.message);
             }
