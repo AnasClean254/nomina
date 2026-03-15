@@ -6663,6 +6663,8 @@ class Scheduler {
                 // Al conectar: primero descargar, luego subir
                 await this.driveDownloadData();
                 await this.driveSyncNow();
+                // Importar empleados de la Nómina — siempre, sin importar timestamps
+                await this.importEmployeesFromNomina();
                 const toast = document.createElement('div');
                 toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#27ae60;color:white;padding:15px 20px;border-radius:10px;z-index:9999;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
                 toast.innerHTML = '☁️ Conectado a Google Drive<br><small>Datos sincronizados</small>';
@@ -6765,6 +6767,45 @@ class Scheduler {
         }
     }
 
+    async importEmployeesFromNomina() {
+        try {
+            console.log('🔍 Buscando empleados en anas_nomina_sync.json...');
+            const nominaSync = await this.driveReadFile('anas_nomina_sync.json');
+            console.log('👥 Empleados encontrados:', nominaSync?.employees?.length || 0);
+            if (nominaSync && nominaSync.employees && nominaSync.employees.length > 0) {
+                let added = 0;
+                nominaSync.employees.forEach(emp => {
+                    const exists = this.emps.find(e => e.name.trim().toLowerCase() === emp.name.trim().toLowerCase());
+                    if (!exists) {
+                        this.emps.push({ id: emp.id || `emp_${Date.now()}`, name: emp.name, rate: emp.rate || 0 });
+                        added++;
+                    }
+                });
+                if (added > 0) {
+                    localStorage.setItem('v35_emps', JSON.stringify(this.emps));
+                    console.log(`✅ ${added} empleados importados de la Nómina`);
+                    this.refreshSels();
+                } else {
+                    console.log('ℹ️ Todos los empleados ya existen');
+                }
+            }
+        } catch(err) {
+            console.log('❌ Error importando empleados:', err.message);
+        }
+
+        // Importar nóminas también
+        try {
+            const totales = await this.driveReadNominaTotales();
+            if (totales && totales.periodos) {
+                this.nominaTotales = totales.periodos;
+                localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
+                console.log('✅ Nóminas importadas:', this.nominaTotales.length, 'períodos');
+            }
+        } catch(err) {
+            console.log('ℹ️ No se encontraron nóminas:', err.message);
+        }
+    }
+
     async driveDownloadData() {
         console.log('🚀 driveDownloadData iniciado');
         if (!this.driveConnected || !this.driveFolderId) {
@@ -6833,44 +6874,6 @@ class Scheduler {
             }
         }
 
-        // Importar empleados y nóminas desde la App de Nómina — siempre al conectar
-        try {
-            console.log('🔍 Buscando anas_nomina_sync.json en Drive...');
-            const nominaSync = await this.driveReadFile('anas_nomina_sync.json');
-            console.log('📄 anas_nomina_sync.json encontrado:', nominaSync ? 'SI' : 'NO');
-            console.log('👥 Empleados en el archivo:', nominaSync?.employees?.length || 0);
-            if (nominaSync && nominaSync.employees && nominaSync.employees.length > 0) {
-                let added = 0;
-                nominaSync.employees.forEach(emp => {
-                    const exists = this.emps.find(e => e.name.trim().toLowerCase() === emp.name.trim().toLowerCase());
-                    if (!exists) {
-                        this.emps.push({ id: emp.id || `emp_${Date.now()}`, name: emp.name, rate: emp.rate || 0 });
-                        added++;
-                    }
-                });
-                if (added > 0) {
-                    localStorage.setItem('v35_emps', JSON.stringify(this.emps));
-                    console.log(`✅ ${added} empleados importados de la Nómina`);
-                    this.refreshSels();
-                } else {
-                    console.log('ℹ️ Todos los empleados ya existen en AnaCS');
-                }
-            }
-        } catch(err) {
-            console.log('❌ Error importando empleados:', err.message);
-        }
-
-        try {
-            const totales = await this.driveReadNominaTotales();
-            if (totales && totales.periodos) {
-                this.nominaTotales = totales.periodos;
-                localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
-                console.log('✅ Nóminas importadas:', this.nominaTotales.length, 'períodos');
-                if (typeof this.refreshFinance === 'function') this.refreshFinance();
-            }
-        } catch(err) {
-            console.log('ℹ️ No se encontraron nóminas en Drive');
-        }
     }
 
 }
