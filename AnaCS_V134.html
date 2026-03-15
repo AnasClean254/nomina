@@ -5063,21 +5063,20 @@ class Scheduler {
         }
 
         const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6);
+
+        // Calcular nombres ANTES del template literal
+        const memberIds = (this.grupos[gName] || []).filter(id => id && id !== '');
+        const memberNames = memberIds.map(id => {
+            const emp = this.emps.find(e => e.id == id);
+            return emp ? emp.name.split(' ')[0] : null;
+        }).filter(Boolean).join(' · ');
+
         const card = document.getElementById('screenshotCard');
         card.innerHTML = `
             <div style="background:${color}; padding:18px 20px; text-align:center;">
                 <div style="color:rgba(255,255,255,0.8); font-size:0.75rem; font-weight:600; letter-spacing:2px; margin-bottom:4px;">CALENDARIO SEMANAL</div>
                 <div style="color:white; font-size:1.4rem; font-weight:800;">${gName.toUpperCase()}</div>
-                <div style="color:rgba(255,255,255,0.9); font-size:0.8rem; margin-top:4px; font-weight:600;">
-                    ${(() => {
-                        const memberIds = (this.grupos[gName] || []).filter(id => id && id !== '');
-                        const names = memberIds.map(id => {
-                            const emp = this.emps.find(e => e.id == id);
-                            return emp ? emp.name.split(' ')[0] : null;
-                        }).filter(Boolean);
-                        return names.length ? names.join(' · ') : '';
-                    })()}
-                </div>
+                ${memberNames ? `<div style="color:rgba(255,255,255,0.9); font-size:0.8rem; margin-top:4px; font-weight:600;">${memberNames}</div>` : ''}
                 <div style="color:rgba(255,255,255,0.85); font-size:0.85rem; margin-top:2px;">${startDate.getDate()} – ${endDate.getDate()} ${monthNames[startDate.getMonth()]} ${startDate.getFullYear()}</div>
             </div>
             <div style="padding:14px 14px 6px;">${daysHtml}</div>
