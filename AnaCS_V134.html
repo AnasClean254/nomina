@@ -6830,7 +6830,10 @@ class Scheduler {
 
         // Importar empleados y nóminas desde la App de Nómina — siempre al conectar
         try {
+            console.log('🔍 Buscando anas_nomina_sync.json en Drive...');
             const nominaSync = await this.driveReadFile('anas_nomina_sync.json');
+            console.log('📄 anas_nomina_sync.json encontrado:', nominaSync ? 'SI' : 'NO');
+            console.log('👥 Empleados en el archivo:', nominaSync?.employees?.length || 0);
             if (nominaSync && nominaSync.employees && nominaSync.employees.length > 0) {
                 let added = 0;
                 nominaSync.employees.forEach(emp => {
@@ -6844,10 +6847,12 @@ class Scheduler {
                     localStorage.setItem('v35_emps', JSON.stringify(this.emps));
                     console.log(`✅ ${added} empleados importados de la Nómina`);
                     this.refreshSels();
+                } else {
+                    console.log('ℹ️ Todos los empleados ya existen en AnaCS');
                 }
             }
         } catch(err) {
-            console.log('ℹ️ No se encontraron empleados en Drive');
+            console.log('❌ Error importando empleados:', err.message);
         }
 
         try {
