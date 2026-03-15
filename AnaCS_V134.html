@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Gestor Operativo v55.0 - MacBook Pro Edition</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root { 
             --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; --bg: #f1f2f6; --border: #dcdde1; 
@@ -13,7 +15,8 @@
             --color-airbnb: #FF5A5F;
             --emp-col-width: 260px; 
         }
-        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { box-sizing: border-box; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
         body { background-color: var(--bg); margin: 0; padding: 20px; }
         
         .container { max-width: 100%; margin: 0 auto; background: #ffffff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); overflow: hidden; }
@@ -43,39 +46,70 @@
         .day-name { font-size: 0.7rem; font-weight: 800; color: #666; text-transform: uppercase; }
         .day-num { font-size: 1.3rem; font-weight: 900; color: #222; }
 
-        .group-row { display: grid; grid-template-columns: var(--emp-col-width) 1fr; border-bottom: 2px solid #ddd; background: white; }
-        
+        /* Sidebar toggle global */
+        :root { --sidebar-collapsed-width: 110px; }
+        .group-row { display: grid; grid-template-columns: var(--emp-col-width) 1fr; border-bottom: 2px solid #ddd; background: white; transition: grid-template-columns 0.2s; }
+        .group-row.sidebar-collapsed { grid-template-columns: var(--sidebar-collapsed-width) 1fr; }
+        .grid-header-row.sidebar-collapsed { grid-template-columns: var(--sidebar-collapsed-width) 1fr; }
+
         /* Sidebar con Acordeón de Miembros */
-        .sidebar-group { background: #f9f9f9; border-right: 2px solid #ddd; display: flex; flex-direction: column; }
+        .sidebar-group { background: #f9f9f9; border-right: 2px solid #ddd; display: flex; flex-direction: column; overflow: hidden; }
         .group-title-bar { padding: 5px 8px; background: #eef1f3; display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 0.85rem; color: var(--primary); border-bottom: 1px solid #ddd; cursor: pointer; }
+        .group-members-preview { padding: 3px 8px 5px; font-size: 0.7rem; color: #666; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; flex-wrap: wrap; gap: 3px; }
+        .member-chip { background: #e8eaf6; color: #3949ab; padding: 1px 5px; border-radius: 8px; font-size: 0.68rem; font-weight: 500; }
+        .member-chip.vacant { background: #f5f5f5; color: #bbb; }
         .members-panel { padding: 6px; display: none; background: #fff; flex-direction: column; gap: 3px; }
         .members-panel.expanded { display: flex; }
         .members-panel select { width: 100%; padding: 5px; font-size: 12px; border-radius: 4px; border: 1px solid #ccc; }
 
+        /* Botón toggle sidebar global */
+        .sidebar-toggle-btn { position: fixed; left: 0; top: 50%; transform: translateY(-50%); z-index: 100;
+            background: var(--primary); color: white; border: none; border-radius: 0 6px 6px 0;
+            padding: 8px 5px; cursor: pointer; font-size: 0.7rem; writing-mode: vertical-rl;
+            box-shadow: 2px 0 6px rgba(0,0,0,0.2); transition: 0.2s; }
+
+        /* Vista MES: cuadrícula real */
+        .month-grid-wrapper { width: 100%; }
+        .month-grid-header { display: grid; grid-template-columns: repeat(7,1fr); background:#eef1f3; border-bottom: 2px solid #ddd; }
+        .month-grid-header-cell { text-align:center; padding: 7px 0; font-weight:700; font-size:0.78rem; color: var(--primary); border-right: 2px solid #c8cdd5; letter-spacing:0.05em; }
+        .month-grid-header-cell:last-child { border-right: none; }
+        .month-week-row { display: grid; grid-template-columns: repeat(7,1fr); border-bottom: 2px solid #c8cdd5; min-height: 90px; }
+        .month-day-cell { border-right: 1px solid #c8cdd5; border-bottom: 1px solid #c8cdd5; padding: 4px 5px; position: relative; min-height: 90px; cursor: pointer; transition: background 0.15s; }
+        .month-day-cell:hover { background: #f8f9ff; }
+        .month-day-cell:last-child { border-right: none; }
+        .month-day-cell.today { background: var(--today-bg) !important; }
+        .month-day-cell.other-month { background: #fafafa; opacity: 0.5; pointer-events: none; }
+        .month-day-num { font-size: 0.78rem; font-weight: 700; color: #555; margin-bottom: 3px; }
+        .month-day-num.today-num { background: var(--primary); color: white; border-radius: 50%; width: 20px; height: 20px; display:flex; align-items:center; justify-content:center; font-size:0.72rem; }
+        .month-event { font-size: 0.68rem; padding: 2px 5px; border-radius: 3px; color: white; font-weight: 600; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid rgba(0,0,0,0.2); }
+        .month-more-btn { font-size: 0.67rem; color: #5c6bc0; font-weight: 600; cursor: pointer; padding: 1px 3px; border-radius: 3px; }
+        .month-more-btn:hover { background: #e8eaf6; }
+
         /* Celdas */
         .cells-container { display: grid; background: #fff; }
-        .time-cell { border-right: 1px solid #eee; padding: 6px; min-height: 70px; transition: 0.2s; }
+        .time-cell { border-right: 1px solid #d0d5dd; border-bottom: 1px solid #d0d5dd; padding: 6px; min-height: 70px; transition: 0.2s; }
         .time-cell:hover { background-color: #fcfcfc; }
         .time-cell.today { background-color: var(--today-bg) !important; }
 
         /* Eventos */
         .service-event { 
-            font-size: 0.75rem; 
-            padding: 4px 6px; 
+            font-size: 0.74rem; 
+            padding: 3px 6px; 
             border-radius: 4px; 
             color: white; 
             font-weight: 600; 
-            border-left: 3px solid rgba(0,0,0,0.3); 
+            border-left: 3px solid rgba(0,0,0,0.25); 
             margin-bottom: 3px; 
             cursor: pointer;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12); 
-            line-height: 1.2;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.18); 
+            line-height: 1.3;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.2);
         }
         .ev-prop { 
             font-size: 0.7rem; 
-            opacity: 0.9;
-            padding: 8px;
+            padding: 4px;
             font-weight: 600;
+            letter-spacing: 0.01em;
         }
 
         /* Modales */
@@ -394,18 +428,18 @@
         /* Fila 1: Logo + Fecha + Botones */
         .header-row-1-final {
             display: grid;
-            grid-template-columns: 400px 1fr auto;
+            grid-template-columns: 260px 1fr auto;
             align-items: center;
-            padding: 12px 15px;
-            background: #2c3e50;
-            gap: 20px;
-            border-bottom: 1px solid #e0e0e0;
+            padding: 8px 15px;
+            background: #1a2535;
+            gap: 16px;
+            border-bottom: 1px solid #2c3e50;
         }
         
         .logo-container-final {
-            height: 100px;
+            height: 64px;
             background: transparent;
-            border: 2px dashed rgba(150,150,150,0.3);
+            border: 2px dashed rgba(150,150,150,0.25);
             border-radius: 6px;
             display: flex;
             align-items: center;
@@ -414,7 +448,7 @@
         }
         
         .logo-container-final:hover {
-            background: rgba(233,236,239,0.3);
+            background: rgba(233,236,239,0.1);
             border-color: #adb5bd;
         }
         
@@ -423,9 +457,10 @@
         }
         
         .month-title-final {
-            font-size: 1.3rem;
+            font-size: 1.15rem;
             font-weight: 700;
             color: white;
+            letter-spacing: 0.02em;
         }
         
         .action-btns-right {
@@ -458,12 +493,12 @@
         /* Fila 2: Navegación + Filtros */
         .header-row-2-final {
             display: grid;
-            grid-template-columns: 400px 1fr auto;
+            grid-template-columns: 260px 1fr auto;
             align-items: center;
-            padding: 8px 15px;
-            background: #f8f9fa;
-            gap: 20px;
-            border-bottom: 1px solid #ddd;
+            padding: 6px 15px;
+            background: #f4f6f8;
+            gap: 16px;
+            border-bottom: 2px solid #ddd;
         }
         
         .left-spacer {
@@ -684,9 +719,11 @@
                     </div>
                 </div>
                 
-                <button class="btn-action" onclick="app.showWhatsAppModal()" style="background:#25D366; color:white">📱 WhatsApp</button>
+                <button class="btn-action" onclick="app.showSMSModal()" style="background:#2980b9; color:white">📲 SMS Grupos</button>
                 <button class="btn-action btn-dark" onclick="app.exportar()">📥 Exportar</button>
                 <button class="btn-action btn-dark" onclick="app.importar()">📂 Importar</button>
+                <button class="btn-action" onclick="app.importClientsFromExcel()" style="background:#27ae60; color:white;">📊 Importar Clientes Excel</button>
+                <button class="btn-action" id="driveSyncBtn" onclick="app.driveSync()" style="background:#4285f4; color:white;">☁️ <span id="driveSyncLabel">Drive</span></button>
             </div>
         </div>
         
@@ -731,6 +768,7 @@
         <div class="days-header-row" id="daysHeaderInline"></div>
     </div>
 
+    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" onclick="app.toggleSidebar()" title="Colapsar/Expandir grupos">◀◀</button>
     <div id="mainSchedulerGrid" style="overflow-x:auto"></div>
 </div>
 
@@ -1033,48 +1071,58 @@
 <script>
 // Función para calcular contraste y retornar blanco o negro
 function getTextColor(bgColor) {
-    // Si no hay color, retornar negro
-    if (!bgColor) return '#000';
-    
-    // Extraer RGB del color CSS
-    let r, g, b;
-    
+    if (!bgColor) return '#fff';
+
+    // Si es variable CSS (var(--color-...)), resolverla con getColor() del app
+    // para evitar el bug de Safari/iOS donde getComputedStyle no resuelve vars
     if (bgColor.startsWith('var(')) {
-        // Es una variable CSS, obtener valor real
-        const varName = bgColor.match(/var\(([^)]+)\)/)[1];
-        const rootStyles = getComputedStyle(document.documentElement);
-        const computed = rootStyles.getPropertyValue(varName).trim();
-        bgColor = computed || '#000';
+        const varName = bgColor.match(/var\(([^)]+)\)/)[1]; // ej: --color-diario
+        const typeKey = varName.replace('--color-', ''); // ej: diario
+        // Intentar obtener el hex desde localStorage (igual que getColor())
+        try {
+            const stored = localStorage.getItem('customColors');
+            const colors = stored ? JSON.parse(stored) : {};
+            const defaults = {
+                'unico':'#95a5a6','diario':'#e67e22','2xsemana':'#d35400',
+                '3xsemana':'#e84393','semanal':'#2980b9','quincenal':'#9b59b6',
+                'mensual':'#27ae60','airbnb':'#FF5A5F'
+            };
+            bgColor = colors[typeKey] || defaults[typeKey] || '#333';
+        } catch(e) {
+            return '#fff'; // fallback seguro
+        }
     }
-    
+
+    let r, g, b;
     if (bgColor.startsWith('#')) {
-        // Formato hexadecimal
         const hex = bgColor.replace('#', '');
-        r = parseInt(hex.substr(0, 2), 16);
-        g = parseInt(hex.substr(2, 2), 16);
-        b = parseInt(hex.substr(4, 2), 16);
+        const full = hex.length === 3
+            ? hex.split('').map(c => c+c).join('')
+            : hex;
+        r = parseInt(full.substr(0,2), 16);
+        g = parseInt(full.substr(2,2), 16);
+        b = parseInt(full.substr(4,2), 16);
     } else if (bgColor.startsWith('rgb')) {
-        // Formato rgb()
         const values = bgColor.match(/\d+/g);
         r = parseInt(values[0]);
         g = parseInt(values[1]);
         b = parseInt(values[2]);
     } else {
-        return '#000'; // Default
+        return '#fff';
     }
-    
-    // Calcular luminosidad (fórmula WCAG)
+
+    // Luminosidad WCAG
     const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-    
-    // Si es claro (>0.5), usar negro; si es oscuro, usar blanco
-    return luminance > 0.5 ? '#000' : '#fff';
+    return luminance > 0.55 ? '#000' : '#fff';
 }
 
 class Scheduler {
     constructor() {
         this.curDate = new Date();
         this.view = 'week';
-        this.expandedMembers = JSON.parse(localStorage.getItem('v55_expMembers')) || { "Grupo A": true };
+        this.sidebarCollapsed = false;
+        this.selectedGroups = ['all'];
+        this.expandedMembers = JSON.parse(localStorage.getItem('v55_expMembers')) || {};
         this.emps = JSON.parse(localStorage.getItem('v35_emps')) || [];
         this.clis = JSON.parse(localStorage.getItem('v35_clis')) || [];
         this.servs = JSON.parse(localStorage.getItem('v35_servs')) || [];
@@ -1092,6 +1140,20 @@ class Scheduler {
         };
         this.generatedInvoices = JSON.parse(localStorage.getItem('v35_generatedInvoices')) || [];
         this.pendingInvoices = JSON.parse(localStorage.getItem('v35_pendingInvoices')) || [];
+        // Drive sync
+        if (!localStorage.getItem('anaCS_deviceId')) {
+            localStorage.setItem('anaCS_deviceId', 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2,5));
+        }
+        this.driveToken = null;
+        this.driveFolderId = null;
+        this.driveConnected = false;
+        this.tokenExpiry = null;
+        this.tokenClient = null;
+        this.isSyncing = false;
+        this.pendingSync = false;
+        this.CLIENT_ID = '1032764332702-uvnqg0ccaer5gp2hr12gmniqe38ria1t.apps.googleusercontent.com';
+        this.SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        this.FOLDER_NAME = 'AnasCleaningApp';
         // Convertir grupos (objeto) a groups (array) para el filtro
         this.groups = Object.keys(this.grupos).map((name, idx) => ({
             id: idx + 1,
@@ -1160,8 +1222,9 @@ class Scheduler {
         // ✅ Detectar facturas pendientes automáticamente
         this.detectPendingInvoices();
         
-        this.refreshSels(); 
-        this.render(); 
+        this.refreshSels();
+        this.populateGroupFilter(); // Solo aquí — una vez al cargar
+        this.render();
     }
     
     // Helper para obtener fecha local en formato YYYY-MM-DD
@@ -1179,118 +1242,272 @@ class Scheduler {
         localStorage.setItem('v35_servs', JSON.stringify(this.servs));
         localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
         localStorage.setItem('v35_expMembers', JSON.stringify(this.expandedMembers));
-	localStorage.setItem('v35_gastos', JSON.stringify(this.gastos || []));
- 	             localStorage.setItem('v35_gastosCategories', JSON.stringify(this.gastosCategories || {}));
+        localStorage.setItem('v35_gastos', JSON.stringify(this.gastos || []));
+        localStorage.setItem('v35_gastosCategories', JSON.stringify(this.gastosCategories || {}));
         localStorage.setItem('v35_generatedInvoices', JSON.stringify(this.generatedInvoices || []));
         localStorage.setItem('v35_pendingInvoices', JSON.stringify(this.pendingInvoices || []));
+        localStorage.setItem('anaCS_lastSavedAt', new Date().toISOString());
+        if (this.driveConnected) this.driveSyncNow();
     }
 
     toggleMembers(g) { this.expandedMembers[g] = !this.expandedMembers[g]; this.save(); this.render(); }
 
     render() {
         const todayStr = new Date().toLocaleDateString('en-CA');
-        const start = this.view === 'day' ? new Date(this.curDate) : (this.view === 'week' ? this.getMon(this.curDate) : new Date(this.curDate.getFullYear(), this.curDate.getMonth(), 1));
-        const daysCount = this.view === 'day' ? 1 : (this.view === 'week' ? 7 : new Date(this.curDate.getFullYear(), this.curDate.getMonth() + 1, 0).getDate());
-        const dates = Array.from({length:daysCount}, (_,i) => { 
-            let d = new Date(start); d.setDate(start.getDate()+i); return d; 
-        }).filter(d => this.view !== 'month' || d.getMonth() === this.curDate.getMonth());
-        
-        // Renderizar días en header fila 3
+        const grid = document.getElementById('mainSchedulerGrid');
+        grid.innerHTML = '';
+
+        // Título del mes
+        const titleDate = new Date(this.curDate);
+        const monthText = titleDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+        document.getElementById('monthLabel').innerText = monthText.charAt(0).toUpperCase() + monthText.slice(1);
+
+        if (this.view === 'month') {
+            this.renderMonth(todayStr, grid);
+        } else {
+            this.renderWeekDay(todayStr, grid);
+        }
+    }
+
+    // ── Vista SEMANA / DÍA ──────────────────────────────────────────
+    renderWeekDay(todayStr, grid) {
+        const start = this.view === 'day' ? new Date(this.curDate) : this.getMon(this.curDate);
+        const daysCount = this.view === 'day' ? 1 : 7;
+        const dates = Array.from({length:daysCount}, (_,i) => {
+            let d = new Date(start); d.setDate(start.getDate()+i); return d;
+        });
+
+        // Header de días
         const daysHeader = document.getElementById('daysHeaderInline');
         if(daysHeader) {
             const daysHtml = dates.map(d => {
                 const dayName = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'][d.getDay()];
-                const dayNum = d.getDate();
                 const isToday = d.toLocaleDateString('en-CA') === todayStr;
-                return `<div class="day-col-inline" style="${isToday ? 'background:#fff3cd; font-weight:700;' : ''}">${dayName}<br>${dayNum}</div>`;
+                return `<div class="day-col-inline" style="${isToday?'background:#fff3cd;font-weight:700;':''}">${dayName}<br>${d.getDate()}</div>`;
             }).join('');
-            
-            // Agregar columna vacía al inicio para alinear con grupos
-            daysHeader.innerHTML = `<div class="days-spacer"></div><div class="days-grid-container">${daysHtml}</div>`;
+            const collapsed = this.sidebarCollapsed;
+            daysHeader.innerHTML = `<div class="days-spacer" style="${collapsed?'width:var(--sidebar-collapsed-width)':''}"></div><div class="days-grid-container">${daysHtml}</div>`;
         }
-        
-        const monthText = dates[0].toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-        document.getElementById('monthLabel').innerText = monthText.charAt(0).toUpperCase() + monthText.slice(1);
-        const grid = document.getElementById('mainSchedulerGrid'); grid.innerHTML = '';
-
-        // Headers de días ya están en el header superior, no los duplicamos aquí
 
         const fCli = document.getElementById('searchCli').value;
-        // Filtro de grupos ahora usa this.selectedGroups
+        const selectedGrps = this.selectedGroups || ['all'];
 
         Object.keys(this.grupos).forEach(nombreGrupo => {
-            // Filtrar por grupos seleccionados
-            const selectedGrps = this.selectedGroups || ['all'];
-            const allGroups = this.groups || [];
-            const groupObj = allGroups.find(g => g.name === nombreGrupo);
+            const groupObj = (this.groups||[]).find(g => g.name === nombreGrupo);
             if(groupObj && !selectedGrps.includes('all') && !selectedGrps.includes(groupObj.id.toString())) return;
 
-            const row = document.createElement('div'); row.className = 'group-row';
-            const sidebar = document.createElement('div'); sidebar.className = 'sidebar-group';
-            
-            const titleBar = document.createElement('div'); titleBar.className = 'group-title-bar';
-            titleBar.innerHTML = `<span>${nombreGrupo}</span> <small>${this.expandedMembers[nombreGrupo]?'▼':'▶'}</small>`;
-            titleBar.onclick = () => this.toggleMembers(nombreGrupo);
-            sidebar.appendChild(titleBar);
+            const row = document.createElement('div');
+            row.className = 'group-row' + (this.sidebarCollapsed ? ' sidebar-collapsed' : '');
+            const sidebar = this._buildSidebar(nombreGrupo);
+            row.appendChild(sidebar);
 
-            const panel = document.createElement('div'); panel.className = `members-panel ${this.expandedMembers[nombreGrupo]?'expanded':''}`;
-            for(let i=0; i<5; i++){
-                const sel = document.createElement('select');
-                sel.innerHTML = `<option value="">- Vacante -</option>` + this.emps.map(e => `<option value="${e.id}" ${this.grupos[nombreGrupo][i]==e.id?'selected':''}>${e.name}</option>`).join('');
-                sel.onchange = (e) => { this.grupos[nombreGrupo][i]=e.target.value; this.save(); this.render(); };
-                panel.appendChild(sel);
-            }
-            sidebar.appendChild(panel); row.appendChild(sidebar);
-
-            const cellsRow = document.createElement('div'); cellsRow.className = 'cells-container';
+            const cellsRow = document.createElement('div');
+            cellsRow.className = 'cells-container';
             cellsRow.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
 
             dates.forEach(day => {
                 const dStr = day.toLocaleDateString('en-CA');
-                const cell = document.createElement('div'); cell.className = `time-cell ${dStr===todayStr?'today':''}`;
+                const cell = document.createElement('div');
+                cell.className = `time-cell ${dStr===todayStr?'today':''}`;
                 cell.onclick = () => this.openModal(null, dStr, nombreGrupo);
-
-                let daily = this.servs.filter(s => {
-                    if(s.date !== dStr) return false;
-                    if(s.empId === nombreGrupo) return true;
-                    return this.grupos[nombreGrupo].includes(s.empId.toString());
-                });
-                if(fCli !== 'all') daily = daily.filter(s => s.cliId == fCli);
-                
-                // Ordenar por prioridad ASCENDENTE (1 primero, 2 segundo, 3 tercero...)
-                daily.sort((a, b) => {
-                    const prioA = parseInt(a.priority) || 999; // Sin prioridad = al final
-                    const prioB = parseInt(b.priority) || 999;
-                    return prioA - prioB;
-                });
-
-                daily.forEach(s => {
-                    const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
-                    const div = document.createElement('div'); 
-                    div.className = 'service-event';
-                    
-                    let bgColor = `var(--color-${c.type.toLowerCase().replace(/ /g,'')})`;
-                    if(c.type.toLowerCase().includes('airbnb')) bgColor = 'var(--color-airbnb)';
-                    div.style.backgroundColor = bgColor;
-                    
-                    // Aplicar contraste inteligente
-                    const textColor = getTextColor(bgColor);
-                    div.style.color = textColor;
-                    
-                    const showPropId = (c.type === 'airbnb' || c.type === 'unico');
-                    const prioNum = s.priority || '';
-                    const prioPrefix = prioNum ? `<b>${prioNum}.</b> ` : '';
-                    
-                    div.innerHTML = showPropId 
-                        ? `<div class="ev-prop">${prioPrefix}${c.name}: ${c.propId}</div>`
-                        : `<div class="ev-prop">${prioPrefix}${c.name}</div>`;
-                    div.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
-                    cell.appendChild(div);
-                });
+                this._fillCell(cell, dStr, nombreGrupo, fCli);
                 cellsRow.appendChild(cell);
             });
-            row.appendChild(cellsRow); grid.appendChild(row);
+            row.appendChild(cellsRow);
+            grid.appendChild(row);
         });
+    }
+
+    // ── Vista MES: cuadrícula real Dom→Sáb ──────────────────────────
+    renderMonth(todayStr, grid) {
+        const daysHeader = document.getElementById('daysHeaderInline');
+        if(daysHeader) daysHeader.innerHTML = ''; // Limpiar header de semana
+
+        const yr = this.curDate.getFullYear();
+        const mo = this.curDate.getMonth();
+        const fCli = document.getElementById('searchCli').value;
+        const selectedGrps = this.selectedGroups || ['all'];
+
+        // Wrapper
+        const wrapper = document.createElement('div');
+        wrapper.className = 'month-grid-wrapper';
+
+        // Header Dom→Sáb
+        const dayNames = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
+        const hdr = document.createElement('div'); hdr.className = 'month-grid-header';
+        dayNames.forEach(n => { const c = document.createElement('div'); c.className='month-grid-header-cell'; c.textContent=n; hdr.appendChild(c); });
+        wrapper.appendChild(hdr);
+
+        // Primer día del mes y total de días
+        const firstDay = new Date(yr, mo, 1).getDay(); // 0=Dom
+        const totalDays = new Date(yr, mo+1, 0).getDate();
+
+        // Filtrar grupos activos
+        const activeGroups = Object.keys(this.grupos).filter(g => {
+            const obj = (this.groups||[]).find(x => x.name === g);
+            return !obj || selectedGrps.includes('all') || selectedGrps.includes(obj.id.toString());
+        });
+
+        // Construir semanas
+        let dayNum = 1 - firstDay; // puede empezar negativo (días del mes anterior)
+        while(dayNum <= totalDays) {
+            const weekRow = document.createElement('div'); weekRow.className = 'month-week-row';
+            for(let dow = 0; dow < 7; dow++) {
+                const cell = document.createElement('div');
+                const isCurrentMonth = dayNum >= 1 && dayNum <= totalDays;
+                const cellDate = new Date(yr, mo, dayNum);
+                const dStr = cellDate.toLocaleDateString('en-CA');
+                const isTodayCell = dStr === todayStr;
+
+                cell.className = 'month-day-cell' + (isTodayCell ? ' today' : '') + (!isCurrentMonth ? ' other-month' : '');
+
+                if(isCurrentMonth) {
+                    // Número del día
+                    const numDiv = document.createElement('div');
+                    numDiv.className = 'month-day-num' + (isTodayCell ? ' today-num' : '');
+                    numDiv.textContent = dayNum;
+                    cell.appendChild(numDiv);
+
+                    // Recopilar todos los servicios del día de todos los grupos activos (sin duplicar)
+                    const seen = new Set();
+                    let allServs = [];
+                    activeGroups.forEach(g => {
+                        let daily = this.servs.filter(s => {
+                            if(s.date !== dStr) return false;
+                            if(s.empId === g) return true;
+                            return this.grupos[g].includes(s.empId.toString());
+                        });
+                        if(fCli !== 'all') daily = daily.filter(s => s.cliId == fCli);
+                        daily.forEach(s => { if(!seen.has(s.id)) { seen.add(s.id); allServs.push({...s, grupo: g}); } });
+                    });
+
+                    allServs.sort((a,b) => (parseInt(a.priority)||999) - (parseInt(b.priority)||999));
+
+                    const MAX_VISIBLE = 3;
+                    const visible = allServs.slice(0, MAX_VISIBLE);
+                    const hidden = allServs.slice(MAX_VISIBLE);
+
+                    visible.forEach(s => {
+                        const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
+                        const ev = document.createElement('div'); ev.className = 'month-event';
+                        const typeKeyM = c.type.toLowerCase().replace(/ /g,'');
+                        const bgColor = this.getColor(typeKeyM); // siempre hex real
+                        ev.style.backgroundColor = bgColor;
+                        const textModeM = this.getTextMode(typeKeyM);
+                        ev.style.color = textModeM === 'auto' ? getTextColor(bgColor) : (textModeM === 'white' ? '#fff' : '#000');
+                        const prioPrefix = s.priority ? `${s.priority}. ` : '';
+                        ev.textContent = prioPrefix + c.name;
+                        ev.title = `${c.name} — ${s.grupo}`;
+                        ev.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
+                        cell.appendChild(ev);
+                    });
+
+                    if(hidden.length > 0) {
+                        const more = document.createElement('div'); more.className = 'month-more-btn';
+                        more.textContent = `+${hidden.length} más`;
+                        more.onclick = (e) => {
+                            e.stopPropagation();
+                            // Mostrar los ocultos inline
+                            hidden.forEach(s => {
+                                const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
+                                const ev = document.createElement('div'); ev.className = 'month-event';
+                                const typeKeyH = c.type.toLowerCase().replace(/ /g,'');
+                                const bgColorH = this.getColor(typeKeyH);
+                                ev.style.backgroundColor = bgColorH;
+                                const textModeH = this.getTextMode(typeKeyH);
+                                ev.style.color = textModeH === 'auto' ? getTextColor(bgColorH) : (textModeH === 'white' ? '#fff' : '#000');
+                                ev.textContent = (s.priority ? `${s.priority}. ` : '') + c.name;
+                                ev.onclick = (e2) => { e2.stopPropagation(); this.openModal(s); };
+                                cell.insertBefore(ev, more);
+                            });
+                            more.remove();
+                        };
+                        cell.appendChild(more);
+                    }
+
+                    cell.onclick = () => this.openModal(null, dStr, activeGroups[0] || Object.keys(this.grupos)[0]);
+                }
+                weekRow.appendChild(cell);
+                dayNum++;
+            }
+            wrapper.appendChild(weekRow);
+        }
+        grid.appendChild(wrapper);
+    }
+
+    // ── Helper: construir sidebar de grupo ──────────────────────────
+    _buildSidebar(nombreGrupo) {
+        const sidebar = document.createElement('div'); sidebar.className = 'sidebar-group';
+
+        const titleBar = document.createElement('div'); titleBar.className = 'group-title-bar';
+        titleBar.innerHTML = `<span>${nombreGrupo}</span> <small>${this.expandedMembers[nombreGrupo]?'▼':'▶'}</small>`;
+        titleBar.onclick = () => this.toggleMembers(nombreGrupo);
+        sidebar.appendChild(titleBar);
+
+        // Preview de miembros (cuando está retraído)
+        const preview = document.createElement('div'); preview.className = 'group-members-preview';
+        const slots = this.grupos[nombreGrupo] || [];
+        slots.forEach((empId, i) => {
+            if(i >= 5) return;
+            const chip = document.createElement('span');
+            if(empId) {
+                const emp = this.emps.find(e => e.id == empId);
+                const firstName = emp ? emp.name.split(' ')[0] : '?';
+                chip.className = 'member-chip';
+                chip.textContent = firstName;
+                chip.title = emp ? emp.name : '';
+            } else {
+                chip.className = 'member-chip vacant';
+                chip.textContent = '-';
+            }
+            preview.appendChild(chip);
+        });
+        sidebar.appendChild(preview);
+
+        // Panel de edición
+        const panel = document.createElement('div'); panel.className = `members-panel ${this.expandedMembers[nombreGrupo]?'expanded':''}`;
+        for(let i=0; i<5; i++){
+            const sel = document.createElement('select');
+            sel.innerHTML = `<option value="">- Vacante -</option>` + this.emps.map(e => `<option value="${e.id}" ${this.grupos[nombreGrupo][i]==e.id?'selected':''}>${e.name}</option>`).join('');
+            sel.onchange = (e) => { this.grupos[nombreGrupo][i]=e.target.value; this.save(); this.render(); };
+            panel.appendChild(sel);
+        }
+        sidebar.appendChild(panel);
+        return sidebar;
+    }
+
+    // ── Helper: llenar celda con servicios ──────────────────────────
+    _fillCell(cell, dStr, nombreGrupo, fCli) {
+        let daily = this.servs.filter(s => {
+            if(s.date !== dStr) return false;
+            if(s.empId === nombreGrupo) return true;
+            return this.grupos[nombreGrupo].includes(s.empId.toString());
+        });
+        if(fCli !== 'all') daily = daily.filter(s => s.cliId == fCli);
+        daily.sort((a,b) => (parseInt(a.priority)||999)-(parseInt(b.priority)||999));
+        daily.forEach(s => {
+            const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
+            const div = document.createElement('div'); div.className = 'service-event';
+            const typeKey4 = c.type.toLowerCase().replace(/ /g,'');
+            const bgColor4 = this.getColor(typeKey4); // siempre hex real — compatible Safari/iOS
+            div.style.backgroundColor = bgColor4;
+            const textMode4 = this.getTextMode(typeKey4);
+            div.style.color = textMode4 === 'auto' ? getTextColor(bgColor4) : (textMode4 === 'white' ? '#fff' : '#000');
+            const prioNum = s.priority || '';
+            const prioPrefix = prioNum ? `<b>${prioNum}.</b> ` : '';
+            const showPropId = (c.type === 'airbnb' || c.type === 'unico');
+            div.innerHTML = `<div class="ev-prop">${prioPrefix}${showPropId ? c.name+': '+c.propId : c.name}</div>`;
+            div.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
+            cell.appendChild(div);
+        });
+    }
+
+    // ── Toggle sidebar global ───────────────────────────────────────
+    toggleSidebar() {
+        this.sidebarCollapsed = !this.sidebarCollapsed;
+        const btn = document.getElementById('sidebarToggleBtn');
+        if(btn) btn.textContent = this.sidebarCollapsed ? '▶▶' : '◀◀';
+        this.render();
     }
 
     // Funciones de Lógica
@@ -1623,7 +1840,9 @@ class Scheduler {
         
         types.forEach(type => {
             const currentColor = this.getColor(type.key);
-            
+            const currentTextMode = this.getTextMode(type.key); // 'auto' | 'white' | 'black'
+            const autoTextColor = getTextColor(currentColor);
+
             const paletteHtml = palette.map(color => {
                 const selected = currentColor.toLowerCase() === color.toLowerCase() ? 'selected' : '';
                 return `<div class="color-option ${selected}" 
@@ -1632,16 +1851,52 @@ class Scheduler {
                              title="${color}">
                         </div>`;
             }).join('');
-            
+
+            // Preview del cuadro de servicio con el color actual
+            const previewTextColor = currentTextMode === 'auto' ? autoTextColor : (currentTextMode === 'white' ? '#fff' : '#000');
+            const previewShadow = previewTextColor === '#fff' ? '0 1px 1px rgba(0,0,0,0.3)' : '0 1px 1px rgba(255,255,255,0.3)';
+
             html += `
                 <div class="recurrence-color-item">
                     <h4>${type.name}</h4>
-                    <div style="display:flex; align-items:center; gap:15px; margin-bottom:10px">
-                        <div style="width:60px; height:60px; background:var(--color-${type.key}); border-radius:8px; border:2px solid #ddd"></div>
-                        <div style="flex:1">
-                            <div style="font-size:0.9rem; color:#666">Color actual</div>
-                            <div style="font-weight:bold; color:var(--color-${type.key})">${currentColor.toUpperCase()}</div>
+                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px">
+                        <!-- Preview cuadro servicio -->
+                        <div style="background:${currentColor}; border-radius:6px; padding:8px 12px;
+                                    border-left:3px solid rgba(0,0,0,0.25); box-shadow:0 2px 5px rgba(0,0,0,0.15);
+                                    min-width:90px; text-align:center;">
+                            <span style="color:${previewTextColor}; font-weight:700; font-size:0.82rem; text-shadow:${previewShadow};">
+                                Cliente Ejemplo
+                            </span>
                         </div>
+                        <div style="flex:1">
+                            <div style="font-size:0.78rem; color:#999; margin-bottom:4px;">Color fondo</div>
+                            <div style="font-family:monospace; font-weight:bold; color:#333; font-size:0.85rem;">${currentColor.toUpperCase()}</div>
+                        </div>
+                    </div>
+                    <!-- Selector color de texto -->
+                    <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
+                        <span style="font-size:0.75rem; color:#666; font-weight:600;">Letra:</span>
+                        <button onclick="app.updateTextMode('${type.key}','auto')"
+                            style="padding:3px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer; font-weight:600;
+                                   border: 2px solid ${currentTextMode==='auto'?'#3498db':'#ddd'};
+                                   background:${currentTextMode==='auto'?'#ebf5fb':'#fff'};
+                                   color:${currentTextMode==='auto'?'#2980b9':'#666'};">
+                            Auto (${autoTextColor==='#fff'?'blanca':'negra'})
+                        </button>
+                        <button onclick="app.updateTextMode('${type.key}','white')"
+                            style="padding:3px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer; font-weight:700;
+                                   border: 2px solid ${currentTextMode==='white'?'#3498db':'#ddd'};
+                                   background:${currentTextMode==='white'?'#333':'#fff'};
+                                   color:${currentTextMode==='white'?'white':'#666'};">
+                            Blanca
+                        </button>
+                        <button onclick="app.updateTextMode('${type.key}','black')"
+                            style="padding:3px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer; font-weight:700;
+                                   border: 2px solid ${currentTextMode==='black'?'#3498db':'#ddd'};
+                                   background:${currentTextMode==='black'?'#f5f5f5':'#fff'};
+                                   color:${currentTextMode==='black'?'#222':'#666'};">
+                            Negra
+                        </button>
                     </div>
                     <div class="color-palette">
                         ${paletteHtml}
@@ -1653,6 +1908,30 @@ class Scheduler {
         document.getElementById('colorCustomization').innerHTML = html;
     }
     
+    getTextMode(type) {
+        const stored = localStorage.getItem('customTextModes');
+        if(stored) {
+            const modes = JSON.parse(stored);
+            if(modes[type]) return modes[type];
+        }
+        return 'auto';
+    }
+
+    updateTextMode(type, mode) {
+        let modes = {};
+        const stored = localStorage.getItem('customTextModes');
+        if(stored) modes = JSON.parse(stored);
+        modes[type] = mode;
+        localStorage.setItem('customTextModes', JSON.stringify(modes));
+        // Actualizar el modal que esté abierto
+        if(document.getElementById('secConfig') && document.getElementById('secConfig').style.display !== 'none') {
+            this.renderSeriesConfig();
+        } else {
+            this.renderColorCustomization();
+        }
+        this.render();
+    }
+
     getColor(type) {
         const stored = localStorage.getItem('customColors');
         if(stored) {
@@ -1700,6 +1979,7 @@ class Scheduler {
         if(!confirm('¿Restaurar todos los colores a sus valores por defecto?')) return;
         
         localStorage.removeItem('customColors');
+        localStorage.removeItem('customTextModes');
         
         const defaults = {
             'unico': '#95a5a6',
@@ -2708,11 +2988,10 @@ class Scheduler {
             const subcat = g.subcategoria || 'N/A';
             
             if (!gastosPorCategoria[cat]) {
-                gastosPorCategoria[cat] = { total: 0, count: 0, subcategorias: {} };
+                gastosPorCategoria[cat] = { total: 0, subcategorias: {} };
             }
             
             gastosPorCategoria[cat].total += g.monto;
-            gastosPorCategoria[cat].count += 1;
             
             if (!gastosPorCategoria[cat].subcategorias[subcat]) {
                 gastosPorCategoria[cat].subcategorias[subcat] = 0;
@@ -2763,33 +3042,30 @@ class Scheduler {
                     </div>
         `;
         
-        // Desglose de gastos con categorías colapsables
+        // Desglose de gastos
         if (Object.keys(gastosPorCategoria).length > 0) {
             html += `<div style="padding-left: 20px; margin-top: 10px;">`;
-            Object.keys(gastosPorCategoria).sort().forEach((cat, idx) => {
+            Object.keys(gastosPorCategoria).sort().forEach(cat => {
                 const catData = gastosPorCategoria[cat];
-                const subkeys = Object.keys(catData.subcategorias).sort();
-                const hasSubcats = subkeys.length > 0;
-                const catId = 'cat_' + idx;
                 html += `
-                    <div style="padding: 5px 0; font-size: 0.9rem; color: #495057;">
-                        <div style="display: flex; align-items: center;">
-                            <span style="font-weight: 500;">${cat}</span>
-                            <span style="color:#6c757d; font-size:0.8rem; margin-left:6px;">(${catData.count})</span>
-                            <span style="flex: 1; border-bottom: 1px dotted #ccc; margin: 0 10px;"></span>
-                            <span>$${catData.total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                            ${hasSubcats ? `<button onclick="var el=document.getElementById('${catId}'); el.style.display=el.style.display==='none'?'block':'none'; this.textContent=el.style.display==='none'?'▶ Ver':'▼ Ocultar';" style="margin-left:10px; background:none; border:1px solid #ccc; border-radius:4px; padding:2px 8px; font-size:0.75rem; cursor:pointer; color:#666;">▶ Ver</button>` : ''}
-                        </div>
-                        ${hasSubcats ? `<div id="${catId}" style="display:none; padding-left:15px; margin-top:4px;">` : ''}
-                        ${hasSubcats ? subkeys.map(subcat => `
-                            <div style="display:flex; align-items:center; padding:3px 0; font-size:0.85rem; color:#6c757d;">
-                                <span>• ${subcat}</span>
-                                <span style="flex:1; border-bottom:1px dotted #ddd; margin:0 8px;"></span>
-                                <span>$${catData.subcategorias[subcat].toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                            </div>`).join('') : ''}
-                        ${hasSubcats ? `</div>` : ''}
+                    <div style="display: flex; align-items: center; padding: 5px 0; font-size: 0.9rem; color: #495057;">
+                        <span style="font-weight: 500;">${cat}</span>
+                        <span style="flex: 1; border-bottom: 1px dotted #ccc; margin: 0 10px;"></span>
+                        <span>$${catData.total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                     </div>
                 `;
+                
+                // Subcategorías (indentadas)
+                Object.keys(catData.subcategorias).sort().forEach(subcat => {
+                    const monto = catData.subcategorias[subcat];
+                    html += `
+                        <div style="display: flex; align-items: center; padding: 3px 0 3px 20px; font-size: 0.85rem; color: #6c757d;">
+                            <span>• ${subcat}</span>
+                            <span style="flex: 1; border-bottom: 1px dotted #ddd; margin: 0 8px;"></span>
+                            <span>$${monto.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                        </div>
+                    `;
+                });
             });
             html += `</div>`;
         }
@@ -2857,6 +3133,9 @@ class Scheduler {
             if (totales && totales.periodos) {
                 this.nominaTotales = totales.periodos;
                 localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
+                // DEBUG
+                const debug = this.nominaTotales.map(p => `${p.etiqueta}: $${p.totalNeto} (${p.fechaInicio} - ${p.fechaFin})`).join('\n');
+                alert('📊 Nómina importada:\n' + (debug || 'Sin períodos'));
                 btn.textContent = '✅ Nómina importada';
                 btn.style.background = '#27ae60';
                 this.refreshFinance();
@@ -2874,6 +3153,20 @@ class Scheduler {
             btn.disabled = false;
             alert('❌ ' + err.message);
         }
+    }
+
+    async driveReadFile(fileName) {
+        const searchRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=name='${fileName}'&fields=files(id,name)`,
+            { headers: { Authorization: `Bearer ${this.driveToken}` } }
+        );
+        const searchData = await searchRes.json();
+        if (!searchData.files || searchData.files.length === 0) throw new Error(`${fileName} no encontrado`);
+        const fileRes = await fetch(
+            `https://www.googleapis.com/drive/v3/files/${searchData.files[0].id}?alt=media`,
+            { headers: { Authorization: `Bearer ${this.driveToken}` } }
+        );
+        return await fileRes.json();
     }
 
     async driveReadNominaTotales() {
@@ -3660,50 +3953,69 @@ class Scheduler {
     toggleGroupFilter(e) {
         e.stopPropagation();
         const dropdown = document.getElementById('groupFilterDropdown');
+        const wasOpen = dropdown.classList.contains('show');
         dropdown.classList.toggle('show');
+        // Si se estaba cerrando y hubo cambios, renderizar ahora
+        if(wasOpen && this._groupFilterDirty) {
+            this._groupFilterDirty = false;
+            this.render();
+        }
     }
 
     toggleAllGroups(e) {
         e.stopPropagation();
-        const checkbox = document.getElementById('groupAll');
-        const allCheckboxes = document.querySelectorAll('#groupCheckboxes input[type="checkbox"]');
-        allCheckboxes.forEach(cb => cb.checked = checkbox.checked);
-        this.updateGroupFilter();
+        this.selectedGroups = ['all'];
+        const label = document.getElementById('groupFilterLabel');
+        if(label) label.textContent = 'GRUPOS (TODOS)';
+        const allCb = document.getElementById('groupAll');
+        if(allCb) allCb.checked = true;
+        // Desmarcar individuales visualmente
+        if(this.groups) this.groups.forEach(g => {
+            const cb = document.getElementById('group_' + g.id);
+            if(cb) cb.checked = false;
+        });
+        this._groupFilterDirty = true;
     }
 
     toggleGroupCheckbox(groupId, e) {
         e.stopPropagation();
-        const allCheckbox = document.getElementById('groupAll');
-        const allGroupCheckboxes = document.querySelectorAll('#groupCheckboxes input[type="checkbox"]');
-        const allChecked = Array.from(allGroupCheckboxes).every(cb => cb.checked);
-        allCheckbox.checked = allChecked;
-        this.updateGroupFilter();
+        // Toggle estado — NO llamar render() para no cortar el dropdown
+        if(this.selectedGroups.includes('all')) {
+            this.selectedGroups = [groupId];
+        } else if(this.selectedGroups.includes(groupId)) {
+            this.selectedGroups = this.selectedGroups.filter(g => g !== groupId);
+            if(this.selectedGroups.length === 0) this.selectedGroups = ['all'];
+        } else {
+            this.selectedGroups = [...this.selectedGroups, groupId];
+        }
+        // Solo actualizar label — el calendario se actualiza al cerrar el dropdown
+        const isAll = this.selectedGroups.includes('all');
+        const label = document.getElementById('groupFilterLabel');
+        if(label) label.textContent = isAll ? 'GRUPOS (TODOS)' : 'GRUPOS (' + this.selectedGroups.length + ')';
+        const allCb = document.getElementById('groupAll');
+        if(allCb) allCb.checked = isAll;
+        // Marcar que hay cambio pendiente — render se dispara al cerrar
+        this._groupFilterDirty = true;
     }
 
-    updateGroupFilter() {
-        const allCheckbox = document.getElementById('groupAll');
-        const checkedGroups = [];
-        
-        if(!allCheckbox.checked) {
-            document.querySelectorAll('#groupCheckboxes input[type="checkbox"]:checked').forEach(cb => {
-                checkedGroups.push(cb.value);
+    _syncGroupFilterUI() {
+        const isAll = this.selectedGroups.includes('all');
+        // Label
+        const label = document.getElementById('groupFilterLabel');
+        if(label) label.textContent = isAll ? 'GRUPOS (TODOS)' : `GRUPOS (${this.selectedGroups.length})`;
+        // Checkbox TODOS
+        const allCb = document.getElementById('groupAll');
+        if(allCb) allCb.checked = isAll;
+        // Checkboxes individuales: NUNCA marcados cuando TODOS está activo
+        if(this.groups) {
+            this.groups.forEach(g => {
+                const cb = document.getElementById('group_' + g.id);
+                if(cb) cb.checked = !isAll && this.selectedGroups.includes(g.id);
             });
         }
-        
-        const label = document.getElementById('groupFilterLabel');
-        if(allCheckbox.checked || checkedGroups.length === this.groups.length) {
-            label.textContent = 'GRUPOS (TODOS)';
-            this.selectedGroups = ['all'];
-        } else if(checkedGroups.length === 0) {
-            label.textContent = 'GRUPOS (NINGUNO)';
-            this.selectedGroups = [];
-        } else {
-            label.textContent = `GRUPOS (${checkedGroups.length})`;
-            this.selectedGroups = checkedGroups;
-        }
-        
-        this.render();
     }
+
+    updateGroupFilter() { /* legacy — no se usa */ }
 
     populateGroupFilter() {
         const container = document.getElementById('groupCheckboxes');
@@ -3712,13 +4024,28 @@ class Scheduler {
             container.innerHTML = '<div style="padding:10px; color:#999; font-size:12px">No hay grupos</div>';
             return;
         }
-        
-        container.innerHTML = this.groups.map(g => `
-            <div class="filter-option">
-                <input type="checkbox" id="group_${g.id}" value="${g.id}" checked onchange="app.toggleGroupCheckbox('${g.id}', event)">
+        // Si ya tiene contenido, solo sincronizar el estado visual sin regenerar HTML
+        // (para no cerrar el dropdown mientras el usuario está seleccionando)
+        if(container.innerHTML.trim() !== '') {
+            const isAll = !this.selectedGroups || this.selectedGroups.includes('all');
+            this.groups.forEach(g => {
+                const cb = document.getElementById('group_' + g.id);
+                if(cb) cb.checked = !isAll && this.selectedGroups.includes(g.id);
+            });
+            const allCb = document.getElementById('groupAll');
+            if(allCb) allCb.checked = isAll;
+            return;
+        }
+        // Primera vez: generar el HTML
+        const isAll = !this.selectedGroups || this.selectedGroups.includes('all');
+        container.innerHTML = this.groups.map(g => {
+            return `<div class="filter-option">
+                <input type="checkbox" id="group_${g.id}" value="${g.id}" onchange="app.toggleGroupCheckbox('${g.id}', event)">
                 <label for="group_${g.id}" style="cursor:pointer; flex:1">${g.name}</label>
-            </div>
-        `).join('');
+            </div>`;
+        }).join('');
+        const allCb = document.getElementById('groupAll');
+        if(allCb) allCb.checked = true;
     }
 
     
@@ -3835,7 +4162,10 @@ class Scheduler {
         
         types.forEach(type => {
             const currentColor = this.getColor(type.key);
-            
+            const currentTextMode = this.getTextMode(type.key);
+            const autoTextColor = getTextColor(currentColor);
+            const previewTextColor = currentTextMode === 'auto' ? autoTextColor : (currentTextMode === 'white' ? '#fff' : '#000');
+
             const paletteHtml = palette.map(color => {
                 const selected = currentColor.toLowerCase() === color.toLowerCase() ? 'selected' : '';
                 return `<div class="color-option ${selected}" 
@@ -3844,7 +4174,16 @@ class Scheduler {
                              title="${color}">
                         </div>`;
             }).join('');
-            
+
+            const modeBtn = (label, mode, extra='') => {
+                const active = currentTextMode === mode;
+                return `<button onclick="app.updateTextMode('${type.key}','${mode}')"
+                    style="padding:3px 9px; font-size:0.7rem; border-radius:4px; cursor:pointer; font-weight:600;
+                           border:2px solid ${active?'#3498db':'#ddd'};
+                           background:${active?'#ebf5fb':'#fff'};
+                           color:${active?'#2980b9':'#666'}; ${extra}">${label}</button>`;
+            };
+
             html += `
                 <div class="recurrence-color-item" style="margin-bottom:8px">
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px">
@@ -3853,10 +4192,21 @@ class Scheduler {
                             <h4 style="margin:0; font-size:0.95rem; color:#333">${type.name}</h4>
                             <small style="color:#666; font-size:0.75rem">${type.desc}</small>
                         </div>
-                        <div style="display:flex; align-items:center; gap:6px">
-                            <div style="width:36px; height:36px; background:${currentColor}; border-radius:50%; border:2px solid #ddd; box-shadow:0 2px 4px rgba(0,0,0,0.1)"></div>
-                            <span style="font-family:monospace; color:#666; font-size:0.9rem">${currentColor.toUpperCase()}</span>
+                        <!-- Preview cuadro servicio -->
+                        <div style="background:${currentColor}; border-radius:5px; padding:5px 10px;
+                                    border-left:3px solid rgba(0,0,0,0.25); box-shadow:0 2px 4px rgba(0,0,0,0.15);">
+                            <span style="color:${previewTextColor}; font-weight:700; font-size:0.75rem;
+                                         text-shadow:0 1px 1px rgba(0,0,0,0.15);">
+                                ${type.name}
+                            </span>
                         </div>
+                    </div>
+                    <!-- Selector color de letra -->
+                    <div style="display:flex; align-items:center; gap:5px; margin-bottom:7px; flex-wrap:wrap;">
+                        <span style="font-size:0.72rem; color:#888; font-weight:600;">Color letra:</span>
+                        ${modeBtn(`Auto (${autoTextColor==='#fff'?'blanca':'negra'})`, 'auto')}
+                        ${modeBtn('⬜ Blanca', 'white')}
+                        ${modeBtn('⬛ Negra', 'black')}
                     </div>
                     <div class="color-palette">
                         ${paletteHtml}
@@ -4092,7 +4442,8 @@ class Scheduler {
     }
 
     refreshSels() {
-        this.populateGroupFilter();
+        // populateGroupFilter solo se llama al inicio (en constructor/init)
+        // para no regenerar el dropdown mientras el usuario filtra grupos
         
         // ✅ Ordenar clientes alfabéticamente
         const sortedClis = [...this.clis].sort((a, b) => {
@@ -4432,29 +4783,73 @@ class Scheduler {
     }
     importar() {
         const i = document.createElement('input'); i.type = 'file';
+        i.accept = '.json';
         i.onchange = e => {
             const r = new FileReader();
             r.onload = () => {
-                const d = JSON.parse(r.result);
-                this.emps = d.emps || [];
-                this.clis = d.clis || [];
-                this.servs = d.servs || [];
-                this.grupos = d.grupos || [];
-                this.gastos = d.gastos || [];
-                this.gastosCategories = d.gastosCategories || {};
-                this.generatedInvoices = d.generatedInvoices || [];
-                this.pendingInvoices = d.pendingInvoices || [];
-                
-                // Restaurar configuración de empresa y logo
-                if (d.companyConfig) {
-                    localStorage.setItem('companyConfig', JSON.stringify(d.companyConfig));
+                try {
+                    const d = JSON.parse(r.result);
+                    let empsAdded = 0, clisAdded = 0;
+
+                    // Detectar si es backup de AnaCS o exportación de la Nómina
+                    const isNominaExport = !!d.employees && !d.emps;
+
+                    if (isNominaExport) {
+                        // Importar empleados desde Nómina — solo merge, no sobreescribir
+                        (d.employees || []).forEach(emp => {
+                            const exists = this.emps.find(e =>
+                                e.name.trim().toLowerCase() === emp.name.trim().toLowerCase()
+                            );
+                            if (!exists) {
+                                this.emps.push({
+                                    id: emp.id || `emp_${Date.now()}_${Math.random().toString(36).substr(2,4)}`,
+                                    name: emp.name,
+                                    rate: emp.rate || 0
+                                });
+                                empsAdded++;
+                            }
+                        });
+                        this.save();
+                        this.refreshSels();
+                        const msg = empsAdded === 0 ? '\n\nTodos ya existían.' : '';
+                        alert('✅ ' + empsAdded + ' empleados importados de la Nómina.' + msg);
+                    } else {
+                        // Backup completo de AnaCS — preguntar si sobreescribir o hacer merge
+                        const mode = confirm('Importar: ACEPTAR=Reemplazar todo / CANCELAR=Solo agregar nuevos');
+                        if (mode) {
+                            // Reemplazar todo
+                            this.emps  = d.emps  || [];
+                            this.clis  = d.clis  || [];
+                            this.servs = d.servs || [];
+                            this.grupos = d.grupos || [];
+                            this.gastos = d.gastos || [];
+                            this.gastosCategories = d.gastosCategories || {};
+                            this.generatedInvoices = d.generatedInvoices || [];
+                            this.pendingInvoices = d.pendingInvoices || [];
+                            if (d.companyConfig) localStorage.setItem('companyConfig', JSON.stringify(d.companyConfig));
+                            if (d.companyLogo) localStorage.setItem('companyLogo', d.companyLogo);
+                            this.save();
+                            location.reload();
+                        } else {
+                            // Merge — solo agregar los que no existen
+                            (d.emps || []).forEach(emp => {
+                                const exists = this.emps.find(e => e.name.trim().toLowerCase() === emp.name.trim().toLowerCase());
+                                if (!exists) { this.emps.push(emp); empsAdded++; }
+                            });
+                            (d.clis || []).forEach(cli => {
+                                const exists = this.clis.find(c => c.name.trim().toLowerCase() === cli.name.trim().toLowerCase());
+                                if (!exists) { this.clis.push(cli); clisAdded++; }
+                            });
+                            this.save();
+                            this.refreshSels();
+                            alert(`✅ Merge completado:
+• ${empsAdded} empleados agregados
+• ${clisAdded} clientes agregados`);
+                        }
+                    }
+                } catch(err) {
+                    alert('❌ Error al importar: ' + err.message);
                 }
-                if (d.companyLogo) {
-                    localStorage.setItem('companyLogo', d.companyLogo);
-                }
-                
-                this.save();
-                location.reload();
             };
             r.readAsText(e.target.files[0]);
         };
@@ -4521,6 +4916,107 @@ class Scheduler {
         }
     }
     
+    showSMSModal() {
+        document.getElementById('whatsappModal').style.display = 'block';
+        this._renderSMSGroups();
+    }
+
+    _renderSMSGroups() {
+        // Label semana
+        const startDate = new Date(this.curDate);
+        startDate.setDate(startDate.getDate() - startDate.getDay() + 1);
+        const endDate = new Date(startDate); endDate.setDate(startDate.getDate() + 6);
+        const months = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+        const days = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+        document.getElementById('smsWeekLabel').textContent =
+            `Semana ${days[startDate.getDay()]} ${startDate.getDate()} – ${days[endDate.getDay()]} ${endDate.getDate()} ${months[endDate.getMonth()]} ${endDate.getFullYear()}`;
+
+        const container = document.getElementById('smsGroupList');
+        const groupNames = Object.keys(this.grupos);
+        const colors = ['#2980b9','#27ae60','#8e44ad','#e67e22','#e74c3c'];
+
+        container.innerHTML = groupNames.map((gName, i) => {
+            // Obtener miembros con teléfono
+            const memberIds = this.grupos[gName].filter(id => id && id !== '');
+            const members = memberIds.map(id => this.emps.find(e => e.id == id)).filter(Boolean);
+            const withPhone = members.filter(m => m.tel && m.tel.trim() !== '');
+            const memberChips = members.map(m =>
+                `<span style="display:inline-block; background:${m.tel?'#d5f5e3':'#fdecea'}; color:${m.tel?'#1e8449':'#c0392b'}; padding:2px 7px; border-radius:10px; font-size:0.7rem; margin:2px;">${m.name.split(' ')[0]} ${m.tel?'✓':'✗'}</span>`
+            ).join('');
+
+            // Contar servicios de la semana
+            const servCount = this._countGroupServicesWeek(gName, startDate);
+
+            return `<div style="background:#f8f9fa; border-radius:8px; border-left:4px solid ${colors[i%colors.length]}; padding:12px; cursor:pointer;"
+                         onclick="app._previewGroupSMS('${gName}')">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                    <span style="font-weight:800; font-size:0.9rem; color:${colors[i%colors.length]};">${gName}</span>
+                    <span style="background:${colors[i%colors.length]}; color:white; padding:2px 8px; border-radius:10px; font-size:0.72rem; font-weight:700;">${servCount} servicios</span>
+                </div>
+                <div style="margin-bottom:6px; min-height:24px;">${memberChips || '<span style="color:#aaa;font-size:0.72rem;">Sin miembros</span>'}</div>
+                <div style="font-size:0.72rem; color:#888;">${withPhone.length} de ${members.length} con teléfono · <span style="color:${colors[i%colors.length]}; font-weight:600;">Ver calendario →</span></div>
+            </div>`;
+        }).join('');
+    }
+
+    _countGroupServicesWeek(gName, startDate) {
+        let count = 0;
+        for(let i = 0; i < 7; i++) {
+            const d = new Date(startDate); d.setDate(startDate.getDate() + i);
+            const dStr = d.toLocaleDateString('en-CA');
+            count += this.servs.filter(s => s.date === dStr &&
+                this.grupos[gName] && this.grupos[gName].includes(s.empId.toString())).length;
+        }
+        return count;
+    }
+
+    _previewGroupSMS(gName) {
+        const startDate = new Date(this.curDate);
+        startDate.setDate(startDate.getDate() - startDate.getDay() + 1);
+        const text = this.generateGroupCalendar(gName, startDate);
+
+        // Obtener teléfonos
+        const memberIds = this.grupos[gName].filter(id => id && id !== '');
+        const members = memberIds.map(id => this.emps.find(e => e.id == id)).filter(Boolean);
+        const phones = members.filter(m => m.tel && m.tel.trim() !== '').map(m => m.tel.trim().replace(/\D/g,''));
+
+        this._currentSMSText = text;
+        this._currentSMSPhones = phones;
+        this._currentSMSGroup = gName;
+
+        // Mostrar preview
+        document.getElementById('smsPreviewTitle').textContent = `📅 ${gName}`;
+        document.getElementById('smsPreviewNumbers').innerHTML =
+            phones.length > 0
+            ? `📞 Enviando a: ${members.filter(m=>m.tel).map(m=>`<strong>${m.name.split(' ')[0]}</strong> (${m.tel})`).join(', ')}`
+            : `⚠️ Ningún miembro tiene teléfono registrado`;
+        document.getElementById('whatsapp-preview').textContent = text;
+        document.getElementById('smsPreviewArea').style.display = 'block';
+        document.getElementById('smsSendBtn').disabled = phones.length === 0;
+        document.getElementById('smsSendBtn').style.opacity = phones.length === 0 ? '0.4' : '1';
+    }
+
+    sendSMS() {
+        if(!this._currentSMSPhones || this._currentSMSPhones.length === 0) {
+            alert('⚠️ No hay teléfonos registrados en este grupo.');
+            return;
+        }
+        const numbers = this._currentSMSPhones.join(',');
+        const body = encodeURIComponent(this._currentSMSText);
+        window.open(`sms:${numbers}?body=${body}`, '_blank');
+    }
+
+    copySMSText() {
+        if(!this._currentSMSText) return;
+        navigator.clipboard.writeText(this._currentSMSText).then(() => {
+            const btn = document.getElementById('smsCopyBtn');
+            btn.textContent = '✅ Copiado!';
+            setTimeout(() => btn.textContent = '📋 Copiar', 2000);
+        }).catch(() => {
+            alert('Selecciona y copia el texto manualmente.');
+        });
+    }
+
     showWhatsAppModal() {
         document.getElementById('whatsappModal').style.display = 'block';
     }
@@ -6010,6 +6506,295 @@ class Scheduler {
         
         alert(`✅ Archivo descargado: ${filename}\n\nAHORA:\n1. Sube este archivo a Google Drive/Dropbox/Box\n2. Compártelo con otros dispositivos\n3. Usa "Importar" para cargarlo en otro PC`);
     }
+
+    // ═══════════════════════════════════════
+    // GOOGLE DRIVE SYNC
+    // ═══════════════════════════════════════
+
+    importClientsFromExcel() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.xlsx,.xls';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const XLSX = window.XLSX;
+                if (!XLSX) { alert('⚠️ Librería Excel no disponible.'); return; }
+                const wb = XLSX.read(arrayBuffer, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+                const typeMap = {
+                    // Inglés
+                    'WEEKLY':'semanal','BI-WEEKLY':'quincenal',
+                    'MONTHLY':'mensual','3 WEEKS':'3xsemana','3 VEE-KS':'3xsemana',
+                    'BIWEEKLY':'quincenal','DAILY':'diario','2X WEEK':'2xsemana',
+                    '2XWEEK':'2xsemana','3X WEEK':'3xsemana','3XWEEK':'3xsemana',
+                    // Español
+                    'SEMANAL':'semanal','QUINCENAL':'quincenal','MENSUAL':'mensual',
+                    'DIARIO':'diario','2X SEMANA':'2xsemana','2XSEMANA':'2xsemana',
+                    '3X SEMANA':'3xsemana','3XSEMANA':'3xsemana',
+                    'CADA 2 SEMANAS':'quincenal','CADA 3 SEMANAS':'3xsemana',
+                    'CADA MES':'mensual','CADA SEMANA':'semanal'
+                };
+                let added = 0;
+                rows.slice(1).forEach((row, i) => {
+                    const [name, address, phone, propId, fee, ctype] = row;
+                    if (!name) return;
+                    const t = typeMap[(ctype||'').toString().trim().toUpperCase()] || 'semanal';
+                    const bp = ['semanal','2xsemana','3xsemana','diario'].includes(t) ? 'weekly' : (t==='quincenal' ? 'biweekly' : 'monthly');
+                    const exists = this.clis.find(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+                    if (!exists) {
+                        this.clis.push({
+                            id: `cli_excel_${i+1}_${Date.now()}`,
+                            name: name.trim(),
+                            address: address ? address.trim() : '',
+                            phone: phone ? phone.toString().trim() : '',
+                            propId: propId ? propId.trim() : name.trim(),
+                            fee: parseFloat(fee) || 0,
+                            type: t, serviceType: 'residencial',
+                            billingPeriod: bp, active: true, notes: ''
+                        });
+                        added++;
+                    }
+                });
+                this.save();
+                this.refreshSels();
+                alert(`✅ ${added} clientes importados correctamente.`);
+            } catch(err) {
+                alert('❌ Error: ' + err.message);
+            }
+        };
+        input.click();
+    }
+
+    driveSync() {
+        if (this.driveConnected) {
+            this.driveSyncNow();
+        } else {
+            this.driveConnect();
+        }
+    }
+
+    driveConnect() {
+        if (typeof google === 'undefined' || !google.accounts) {
+            alert('⚠️ Google no cargó. Recarga la página e intenta de nuevo.');
+            return;
+        }
+        this.tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: this.CLIENT_ID,
+            scope: this.SCOPES,
+            prompt: '',
+            callback: async (response) => {
+                if (response.error) { alert('❌ Error: ' + response.error); return; }
+                this.driveToken = response.access_token;
+                this.driveConnected = true;
+                this.tokenExpiry = Date.now() + (55 * 60 * 1000);
+                document.getElementById('driveSyncLabel').textContent = 'Sincronizar';
+                document.getElementById('driveSyncBtn').style.background = '#27ae60';
+                await this.driveGetOrCreateFolder();
+                // Al conectar: primero descargar, luego subir
+                await this.driveDownloadData();
+                await this.driveSyncNow();
+                const toast = document.createElement('div');
+                toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#27ae60;color:white;padding:15px 20px;border-radius:10px;z-index:9999;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+                toast.innerHTML = '☁️ Conectado a Google Drive<br><small>Datos sincronizados</small>';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            }
+        });
+        this.tokenClient.requestAccessToken({ prompt: '' });
+    }
+
+    async refreshTokenIfNeeded() {
+        if (!this.tokenClient) return;
+        if (!this.tokenExpiry || Date.now() > this.tokenExpiry) {
+            await new Promise((resolve) => {
+                this.tokenClient.callback = (response) => {
+                    if (response.error) { resolve(); return; }
+                    this.driveToken = response.access_token;
+                    this.tokenExpiry = Date.now() + (55 * 60 * 1000);
+                    this.driveConnected = true;
+                    resolve();
+                };
+                this.tokenClient.requestAccessToken({ prompt: '' });
+            });
+        }
+    }
+
+    async driveGetOrCreateFolder() {
+        const res = await fetch(
+            `https://www.googleapis.com/drive/v3/files?q=name='${this.FOLDER_NAME}'+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false`,
+            { headers: { Authorization: `Bearer ${this.driveToken}` } }
+        );
+        const data = await res.json();
+        if (data.files && data.files.length > 0) {
+            this.driveFolderId = data.files[0].id;
+        } else {
+            const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${this.driveToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: this.FOLDER_NAME, mimeType: 'application/vnd.google-apps.folder' })
+            });
+            const folder = await createRes.json();
+            this.driveFolderId = folder.id;
+        }
+    }
+
+    async driveSyncNow() {
+        if (!this.driveConnected || !this.driveFolderId) return;
+        if (this.isSyncing) { this.pendingSync = true; return; }
+        this.isSyncing = true;
+        await this.refreshTokenIfNeeded();
+        try {
+            document.getElementById('driveSyncLabel').textContent = 'Guardando...';
+            const data = {
+                exportType: 'anaCS_sync',
+                exportDate: new Date().toISOString(),
+                lastSavedAt: new Date().toISOString(),
+                deviceId: localStorage.getItem('anaCS_deviceId') || 'unknown',
+                emps: this.emps,
+                clis: this.clis,
+                servs: this.servs,
+                grupos: this.grupos,
+                gastos: this.gastos || [],
+                gastosCategories: this.gastosCategories || {},
+                generatedInvoices: this.generatedInvoices || [],
+                pendingInvoices: this.pendingInvoices || [],
+                nominaTotales: this.nominaTotales || [],
+                companyConfig: localStorage.getItem('companyConfig'),
+                companyLogo: localStorage.getItem('companyLogo'),
+                customColors: localStorage.getItem('customColors'),
+            };
+            const fileName = 'anaCS_sync.json';
+            const searchRes = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=name='${fileName}'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                { headers: { Authorization: `Bearer ${this.driveToken}` } }
+            );
+            const searchData = await searchRes.json();
+            const fileId = searchData.files && searchData.files.length > 0 ? searchData.files[0].id : null;
+            const form = new FormData();
+            const metadata = { name: fileName, parents: fileId ? undefined : [this.driveFolderId] };
+            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+            form.append('file', new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+            await fetch(
+                fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+                       : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                { method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${this.driveToken}` }, body: form }
+            );
+            const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            localStorage.setItem('anaCS_lastSavedAt', new Date().toISOString());
+            document.getElementById('driveSyncLabel').textContent = `Sync ${now}`;
+            document.getElementById('driveSyncBtn').style.background = '#27ae60';
+        } catch(err) {
+            document.getElementById('driveSyncLabel').textContent = '⚠️ Error';
+            document.getElementById('driveSyncBtn').style.background = '#e74c3c';
+        } finally {
+            this.isSyncing = false;
+            if (this.pendingSync) {
+                this.pendingSync = false;
+                setTimeout(() => this.driveSyncNow(), 500);
+            }
+        }
+    }
+
+    async driveDownloadData() {
+        if (!this.driveConnected || !this.driveFolderId) return;
+        try {
+            document.getElementById('driveSyncLabel').textContent = 'Verificando...';
+            const fileName = 'anaCS_sync.json';
+            const searchRes = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=name='${fileName}'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                { headers: { Authorization: `Bearer ${this.driveToken}` } }
+            );
+            const searchData = await searchRes.json();
+            if (!searchData.files || searchData.files.length === 0) {
+                // Primera vez - solo subir
+                console.log('📤 Primera vez en Drive, subiendo datos locales...');
+                return;
+            }
+            const fileRes = await fetch(
+                `https://www.googleapis.com/drive/v3/files/${searchData.files[0].id}?alt=media`,
+                { headers: { Authorization: `Bearer ${this.driveToken}` } }
+            );
+            const data = await fileRes.json();
+            if (data.exportType !== 'anaCS_sync') return;
+
+            // Comparar timestamps — gana el más reciente
+            const driveTime  = data.lastSavedAt ? new Date(data.lastSavedAt).getTime() : 0;
+            const localTime  = localStorage.getItem('anaCS_lastSavedAt') ? new Date(localStorage.getItem('anaCS_lastSavedAt')).getTime() : 0;
+            const myDeviceId = localStorage.getItem('anaCS_deviceId') || 'unknown';
+
+            if (driveTime <= localTime && data.deviceId === myDeviceId) {
+                // Mismo dispositivo y local es igual o más nuevo — solo subir
+                console.log('📤 Datos locales más recientes, subiendo...');
+                return;
+            }
+
+            if (driveTime <= localTime) {
+                // Local más reciente — subir en lugar de descargar
+                console.log('📤 Local más reciente que Drive, subiendo...');
+                return;
+            }
+
+            // Drive más reciente — descargar
+            console.log('📥 Drive más reciente, descargando...');
+            // Cargar datos de Drive
+            if (data.emps)             { this.emps = data.emps; localStorage.setItem('v35_emps', JSON.stringify(this.emps)); }
+            if (data.clis)             { this.clis = data.clis; localStorage.setItem('v35_clis', JSON.stringify(this.clis)); }
+            if (data.servs)            { this.servs = data.servs; localStorage.setItem('v35_servs', JSON.stringify(this.servs)); }
+            if (data.grupos)           { this.grupos = data.grupos; localStorage.setItem('v35_grupos', JSON.stringify(this.grupos)); }
+            if (data.gastos)           { this.gastos = data.gastos; localStorage.setItem('v35_gastos', JSON.stringify(this.gastos)); }
+            if (data.gastosCategories) { this.gastosCategories = data.gastosCategories; localStorage.setItem('v35_gastosCategories', JSON.stringify(this.gastosCategories)); }
+            if (data.generatedInvoices){ this.generatedInvoices = data.generatedInvoices; localStorage.setItem('v35_generatedInvoices', JSON.stringify(this.generatedInvoices)); }
+            if (data.pendingInvoices)  { this.pendingInvoices = data.pendingInvoices; localStorage.setItem('v35_pendingInvoices', JSON.stringify(this.pendingInvoices)); }
+            if (data.nominaTotales)    { this.nominaTotales = data.nominaTotales; localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales)); }
+            if (data.companyConfig)    localStorage.setItem('companyConfig', data.companyConfig);
+            if (data.companyLogo)      localStorage.setItem('companyLogo', data.companyLogo);
+            if (data.customColors)     localStorage.setItem('customColors', data.customColors);
+            // Re-renderizar con datos nuevos
+            this.refreshSels();
+            this.render();
+
+            // Importar empleados automáticamente desde la App de Nómina
+            try {
+                const nominaSync = await this.driveReadFile('anas_nomina_sync.json');
+                if (nominaSync && nominaSync.employees && nominaSync.employees.length > 0) {
+                    let added = 0;
+                    nominaSync.employees.forEach(emp => {
+                        const exists = this.emps.find(e => e.name.trim().toLowerCase() === emp.name.trim().toLowerCase());
+                        if (!exists) {
+                            this.emps.push({ id: emp.id || `emp_${Date.now()}`, name: emp.name, rate: emp.rate || 0 });
+                            added++;
+                        }
+                    });
+                    if (added > 0) {
+                        localStorage.setItem('v35_emps', JSON.stringify(this.emps));
+                        console.log(`✅ ${added} empleados importados de la Nómina`);
+                    }
+                }
+            } catch(err) {
+                console.log('ℹ️ No se encontraron empleados en Drive');
+            }
+
+            // Importar nóminas automáticamente desde la App de Nómina
+            try {
+                const totales = await this.driveReadNominaTotales();
+                if (totales && totales.periodos) {
+                    this.nominaTotales = totales.periodos;
+                    localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
+                    console.log('✅ Nóminas importadas automáticamente:', this.nominaTotales.length, 'períodos');
+                    if (typeof this.refreshFinance === 'function') this.refreshFinance();
+                }
+            } catch(err) {
+                console.log('ℹ️ No se encontraron nóminas en Drive (normal si la App de Nómina no ha sincronizado)');
+            }
+        } catch(err) {
+            console.warn('driveDownloadData error:', err);
+        }
+    }
+
 }
 const app = new Scheduler();
 
@@ -6038,7 +6823,7 @@ document.addEventListener('click', function(e) {
     }
 });
 
-// Cerrar dropdown de filtros al hacer click fuera
+// Cerrar dropdown de filtros al hacer click fuera — sin render (evita abrir modal de servicio)
 document.addEventListener('click', function(e) {
     if(!e.target.closest('.filter-dropdown')) {
         document.querySelectorAll('.filter-dropdown-content').forEach(d => d.classList.remove('show'));
@@ -6053,39 +6838,36 @@ document.addEventListener('click', function(e) {
 
 <!-- Modal WhatsApp -->
 <div id="whatsappModal" class="modal">
-    <div class="modal-content" style="max-width: 600px;">
-        <h2 style="background: #25D366; color: white; padding: 15px 20px; margin: -20px -20px 20px -20px; border-radius: 8px 8px 0 0;">
-            📱 Enviar por WhatsApp
-        </h2>
-        
-        <p style="color: #666; margin-bottom: 20px;">Selecciona un grupo para copiar su calendario:</p>
-        
-        <div style="display: grid; gap: 10px;">
-            <button class="btn" onclick="app.copyGroupCalendar('Grupo A')" style="background: #2c3e50; color: white; text-align: left; padding: 15px;">
-                📋 Grupo A
-            </button>
-            <button class="btn" onclick="app.copyGroupCalendar('Grupo B')" style="background: #2c3e50; color: white; text-align: left; padding: 15px;">
-                📋 Grupo B
-            </button>
-            <button class="btn" onclick="app.copyGroupCalendar('Grupo C')" style="background: #2c3e50; color: white; text-align: left; padding: 15px;">
-                📋 Grupo C
-            </button>
-            <button class="btn" onclick="app.copyGroupCalendar('Grupo D')" style="background: #2c3e50; color: white; text-align: left; padding: 15px;">
-                📋 Grupo D
-            </button>
-            <button class="btn" onclick="app.copyGroupCalendar('Grupo E')" style="background: #2c3e50; color: white; text-align: left; padding: 15px;">
-                📋 Grupo E
-            </button>
-            <button class="btn" onclick="app.copyGroupCalendar('TODOS')" style="background: #27ae60; color: white; text-align: left; padding: 15px; font-weight: bold;">
-                📋 TODOS LOS GRUPOS
-            </button>
+    <div class="modal-content" style="max-width: 700px; padding:0; border-radius:12px; overflow:hidden;">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#2980b9,#3498db); color:white; padding:14px 20px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+                <div style="font-size:1.1rem; font-weight:800;">📲 SMS por Grupo</div>
+                <div style="font-size:0.75rem; opacity:0.85;" id="smsWeekLabel"></div>
+            </div>
+            <button onclick="app.closeWhatsAppModal()" style="background:rgba(255,255,255,0.2); border:none; color:white; width:30px; height:30px; border-radius:50%; font-size:1.1rem; cursor:pointer; font-weight:bold;">✕</button>
         </div>
-        
-        <div id="whatsapp-preview" style="display:none; margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.85rem; white-space: pre-wrap;"></div>
-        
-        <button class="btn" onclick="app.closeWhatsAppModal()" style="margin-top: 20px; background: #bdc3c7; color: black; width: 100%;">
-            Cerrar
-        </button>
+
+        <div style="padding:16px; display:grid; grid-template-columns:1fr 1fr; gap:12px;" id="smsGroupList"></div>
+
+        <!-- Preview area -->
+        <div id="smsPreviewArea" style="display:none; margin:0 16px 16px; border-radius:8px; overflow:hidden; border:1px solid #ddd;">
+            <div style="background:#f0f4f8; padding:8px 12px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #ddd;">
+                <span id="smsPreviewTitle" style="font-weight:700; font-size:0.85rem; color:#2980b9;"></span>
+                <div style="display:flex; gap:6px;">
+                    <button id="smsCopyBtn" onclick="app.copySMSText()" 
+                        style="padding:4px 10px; font-size:0.75rem; background:#f39c12; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:600;">
+                        📋 Copiar
+                    </button>
+                    <button id="smsSendBtn" onclick="app.sendSMS()"
+                        style="padding:4px 10px; font-size:0.75rem; background:#2980b9; color:white; border:none; border-radius:4px; cursor:pointer; font-weight:600;">
+                        📲 Abrir SMS
+                    </button>
+                </div>
+            </div>
+            <div id="smsPreviewNumbers" style="background:#e8f4f8; padding:6px 12px; font-size:0.75rem; color:#555; border-bottom:1px solid #ddd;"></div>
+            <div id="whatsapp-preview" style="padding:12px; background:#fafafa; max-height:250px; overflow-y:auto; font-family:monospace; font-size:0.8rem; white-space:pre-wrap; color:#333;"></div>
+        </div>
     </div>
 </div>
 
@@ -6227,61 +7009,107 @@ document.addEventListener('click', function(e) {
         
         <!-- TAB CONFIGURACIÓN -->
         <div id="invoiceTabConfig" style="display: none;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                <!-- Columna 1 -->
-                <div style="display: grid; gap: 12px;">
-                    <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Nombre de la Empresa:</label>
-                        <input type="text" id="companyName" placeholder="Mi Empresa S.A." style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    
-                    <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">RFC / Tax ID:</label>
-                        <input type="text" id="companyRFC" placeholder="ABC123456789" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    
-                    <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Teléfono:</label>
-                        <input type="text" id="companyPhone" placeholder="(555) 123-4567" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
-                    
-                    <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Dirección:</label>
-                        <input type="text" id="companyAddress" placeholder="123 Calle Principal, Ciudad" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                    </div>
+
+            <!-- Sección: Información de la Empresa -->
+            <div style="background:#f8f9fa; border-radius:10px; padding:16px; margin-bottom:14px; border-left:4px solid #e67e22;">
+                <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#e67e22; margin-bottom:12px;">
+                    🏢 Información de la Empresa
                 </div>
-                
-                <!-- Columna 2 -->
-                <div style="display: grid; gap: 12px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
                     <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Website/Email:</label>
-                        <input type="text" id="companyWebsite" placeholder="www.miempresa.com" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:4px;">Nombre de la Empresa</label>
+                        <input type="text" id="companyName" placeholder="Ana's Cleaning Service"
+                            style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:inherit; transition:border 0.2s;"
+                            onfocus="this.style.borderColor='#e67e22'" onblur="this.style.borderColor='#e0e0e0'">
                     </div>
-                    
                     <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Número Inicial de Factura:</label>
-                        <input type="number" id="invoiceStartNumber" placeholder="1" min="1" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                        <small style="color: #666;">Auto: 0001, 0002, 0003...</small>
+                        <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:4px;">RFC / Tax ID</label>
+                        <input type="text" id="companyRFC" placeholder="ABC123456789"
+                            style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:inherit; transition:border 0.2s;"
+                            onfocus="this.style.borderColor='#e67e22'" onblur="this.style.borderColor='#e0e0e0'">
                     </div>
-                    
                     <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Porcentaje de Impuestos (%):</label>
-                        <input type="number" id="taxPercentage" placeholder="16" min="0" max="100" step="0.01" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                        <small style="color: #666;">Ejemplo: 16 para IVA del 16%</small>
+                        <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:4px;">📞 Teléfono</label>
+                        <input type="text" id="companyPhone" placeholder="(555) 123-4567"
+                            style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:inherit; transition:border 0.2s;"
+                            onfocus="this.style.borderColor='#e67e22'" onblur="this.style.borderColor='#e0e0e0'">
                     </div>
-                    
                     <div>
-                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Logo (PNG con fondo transparente):</label>
-                        <input type="file" id="companyLogo" accept="image/*" onchange="app.previewLogo(event)" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem;">
-                        <div id="logoPreview" style="margin-top: 10px; text-align: center; display: none;">
-                            <img id="logoPreviewImg" style="max-width: 120px; max-height: 60px; border: 1px solid #ddd; padding: 5px; border-radius: 4px;">
-                        </div>
+                        <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:4px;">🌐 Website / Email</label>
+                        <input type="text" id="companyWebsite" placeholder="www.miempresa.com"
+                            style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:inherit; transition:border 0.2s;"
+                            onfocus="this.style.borderColor='#e67e22'" onblur="this.style.borderColor='#e0e0e0'">
+                    </div>
+                    <div style="grid-column:span 2;">
+                        <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:4px;">📍 Dirección</label>
+                        <input type="text" id="companyAddress" placeholder="123 Calle Principal, Ciudad, TX"
+                            style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:inherit; transition:border 0.2s;"
+                            onfocus="this.style.borderColor='#e67e22'" onblur="this.style.borderColor='#e0e0e0'">
                     </div>
                 </div>
             </div>
-            
+
+            <!-- Sección: Configuración de Facturas + Logo -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+
+                <!-- Facturación -->
+                <div style="background:#f8f9fa; border-radius:10px; padding:16px; border-left:4px solid #2980b9;">
+                    <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#2980b9; margin-bottom:12px;">
+                        🧾 Configuración de Facturas
+                    </div>
+                    <div style="display:grid; gap:10px;">
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:4px;">Número Inicial</label>
+                            <input type="number" id="invoiceStartNumber" placeholder="1" min="1"
+                                style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:inherit; transition:border 0.2s;"
+                                onfocus="this.style.borderColor='#2980b9'" onblur="this.style.borderColor='#e0e0e0'">
+                            <div style="font-size:0.72rem; color:#999; margin-top:3px;">Se generarán como: 0001, 0002, 0003…</div>
+                        </div>
+                        <div>
+                            <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:4px;">Impuestos (%)</label>
+                            <div style="position:relative;">
+                                <input type="number" id="taxPercentage" placeholder="8.25" min="0" max="100" step="0.01"
+                                    style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:inherit; transition:border 0.2s;"
+                                    onfocus="this.style.borderColor='#2980b9'" onblur="this.style.borderColor='#e0e0e0'">
+                            </div>
+                            <div style="font-size:0.72rem; color:#999; margin-top:3px;">Texas Sales Tax = 8.25%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logo -->
+                <div style="background:#f8f9fa; border-radius:10px; padding:16px; border-left:4px solid #27ae60;">
+                    <div style="font-size:0.7rem; font-weight:800; text-transform:uppercase; letter-spacing:0.08em; color:#27ae60; margin-bottom:12px;">
+                        🖼️ Logo de la Empresa
+                    </div>
+                    <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin-bottom:8px;">PNG con fondo transparente</label>
+                    <label style="display:flex; align-items:center; gap:8px; cursor:pointer;
+                                  background:white; border:1.5px dashed #27ae60; border-radius:7px;
+                                  padding:10px 12px; font-size:0.82rem; color:#27ae60; font-weight:600;
+                                  transition:background 0.2s;"
+                           onmouseover="this.style.background='#f0faf4'" onmouseout="this.style.background='white'">
+                        📁 Elegir imagen…
+                        <input type="file" id="companyLogo" accept="image/*" onchange="app.previewLogo(event)" style="display:none;">
+                    </label>
+                    <div id="logoPreview" style="margin-top:12px; text-align:center; display:none;">
+                        <img id="logoPreviewImg" style="max-width:110px; max-height:70px;
+                             border:1px solid #ddd; padding:6px; border-radius:8px;
+                             box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                        <div style="font-size:0.72rem; color:#27ae60; margin-top:4px; font-weight:600;">✓ Logo cargado</div>
+                    </div>
+                    <div id="logoPlaceholder" style="margin-top:12px; text-align:center; color:#ccc; font-size:0.8rem;">
+                        Sin logo cargado
+                    </div>
+                </div>
+            </div>
+
             <!-- Botón Guardar -->
-            <button onclick="app.saveCompanyConfig()" class="btn" style="width: 100%; background: #27ae60; color: white; padding: 14px; font-size: 1.1rem; margin-top: 20px; font-weight: bold;">
+            <button onclick="app.saveCompanyConfig()" class="btn"
+                style="width:100%; background:linear-gradient(135deg,#27ae60,#2ecc71); color:white;
+                       padding:13px; font-size:1rem; font-weight:700; border-radius:8px;
+                       box-shadow:0 3px 10px rgba(39,174,96,0.3); letter-spacing:0.03em; transition:0.2s;"
+                onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 5px 15px rgba(39,174,96,0.4)'"
+                onmouseout="this.style.transform=''; this.style.boxShadow='0 3px 10px rgba(39,174,96,0.3)'">
                 💾 Guardar Configuración
             </button>
         </div>
