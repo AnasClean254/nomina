@@ -5024,10 +5024,11 @@ class Scheduler {
             const dateStr = date.toLocaleDateString('en-CA');
             const isToday = dateStr === new Date().toLocaleDateString('en-CA');
 
-            const dailyServices = this.servs.filter(s =>
-                s.date === dateStr &&
-                this.grupos[gName] && this.grupos[gName].includes(s.empId.toString())
-            ).sort((a,b) => (parseInt(a.priority)||999) - (parseInt(b.priority)||999));
+            const dailyServices = this.servs.filter(s => {
+                if (s.date !== dateStr) return false;
+                if (s.empId === gName) return true;
+                return this.grupos[gName] && this.grupos[gName].includes(s.empId.toString());
+            }).sort((a,b) => (parseInt(a.priority)||999) - (parseInt(b.priority)||999));
 
             let servicesHtml = '';
             if (dailyServices.length === 0) {
