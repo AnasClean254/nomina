@@ -6789,23 +6789,23 @@ class Scheduler {
 
             // Comparar timestamps — gana el más reciente
             const driveTime  = data.lastSavedAt ? new Date(data.lastSavedAt).getTime() : 0;
-            const localTime  = localStorage.getItem('anaCS_lastSavedAt') ? new Date(localStorage.getItem('anaCS_lastSavedAt')).getTime() : 0;
+            const localSavedAt = localStorage.getItem('anaCS_lastSavedAt');
+            const localTime  = localSavedAt ? new Date(localSavedAt).getTime() : 0;
             const myDeviceId = localStorage.getItem('anaCS_deviceId') || 'unknown';
 
-            if (driveTime <= localTime && data.deviceId === myDeviceId) {
-                // Mismo dispositivo y local es igual o más nuevo — solo subir
-                console.log('📤 Datos locales más recientes, subiendo...');
-                return;
-            }
+            console.log('🕐 Drive time:', data.lastSavedAt, '| Local time:', localSavedAt);
 
-            if (driveTime <= localTime) {
+            // Si no hay datos locales, siempre descargar de Drive
+            const localIsEmpty = !localSavedAt || this.emps.length === 0;
+
+            if (!localIsEmpty && driveTime <= localTime) {
                 // Local más reciente — subir en lugar de descargar
                 console.log('📤 Local más reciente que Drive, subiendo...');
                 return;
             }
 
-            // Drive más reciente — descargar
-            console.log('📥 Drive más reciente, descargando...');
+            // Drive más reciente o local vacío — descargar
+            console.log('📥 Descargando de Drive...');
             // Cargar datos de Drive
             if (data.emps)             { this.emps = data.emps; localStorage.setItem('v35_emps', JSON.stringify(this.emps)); }
             if (data.clis)             { this.clis = data.clis; localStorage.setItem('v35_clis', JSON.stringify(this.clis)); }
