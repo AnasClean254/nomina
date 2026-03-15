@@ -804,12 +804,7 @@
                         <input type="checkbox" id="mCancelled" style="width:18px; height:18px; accent-color:#e74c3c;">
                         ❌ Marcar como CANCELADO (no cuenta como ingreso)
                     </label>
-                    <div id="rescheduleContainer" style="display:none; margin-left:auto;">
-                        <button type="button" onclick="app.rescheduleQuincenal()" 
-                            style="background:#8e44ad; color:white; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:0.85rem; font-weight:600;">
-                            ⬅️ Adelantar servicios futuros
-                        </button>
-                    </div>
+    
                 </div>
             </div>
             <div style="background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #eee; margin-bottom:20px">
@@ -1571,10 +1566,7 @@ class Scheduler {
             if(document.getElementById('mPriority')) document.getElementById('mPriority').value = s.priority || '3';
             document.getElementById('mCancelled').checked = s.cancelled || false;
             document.getElementById('btnDel').style.display = 'inline-block';
-            // Mostrar botón desplazar si el cliente es quincenal
-            const cli = this.clis.find(c => c.id == s.cliId);
-            const isQuincenal = cli && cli.type === 'quincenal';
-            document.getElementById('rescheduleContainer').style.display = isQuincenal ? 'block' : 'none';
+
         } else {
             // NUEVO servicio - Limpiar TODOS los campos
             document.getElementById('mCli').value = ''; 
@@ -1585,7 +1577,6 @@ class Scheduler {
             document.getElementById('mRep').value = 'no';
             document.getElementById('mUntil').value = '';
             document.getElementById('mCancelled').checked = false;
-            document.getElementById('rescheduleContainer').style.display = 'none';
             document.getElementById('btnDel').style.display = 'none';
             
             // Ocultar contenedores de repetición
@@ -1633,9 +1624,9 @@ class Scheduler {
         }
     }
 
-    rescheduleQuincenal() {
-        if (!this.editing) return;
-        const s = this.editing;
+    rescheduleQuincenal(s) {
+        if (!s) s = this.editing;
+        if (!s) return;
         const cli = this.clis.find(c => c.id == s.cliId);
         if (!cli) return;
 
@@ -1683,6 +1674,8 @@ class Scheduler {
 
     saveService(e) {
         e.preventDefault();
+        const isCancelled = document.getElementById('mCancelled').checked || false;
+        const wasAlreadyCancelled = this.editing ? (this.editing.cancelled || false) : false;
         const data = { 
             id: this.editing?this.editing.id:Date.now(), 
             cliId: document.getElementById('mCli').value, 
@@ -1690,9 +1683,22 @@ class Scheduler {
             date: document.getElementById('mDate').value, 
             name: document.getElementById('taskName').value,
             priority: document.getElementById('mPriority')?.value || '1',
-            cancelled: document.getElementById('mCancelled').checked || false
+            cancelled: isCancelled
         };
         if(this.editing) this.servs[this.servs.findIndex(x=>x.id==this.editing.id)]=data;
+        
+        // Si se acaba de cancelar (no estaba cancelado antes), verificar recurrencia
+        if (isCancelled && !wasAlreadyCancelled) {
+            const cli = this.clis.find(c => c.id == data.cliId);
+            if (cli && cli.type === 'quincenal') {
+                this.save();
+                this.render();
+                document.getElementById('serviceModal').style.display = 'none';
+                // Preguntar si adelantar servicios futuros
+                setTimeout(() => this.rescheduleQuincenal(data), 300);
+                return;
+            }
+        }
         else { 
             this.servs.push(data); 
             const c = this.clis.find(x=>x.id==data.cliId); 
