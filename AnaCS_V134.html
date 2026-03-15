@@ -6710,9 +6710,10 @@ class Scheduler {
             );
             const searchData = await searchRes.json();
             if (!searchData.files || searchData.files.length === 0) {
-                // Primera vez - solo subir
+                // Primera vez - no hay datos en Drive, salir del try
                 console.log('📤 Primera vez en Drive, subiendo datos locales...');
-                return;
+                // Salir del try pero continuar con importación de empleados abajo
+                throw new Error('__first_time__');
             }
             const fileRes = await fetch(
                 `https://www.googleapis.com/drive/v3/files/${searchData.files[0].id}?alt=media`,
@@ -6757,7 +6758,9 @@ class Scheduler {
             this.refreshSels();
             this.render();
         } catch(err) {
-            console.warn('driveDownloadData error:', err);
+            if (!err.message.includes('__first_time__')) {
+                console.warn('driveDownloadData error:', err);
+            }
         }
 
         // Importar empleados y nóminas desde la App de Nómina — siempre al conectar
