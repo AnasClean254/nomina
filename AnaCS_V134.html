@@ -879,14 +879,26 @@
                 <button class="btn" onclick="app.showSec('secConfig')" style="background:#2c3e50; color:white">🎨 Config. Series</button>
             </div>
             <div id="secEmp">
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:15px">
-                    <input type="hidden" id="editEmpId">
-                    <input type="text" id="ne" placeholder="Nombre" style="grid-column:span 2">
-                    <input type="tel" id="te" placeholder="Teléfono">
-                    <input type="text" id="de" placeholder="Dirección">
+                <div style="margin-bottom:15px; display:flex; justify-content:flex-end;">
+                    <button onclick="app.toggleEmpForm()" id="btnToggleEmpForm" class="btn" style="background:#2980b9; color:white;">➕ Nuevo Empleado</button>
                 </div>
-                <button id="btnSaveEmp" onclick="app.saveEmp()" class="btn" style="width:100%; background:var(--accent); margin-bottom:15px">💾 GUARDAR EMPLEADO</button>
-                <div id="listE" style="max-height:400px; overflow-y:auto"></div>
+
+                <!-- Formulario retráctil empleados -->
+                <div id="empFormContainer" style="display:none; background:#f8f9fa; border-radius:10px; padding:15px; margin-bottom:15px; border:2px solid #2980b9;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                        <strong id="empFormTitle" style="color:#2980b9;">➕ Nuevo Empleado</strong>
+                        <button onclick="app.cancelEmpForm()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:#999;">✕</button>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:12px">
+                        <input type="hidden" id="editEmpId">
+                        <input type="text" id="ne" placeholder="Nombre" style="grid-column:span 2">
+                        <input type="tel" id="te" placeholder="Teléfono">
+                        <input type="text" id="de" placeholder="Dirección">
+                    </div>
+                    <button id="btnSaveEmp" onclick="app.saveEmp()" class="btn" style="width:100%; background:var(--accent);">💾 GUARDAR EMPLEADO</button>
+                </div>
+
+                <div id="listE" style="max-height:450px; overflow-y:auto"></div>
             </div>
             <div id="secCli" style="display:none">
                 <div style="margin-bottom:15px; display:flex; gap:8px;">
@@ -4244,11 +4256,17 @@ class Scheduler {
         this.save(); 
         this.renderCat(); 
         this.render();
+        this.cancelEmpForm();
     }
 
     editEmp(id) {
+        const form = document.getElementById('empFormContainer');
+        form.style.display = 'block';
+        document.getElementById('empFormTitle').textContent = '✏️ Editar Empleado';
+        document.getElementById('btnToggleEmpForm').textContent = '✕ Cerrar';
         const emp = this.emps.find(e => e.id == id);
         if(!emp) return;
+        setTimeout(() => form.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
         
         document.getElementById('ne').value = emp.name;
         document.getElementById('te').value = emp.tel || '';
@@ -4386,6 +4404,28 @@ class Scheduler {
         this.updateColor(type, color);
         this.updateColorPreview();
     }
+    toggleEmpForm() {
+        const form = document.getElementById('empFormContainer');
+        const btn = document.getElementById('btnToggleEmpForm');
+        if (form.style.display === 'none') {
+            form.style.display = 'block';
+            document.getElementById('empFormTitle').textContent = '➕ Nuevo Empleado';
+            btn.textContent = '✕ Cerrar';
+            document.getElementById('editEmpId').value = '';
+            document.getElementById('ne').value = '';
+            document.getElementById('te').value = '';
+            document.getElementById('de').value = '';
+            document.getElementById('ne').focus();
+        } else {
+            this.cancelEmpForm();
+        }
+    }
+
+    cancelEmpForm() {
+        document.getElementById('empFormContainer').style.display = 'none';
+        document.getElementById('btnToggleEmpForm').textContent = '➕ Nuevo Empleado';
+    }
+
     toggleCliForm() {
         const form = document.getElementById('cliFormContainer');
         const btn = document.getElementById('btnToggleCliForm');
@@ -4513,10 +4553,13 @@ class Scheduler {
 
     editCli(id) {
         // Abrir formulario al editar
-        document.getElementById('cliFormContainer').style.display = 'block';
+        const form = document.getElementById('cliFormContainer');
+        form.style.display = 'block';
         document.getElementById('cliFormTitle').textContent = '✏️ Editar Cliente';
         document.getElementById('btnToggleCliForm').textContent = '✕ Cerrar';
-        const cli = this.clis.find(c => c.id == id);        if(!cli) return;
+        const cli = this.clis.find(c => c.id == id); if(!cli) return;
+        // Scroll al formulario
+        setTimeout(() => form.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
         
         // ✅ Si el cliente no tiene propId, usar el nombre
         if(!cli.propId || cli.propId === '') {            cli.propId = cli.name || 'PROP-' + cli.id;
