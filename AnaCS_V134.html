@@ -6478,6 +6478,12 @@ class Scheduler {
             y += 8;
         }
         
+        // Empujar el total hacia la parte inferior de la página
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const totalBlockHeight = (applyTax && taxRate > 0) ? 45 : 35;
+        const minY = pageHeight - totalBlockHeight; // mínimo 35-45px del fondo
+        if (y < minY) y = minY;
+
         doc.setFillColor(44, 62, 80);
         doc.rect(20, y + 5, 170, applyTax && taxRate > 0 ? 22 : 12, 'F');
         
@@ -6778,6 +6784,12 @@ class Scheduler {
             }
         });
         
+        // Empujar el total hacia la parte inferior
+        const pageHeight2 = doc.internal.pageSize.getHeight();
+        const totalBlockHeight2 = (applyTax && taxRate > 0) ? 45 : 35;
+        const minY2 = pageHeight2 - totalBlockHeight2;
+        if (y < minY2) y = minY2;
+
         // TOTAL
         doc.setFillColor(44, 62, 80);
         doc.rect(20, y + 5, 170, applyTax && taxRate > 0 ? 22 : 12, 'F');
