@@ -51,6 +51,7 @@
         .group-row { display: grid; grid-template-columns: var(--emp-col-width) 1fr; border-bottom: 2px solid #ddd; background: white; transition: grid-template-columns 0.2s; }
         .group-row.sidebar-collapsed { grid-template-columns: var(--sidebar-collapsed-width) 1fr; }
         .grid-header-row.sidebar-collapsed { grid-template-columns: var(--sidebar-collapsed-width) 1fr; }
+        .days-header-row.sidebar-collapsed { grid-template-columns: var(--sidebar-collapsed-width) 1fr; }
 
         /* Sidebar con Acordeón de Miembros */
         .sidebar-group { background: #f9f9f9; border-right: 2px solid #ddd; display: flex; flex-direction: column; overflow: hidden; }
@@ -1334,6 +1335,8 @@ class Scheduler {
             const collapsed = this.sidebarCollapsed;
             const spacerW = collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--emp-col-width)';
             daysHeader.innerHTML = `<div class="days-spacer" style="width:${spacerW}"></div><div class="days-grid-container">${daysHtml}</div>`;
+            if (collapsed) daysHeader.classList.add('sidebar-collapsed');
+            else daysHeader.classList.remove('sidebar-collapsed');
         }
 
         const fCli = document.getElementById('searchCli').value;
@@ -1571,6 +1574,8 @@ class Scheduler {
         this.sidebarCollapsed = !this.sidebarCollapsed;
         const btn = document.getElementById('sidebarToggleBtn');
         if(btn) btn.textContent = this.sidebarCollapsed ? '▶▶' : '◀◀';
+        const daysRow = document.getElementById('daysHeaderInline');
+        if(daysRow) daysRow.classList.toggle('sidebar-collapsed', this.sidebarCollapsed);
         this.render();
     }
 
