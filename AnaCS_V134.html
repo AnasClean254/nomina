@@ -711,6 +711,10 @@
                             <span id="pendingBadge" style="display: none; position: absolute; top: 50%; transform: translateY(-50%); right: 10px; background: #e74c3c; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; font-weight: bold; line-height: 18px; text-align: center;"></span>
                         </button>
                         <button onclick="app.openGeneratedInvoices(); closeAllDropdowns();">📑 Generadas</button>
+                        <button onclick="app.openCobros(); closeAllDropdowns();" style="position:relative">
+                            💰 Cobros
+                            <span id="cobrosBadge" style="display:none; position:absolute; top:50%; transform:translateY(-50%); right:10px; background:#e74c3c; color:white; border-radius:50%; width:18px; height:18px; font-size:10px; font-weight:bold; line-height:18px; text-align:center;"></span>
+                        </button>
                     </div>
                 </div>
                 
@@ -1268,6 +1272,8 @@ class Scheduler {
         
         // ✅ Detectar facturas pendientes automáticamente
         this.detectPendingInvoices();
+        // Actualizar badge de cobros
+        setTimeout(() => this.updateCobrosBadge(), 100);
         
         this.refreshSels();
         this.populateGroupFilter(); // Solo aquí — una vez al cargar
@@ -2625,7 +2631,13 @@ class Scheduler {
             endDate: pending.endDate,
             serviceCount: pending.serviceCount,
             total: pending.total,
-            periodKey: pending.periodKey
+            periodKey: pending.periodKey,
+            // Campos de seguimiento de cobros
+            status: 'pendiente', // pendiente | enviada | pagada | vencida | cancelada
+            sentAt: null,
+            paidAt: null,
+            paidAmount: null,
+            notes: ''
         });
         
         // Actualizar número de factura
@@ -2725,6 +2737,156 @@ class Scheduler {
         document.getElementById('genInvTotal').innerText = '$' + total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
     
+    openCobros() {
+        // Migrar facturas sin status
+        if (this.generatedInvoices) {
+            this.generatedInvoices.forEach(inv => {
+                if (!inv.status) inv.status = 'pendiente';
+                if (!inv.sentAt) inv.sentAt = null;
+                if (!inv.paidAt) inv.paidAt = null;
+                if (!inv.paidAmount) inv.paidAmount = null;
+                if (!inv.notes) inv.notes = '';
+            });
+        }
+        // Fechas por defecto
+        const today = new Date();
+        const yearAgo = new Date(today); yearAgo.setFullYear(today.getFullYear() - 1);
+        document.getElementById('cobrosStart').value = yearAgo.toISOString().split('T')[0];
+        document.getElementById('cobrosEnd').value = today.toISOString().split('T')[0];
+        document.getElementById('cobrosFilterStatus').value = 'all';
+        // Cargar clientes
+        const clients = [...new Set((this.generatedInvoices||[]).map(i=>i.clientName))].sort();
+        document.getElementById('cobrosFilterClient').innerHTML = '<option value="all">Todos los clientes</option>' +
+            clients.map(c=>`<option value="${c}">${c}</option>`).join('');
+        document.getElementById('cobrosModal').style.display = 'block';
+        this.refreshCobros();
+        this.updateCobrosBadge();
+    }
+
+    closeCobros() {
+        document.getElementById('cobrosModal').style.display = 'none';
+    }
+
+    updateCobrosBadge() {
+        const pending = (this.generatedInvoices||[]).filter(i => i.status === 'pendiente' || i.status === 'vencida').length;
+        const badge = document.getElementById('cobrosBadge');
+        if (badge) {
+            badge.style.display = pending > 0 ? 'inline-block' : 'none';
+            badge.textContent = pending;
+        }
+    }
+
+    refreshCobros() {
+        const status = document.getElementById('cobrosFilterStatus').value;
+        const client = document.getElementById('cobrosFilterClient').value;
+        const start = document.getElementById('cobrosStart').value;
+        const end = document.getElementById('cobrosEnd').value;
+
+        const statusColors = {
+            pendiente: { bg:'#fff3cd', color:'#856404', label:'⏳ Pendiente' },
+            enviada:   { bg:'#cce5ff', color:'#004085', label:'📤 Enviada' },
+            pagada:    { bg:'#d4edda', color:'#155724', label:'✅ Pagada' },
+            vencida:   { bg:'#f8d7da', color:'#721c24', label:'🔴 Vencida' },
+            cancelada: { bg:'#e2e3e5', color:'#383d41', label:'❌ Cancelada' }
+        };
+
+        const filtered = (this.generatedInvoices||[]).filter(inv => {
+            if (status !== 'all' && inv.status !== status) return false;
+            if (client !== 'all' && inv.clientName !== client) return false;
+            if (start && inv.generatedDate < start) return false;
+            if (end && inv.generatedDate > end) return false;
+            return true;
+        }).sort((a,b) => b.generatedDate.localeCompare(a.generatedDate));
+
+        // Resumen
+        const totals = { pendiente:0, enviada:0, pagada:0, vencida:0, cancelada:0 };
+        const counts = { pendiente:0, enviada:0, pagada:0, vencida:0, cancelada:0 };
+        (this.generatedInvoices||[]).forEach(inv => {
+            const s = inv.status || 'pendiente';
+            totals[s] = (totals[s]||0) + inv.total;
+            counts[s] = (counts[s]||0) + 1;
+        });
+
+        document.getElementById('cobrosResumen').innerHTML = Object.entries(statusColors).map(([s, sc]) => `
+            <div style="background:${sc.bg}; border-radius:8px; padding:12px; text-align:center; cursor:pointer;" onclick="document.getElementById('cobrosFilterStatus').value='${s}'; app.refreshCobros();">
+                <div style="font-size:0.75rem; color:${sc.color}; font-weight:600;">${sc.label}</div>
+                <div style="font-size:1.3rem; font-weight:900; color:${sc.color};">${counts[s]||0}</div>
+                <div style="font-size:0.8rem; color:${sc.color};">$${(totals[s]||0).toLocaleString('en-US',{minimumFractionDigits:2})}</div>
+            </div>`).join('');
+
+        // Tabla
+        if (filtered.length === 0) {
+            document.getElementById('cobrosBody').innerHTML = `<tr><td colspan="8" style="text-align:center; padding:40px; color:#999;">No hay facturas en este filtro</td></tr>`;
+            return;
+        }
+
+        document.getElementById('cobrosBody').innerHTML = filtered.map(inv => {
+            const sc = statusColors[inv.status||'pendiente'];
+            const num = inv.invoiceNumber?.toString().padStart(4,'0') || '----';
+            const [sy,sm,sd] = inv.startDate.split('-');
+            const [ey,em,ed] = inv.endDate.split('-');
+            const period = `${sm}/${sd}/${sy} – ${em}/${ed}/${ey}`;
+            const sentFmt = inv.sentAt ? inv.sentAt.split('-').slice(1).join('/') + '/' + inv.sentAt.split('-')[0] : '—';
+            const paidFmt = inv.paidAt ? inv.paidAt.split('-').slice(1).join('/') + '/' + inv.paidAt.split('-')[0] : '—';
+            return `<tr style="border-bottom:1px solid #f0f0f0;">
+                <td style="padding:8px;"><strong>#${num}</strong><br><small style="color:#999;">${inv.generatedDate}</small></td>
+                <td style="padding:8px;">${inv.clientName}</td>
+                <td style="padding:8px; font-size:0.8rem;">${period}</td>
+                <td style="padding:8px; text-align:right; font-weight:700;">$${inv.total.toLocaleString('en-US',{minimumFractionDigits:2})}</td>
+                <td style="padding:8px; text-align:center;"><span style="background:${sc.bg}; color:${sc.color}; padding:3px 8px; border-radius:12px; font-size:0.75rem; font-weight:600; white-space:nowrap;">${sc.label}</span></td>
+                <td style="padding:8px; text-align:center; font-size:0.8rem; color:#555;">${sentFmt}</td>
+                <td style="padding:8px; text-align:center; font-size:0.8rem; color:#555;">${inv.paidAmount ? '$'+parseFloat(inv.paidAmount).toLocaleString('en-US',{minimumFractionDigits:2}) : paidFmt}</td>
+                <td style="padding:8px; text-align:center;">
+                    <button onclick="app.openCobroDetalle('${inv.id}')" style="background:#16a085; color:white; border:none; border-radius:5px; padding:5px 10px; cursor:pointer; font-size:0.8rem;">✏️ Actualizar</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    openCobroDetalle(id) {
+        const inv = (this.generatedInvoices||[]).find(i => String(i.id) === String(id));
+        if (!inv) return;
+        document.getElementById('cobroDetalleId').value = id;
+        document.getElementById('cobroDetalleTitle').textContent = `💰 #${inv.invoiceNumber?.toString().padStart(4,'0')} — ${inv.clientName}`;
+        document.getElementById('cobroDetalleStatus').value = inv.status || 'pendiente';
+        document.getElementById('cobroDetalleSentAt').value = inv.sentAt || '';
+        document.getElementById('cobroDetallePaidAt').value = inv.paidAt || '';
+        document.getElementById('cobroDetallePaidAmount').value = inv.paidAmount || '';
+        document.getElementById('cobroDetalleNotes').value = inv.notes || '';
+        document.getElementById('cobroDetalleModal').style.display = 'flex';
+    }
+
+    saveCobroDetalle() {
+        const id = document.getElementById('cobroDetalleId').value;
+        const inv = (this.generatedInvoices||[]).find(i => String(i.id) === String(id));
+        if (!inv) return;
+        inv.status = document.getElementById('cobroDetalleStatus').value;
+        inv.sentAt = document.getElementById('cobroDetalleSentAt').value || null;
+        inv.paidAt = document.getElementById('cobroDetallePaidAt').value || null;
+        inv.paidAmount = document.getElementById('cobroDetallePaidAmount').value || null;
+        inv.notes = document.getElementById('cobroDetalleNotes').value || '';
+        this.save();
+        document.getElementById('cobroDetalleModal').style.display = 'none';
+        this.refreshCobros();
+        this.updateCobrosBadge();
+    }
+
+    exportCobrosCSV() {
+        const invs = (this.generatedInvoices||[]).sort((a,b)=>b.generatedDate.localeCompare(a.generatedDate));
+        let csv = 'Factura,Fecha,Cliente,Periodo,Total,Estado,Enviada,Pagada,Monto Pagado,Notas\n';
+        invs.forEach(inv => {
+            const num = '#' + (inv.invoiceNumber?.toString().padStart(4,'0')||'----');
+            const period = `${inv.startDate} - ${inv.endDate}`;
+            csv += `${num},${inv.generatedDate},"${inv.clientName}","${period}",${inv.total.toFixed(2)},${inv.status||'pendiente'},${inv.sentAt||''},${inv.paidAt||''},${inv.paidAmount||''},"${inv.notes||''}"
+`;
+        });
+        const blob = new Blob([csv], {type:'text/csv'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `cobros_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+    }
+
     regenerateInvoice(index) {
         const start = document.getElementById('genInvStart').value;
         const end = document.getElementById('genInvEnd').value;
@@ -7843,6 +8005,95 @@ document.addEventListener('click', function(e) {
         </div>
         <div id="screenshotCard" style="background:white; border-radius:12px; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.4);"></div>
         <p style="color:#aaa; font-size:0.8rem; text-align:center; margin-top:12px;">Usa la herramienta de captura de pantalla de tu dispositivo</p>
+    </div>
+</div>
+
+<!-- Modal Cobros -->
+<div id="cobrosModal" class="modal">
+    <div class="modal-content" style="width:95%; max-width:1100px; max-height:90vh; overflow-y:auto;">
+        <div style="position:relative; background:linear-gradient(135deg,#16a085,#1abc9c); color:white; padding:15px 20px; margin:-30px -30px 20px; border-radius:15px 15px 0 0;">
+            <button onclick="app.closeCobros()" style="position:absolute; top:10px; right:10px; background:#e74c3c; color:white; border:none; width:30px; height:30px; border-radius:50%; font-size:1.1rem; font-weight:bold; cursor:pointer;">✕</button>
+            <h2 style="margin:0; font-size:1.4rem;">💰 Seguimiento de Cobros</h2>
+        </div>
+
+        <!-- Resumen de totales -->
+        <div id="cobrosResumen" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-bottom:20px;"></div>
+
+        <!-- Filtros -->
+        <div style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap; align-items:center;">
+            <select id="cobrosFilterStatus" onchange="app.refreshCobros()" style="padding:8px; border-radius:6px; border:1px solid #ddd;">
+                <option value="all">Todos los estados</option>
+                <option value="pendiente">⏳ Pendientes</option>
+                <option value="enviada">📤 Enviadas</option>
+                <option value="pagada">✅ Pagadas</option>
+                <option value="vencida">🔴 Vencidas</option>
+                <option value="cancelada">❌ Canceladas</option>
+            </select>
+            <select id="cobrosFilterClient" onchange="app.refreshCobros()" style="padding:8px; border-radius:6px; border:1px solid #ddd;">
+                <option value="all">Todos los clientes</option>
+            </select>
+            <input type="date" id="cobrosStart" onchange="app.refreshCobros()" style="padding:8px; border-radius:6px; border:1px solid #ddd;">
+            <input type="date" id="cobrosEnd" onchange="app.refreshCobros()" style="padding:8px; border-radius:6px; border:1px solid #ddd;">
+            <button onclick="app.exportCobrosCSV()" class="btn" style="background:#27ae60; color:white; padding:8px 14px; margin-left:auto;">📊 Exportar CSV</button>
+        </div>
+
+        <!-- Tabla -->
+        <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
+            <thead>
+                <tr style="background:#f8f9fa; border-bottom:2px solid #dee2e6;">
+                    <th style="padding:10px 8px; text-align:left;">#</th>
+                    <th style="padding:10px 8px; text-align:left;">Cliente</th>
+                    <th style="padding:10px 8px; text-align:left;">Período</th>
+                    <th style="padding:10px 8px; text-align:right;">Total</th>
+                    <th style="padding:10px 8px; text-align:center;">Estado</th>
+                    <th style="padding:10px 8px; text-align:center;">Enviada</th>
+                    <th style="padding:10px 8px; text-align:center;">Pagada</th>
+                    <th style="padding:10px 8px; text-align:center;">Acciones</th>
+                </tr>
+            </thead>
+            <tbody id="cobrosBody"></tbody>
+        </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Detalle Cobro -->
+<div id="cobroDetalleModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99999; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; padding:24px; max-width:440px; width:90%; box-shadow:0 8px 32px rgba(0,0,0,0.3);">
+        <h3 id="cobroDetalleTitle" style="margin:0 0 16px; color:#16a085;">💰 Actualizar Cobro</h3>
+        <input type="hidden" id="cobroDetalleId">
+        
+        <div style="margin-bottom:14px;">
+            <label style="font-size:0.85rem; font-weight:600; color:#555;">Estado</label>
+            <select id="cobroDetalleStatus" style="width:100%; padding:8px; margin-top:4px; border:1px solid #ddd; border-radius:6px; font-size:0.9rem;">
+                <option value="pendiente">⏳ Pendiente</option>
+                <option value="enviada">📤 Enviada al cliente</option>
+                <option value="pagada">✅ Pagada</option>
+                <option value="vencida">🔴 Vencida / Atrasada</option>
+                <option value="cancelada">❌ Cancelada</option>
+            </select>
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="font-size:0.85rem; font-weight:600; color:#555;">Fecha de envío</label>
+            <input type="date" id="cobroDetalleSentAt" style="width:100%; padding:8px; margin-top:4px; border:1px solid #ddd; border-radius:6px;">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="font-size:0.85rem; font-weight:600; color:#555;">Fecha de pago</label>
+            <input type="date" id="cobroDetallePaidAt" style="width:100%; padding:8px; margin-top:4px; border:1px solid #ddd; border-radius:6px;">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="font-size:0.85rem; font-weight:600; color:#555;">Monto pagado ($)</label>
+            <input type="number" id="cobroDetallePaidAmount" placeholder="0.00" style="width:100%; padding:8px; margin-top:4px; border:1px solid #ddd; border-radius:6px;">
+        </div>
+        <div style="margin-bottom:20px;">
+            <label style="font-size:0.85rem; font-weight:600; color:#555;">Notas</label>
+            <textarea id="cobroDetalleNotes" rows="2" placeholder="Método de pago, observaciones..." style="width:100%; padding:8px; margin-top:4px; border:1px solid #ddd; border-radius:6px; resize:vertical; font-size:0.85rem;"></textarea>
+        </div>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+            <button onclick="document.getElementById('cobroDetalleModal').style.display='none'" style="padding:8px 18px; border:1px solid #ccc; border-radius:6px; background:white; cursor:pointer;">Cancelar</button>
+            <button onclick="app.saveCobroDetalle()" style="padding:8px 18px; background:#16a085; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600;">💾 Guardar</button>
+        </div>
     </div>
 </div>
 
