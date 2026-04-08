@@ -516,12 +516,13 @@
                 }, 3000);
             },
             
-            showSuccess(msg) {
+            showSuccess(msg, autoLogout = false) {
                 const successMsg = document.getElementById('successMsg');
                 successMsg.textContent = '✅ ' + msg;
                 successMsg.style.display = 'block';
                 setTimeout(() => {
                     successMsg.style.display = 'none';
+                    if (autoLogout) this.logout();
                 }, 3000);
             },
             
@@ -620,28 +621,28 @@
                 }
                 
                 this.attendances.push({
-                    id: Date.now(),
+                    id: 'att' + Date.now(),
                     employeeId: this.currentEmployee.id,
                     employeeName: this.currentEmployee.name,
                     date: date,
                     checkIn: time,
-                    checkOut: null
+                    checkOut: null,
+                    updatedAt: new Date().toISOString() // Para resolución de conflictos en merge
                 });
                 
                 this.save();
                 this.exportDaily();
+                if (this.driveConnected) this.driveSyncNow();
                 
                 // Verificar si llegó tarde
                 const late = this.isLate(time);
                 if (late) {
-                    this.showSuccess(`⚠️ TARDE - Entrada: ${time}`);
+                    this.showSuccess(`⚠️ TARDE - Entrada: ${time}`, true);
                 } else {
-                    this.showSuccess(`✅ Entrada registrada: ${time}`);
+                    this.showSuccess(`✅ Entrada registrada: ${time}`, true);
                 }
                 
                 this.updateEmployeeHours();
-                
-                setTimeout(() => this.logout(), 4000);
             },
             
             checkOut() {
@@ -663,9 +664,11 @@
                 
                 openEntry.checkOut = time;
                 openEntry.hours = this.calculateHours(openEntry.checkIn, openEntry.checkOut);
+                openEntry.updatedAt = new Date().toISOString(); // Actualizar timestamp para merge
                 
                 this.save();
                 this.exportDaily();
+                if (this.driveConnected) this.driveSyncNow();
                 
                 // Calcular horas de la semana
                 const weekStart = this.getWeekStart();
@@ -683,10 +686,8 @@
                     })
                     .reduce((sum, a) => sum + a.hours, 0);
                 
-                this.showSuccess(`✅ Salida: ${time} | Hoy: ${openEntry.hours.toFixed(2)} hrs | Semana: ${weekHours.toFixed(2)} hrs`);
+                this.showSuccess(`✅ Salida: ${time} | Hoy: ${openEntry.hours.toFixed(2)} hrs | Semana: ${weekHours.toFixed(2)} hrs`, true);
                 this.updateEmployeeHours();
-                
-                setTimeout(() => this.logout(), 4000);
             },
             
             calculateHours(checkIn, checkOut) {
@@ -704,11 +705,14 @@
             getWeekStart() {
                 const now = new Date();
                 const day = now.getDay();
-                const diff = day === 0 ? -6 : 1 - day; // Lunes como inicio
-                const monday = new Date(now);
-                monday.setDate(now.getDate() + diff);
-                monday.setHours(0, 0, 0, 0);
-                return monday;
+                // Respetar weekStartDay de workConfig (default 5 = Viernes para Ana's)
+                const weekStartDay = (this.workConfig && this.workConfig.weekStartDay != null)
+                    ? this.workConfig.weekStartDay : 5;
+                const daysBack = (day - weekStartDay + 7) % 7;
+                const start = new Date(now);
+                start.setDate(now.getDate() - daysBack);
+                start.setHours(0, 0, 0, 0);
+                return start;
             },
             
             showAdminScreen() {
@@ -861,7 +865,7 @@
                 
                 // Agregar registro
                 this.attendances.push({
-                    id: Date.now(),
+                    id: 'att' + Date.now(),
                     employeeId: empId,
                     employeeName: emp.name,
                     date,
@@ -881,6 +885,19 @@
             // GOOGLE DRIVE SYNC
             // ══════════════════════════════════════
             CLIENT_ID: '701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com',
+            deviceId: localStorage.getItem('reloj_deviceId') || (() => {
+                const id = 'reloj_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
+                localStorage.setItem('reloj_deviceId', id);
+                return id;
+            })(),
+            deviceName: (() => {
+                const ua = navigator.userAgent;
+                if (/Mac/i.test(ua) && !/iPhone|iPad/i.test(ua)) return '🍎 Mac';
+                if (/Win/i.test(ua)) return '🖥️ PC';
+                if (/Android/i.test(ua)) return '📱 Android';
+                if (/iPhone|iPad/i.test(ua)) return '📱 iOS';
+                return '💻 Dispositivo';
+            })(),
             SCOPES: 'https://www.googleapis.com/auth/drive.file',
             FOLDER_NAME: 'AnasCleaningNomina',
             driveToken: null,
@@ -890,6 +907,8 @@
             tokenClient: null,
             tokenExpiry: null,
             firstConnect: true,
+            isSyncing: false,
+            pendingSync: false,
 
             driveSync() {
                 if (this.driveConnected) {
@@ -912,9 +931,9 @@
                         document.getElementById('clockDriveSyncLabel').textContent = 'Sincronizar';
                         document.getElementById('clockDriveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
-                        await this.driveDownloadFromNomina();
+                        await this.driveSyncNow();            // 1. Subir primero datos locales
+                        await this.driveDownloadFromNomina(); // 2. Luego bajar de Nómina
                         this.startAutoSync();
-                        await this.driveSyncNow();
                         if (!this.firstConnect) {
                             const toast = document.createElement('div');
                         toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#27ae60;color:white;padding:15px 20px;border-radius:10px;z-index:9999;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
@@ -932,8 +951,16 @@
             async refreshTokenIfNeeded() {
                 if (!this.tokenClient) return;
                 if (!this.tokenExpiry || Date.now() > this.tokenExpiry) {
-                    // Token expired - refresh silently
-                    this.tokenClient.requestAccessToken({ prompt: '' });
+                    await new Promise((resolve) => {
+                        this.tokenClient.callback = (response) => {
+                            if (response.error) { resolve(); return; }
+                            this.driveToken = response.access_token;
+                            this.tokenExpiry = Date.now() + (55 * 60 * 1000);
+                            this.driveConnected = true;
+                            resolve();
+                        };
+                        this.tokenClient.requestAccessToken({ prompt: '' });
+                    });
                 }
             },
 
@@ -958,13 +985,23 @@
 
             async driveSyncNow() {
                 if (!this.driveConnected || !this.driveFolderId) return;
+                if (this.isSyncing) {
+                    const elapsed = this.syncStartTime ? Date.now() - this.syncStartTime : 99999;
+                    if (elapsed < 30000) { this.pendingSync = true; return; }
+                }
+                this.isSyncing = true;
+                this.syncStartTime = Date.now();
                 await this.refreshTokenIfNeeded();
                 try {
                     document.getElementById('clockDriveSyncLabel').textContent = 'Sincronizando...';
                     const data = {
-                        exportType: 'reloj_sync', exportDate: new Date().toISOString(),
+                        exportType: 'reloj_sync',
+                        exportDate: new Date().toISOString(),
                         source: "Ana's Cleaning Reloj",
-                        employees: this.employees, attendances: this.attendances
+                        deviceId: this.deviceId,
+                        deviceName: this.deviceName,
+                        employees: this.employees,
+                        attendances: this.attendances
                     };
                     const fileName = 'anas_reloj_sync.json';
                     const searchRes = await fetch(
@@ -983,22 +1020,33 @@
                         { method: fileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${this.driveToken}` }, body: form }
                     );
                     const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    localStorage.setItem('reloj_lastSyncAt', new Date().toISOString()); // Timestamp de último sync
                     document.getElementById('clockDriveSyncLabel').textContent = `Sync ${now}`;
                     document.getElementById('clockDriveSyncBtn').style.background = '#27ae60';
                 } catch(err) {
                     document.getElementById('clockDriveSyncLabel').textContent = '⚠️ Error';
                     document.getElementById('clockDriveSyncBtn').style.background = '#e74c3c';
+                } finally {
+                    this.isSyncing = false;
+                    if (this.pendingSync) {
+                        this.pendingSync = false;
+                        setTimeout(() => this.driveSyncNow(), 500);
+                    }
                 }
             },
 
             startAutoSync() {
                 if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
                 this.autoSyncInterval = setInterval(async () => {
-                    if (this.driveConnected) {
-                        await this.driveDownloadFromNomina();
-                        await this.driveSyncNow();
+                    if (!this.driveConnected) return;
+                    try {
+                        await this.driveDownloadFromNomina(); // 1. Bajar empleados/config de Nómina
+                        await this.driveSyncNow();            // 2. Subir asistencias actualizadas
+                    } catch(e) {
+                        console.warn('Auto-sync error:', e);
                     }
-                }, 5 * 60 * 1000);
+                }, 3 * 60 * 1000); // Cada 3 min — igual que Nómina
+                console.log('🔄 Reloj auto-sync activo (cada 3 min)');
             },
 
             async driveDownloadFromNomina() {
@@ -1017,39 +1065,72 @@
                     );
                     const nominaData = await fileRes.json();
 
-                    // Update employees
+                    // ── MERGE INTELIGENTE ──
+                    // Empleados: merge por updatedAt — el más reciente gana
                     if (nominaData.employees && nominaData.employees.length > 0) {
-                        this.employees = nominaData.employees;
+                        nominaData.employees.forEach(remote => {
+                            const idx = this.employees.findIndex(e => String(e.id) === String(remote.id));
+                            if (idx < 0) {
+                                this.employees.push(remote); // Empleado nuevo desde Nómina
+                            } else {
+                                const localTime = this.employees[idx].updatedAt || '';
+                                const remoteTime = remote.updatedAt || '';
+                                if (remoteTime > localTime) this.employees[idx] = remote;
+                            }
+                        });
                     }
 
-                    // Update workConfig
+                    // workConfig: siempre se acepta desde Nómina (Nómina es fuente de verdad para config)
                     if (nominaData.workConfig) {
                         this.workConfig = nominaData.workConfig;
+                        localStorage.setItem('anas_workConfig', JSON.stringify(this.workConfig));
                     }
 
-                    // Update adminPin
+                    // adminPin: siempre se acepta desde Nómina
                     if (nominaData.adminPin) {
                         this.adminPin = nominaData.adminPin;
                     }
 
-                    // Merge attendances - smart merge, never overwrite local checkOut with empty
+                    // Asistencias: merge inteligente — el Reloj nunca pierde su checkOut
                     if (nominaData.attendances) {
-                        nominaData.attendances.forEach(att => {
-                            const idx = this.attendances.findIndex(a =>
-                                a.employeeId === att.employeeId && a.date === att.date
+                        const deletedIds = (nominaData.deletedAttendances || []).map(String);
+                        const nominaAtts = nominaData.attendances.filter(a => !deletedIds.includes(String(a.id)));
+
+                        // Merge: empezar con Nómina como base
+                        const merged = [...nominaAtts];
+
+                        this.attendances.forEach(local => {
+                            if (deletedIds.includes(String(local.id))) return;
+                            const idx = merged.findIndex(n =>
+                                n.date === local.date && String(n.employeeId) === String(local.employeeId)
                             );
                             if (idx < 0) {
-                                // New record - add it
-                                this.attendances.push(att);
+                                // No existe en Nómina — agregar sin manualEdit
+                                const toAdd = { ...local };
+                                delete toAdd.manualEdit;
+                                merged.push(toAdd);
                             } else {
-                                const local = this.attendances[idx];
-                                // Only update if incoming has MORE info (e.g. has checkOut and local doesn't)
-                                if (!local.checkOut && att.checkOut) {
-                                    this.attendances[idx] = att;
+                                const remote = merged[idx];
+                                // Local tiene checkOut y remoto no → local gana
+                                if (local.checkOut && !remote.checkOut) {
+                                    const winner = { ...local };
+                                    delete winner.manualEdit;
+                                    merged[idx] = winner;
                                 }
-                                // Never overwrite a local checkOut with empty
+                                // Ambos tienen checkOut → gana el más reciente
+                                else if (local.checkOut && remote.checkOut) {
+                                    const localTime = local.updatedAt || local.checkOut || '';
+                                    const remoteTime = remote.updatedAt || remote.checkOut || '';
+                                    if (localTime > remoteTime) {
+                                        const winner = { ...local };
+                                        delete winner.manualEdit;
+                                        merged[idx] = winner;
+                                    }
+                                }
                             }
                         });
+                        // Nunca dejar manualEdit en registros del Reloj
+                        this.attendances = merged.map(a => { const r = {...a}; delete r.manualEdit; return r; });
                     }
 
                     this.save();
@@ -1059,7 +1140,8 @@
                     document.getElementById('clockDriveSyncLabel').textContent = `Sync ${syncNow}`;
                     document.getElementById('clockDriveSyncBtn').style.background = '#27ae60';
                 } catch(err) {
-                    alert('❌ Error al bajar datos de Nómina: ' + err.message);
+                    console.error('driveDownloadFromNomina error:', err.message);
+                    // Error silencioso — no interrumpir al empleado que va a checar
                 }
             },
 
@@ -1256,6 +1338,33 @@
         };
         
         app.init();
+
+        // ── Detectar cuando el dispositivo vuelve al primer plano ──
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+                if (app.driveConnected) {
+                    if (!app.tokenExpiry || Date.now() > app.tokenExpiry) {
+                        document.getElementById('clockDriveSyncLabel').textContent = '⚠️ Reconectar';
+                        document.getElementById('clockDriveSyncBtn').style.background = '#e74c3c';
+                        app.driveConnect();
+                    } else {
+                        await app.driveSyncNow();
+                        await app.driveDownloadFromNomina();
+                        const now = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                        document.getElementById('clockDriveSyncLabel').textContent = `Sync ${now}`;
+                        app.startAutoSync();
+                    }
+                }
+            }
+        });
+
+        // pageshow — Safari bfcache
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) {
+                app.startAutoSync();
+            }
+        });
+
     </script>
 </body>
 </html>

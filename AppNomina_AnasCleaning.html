@@ -341,6 +341,25 @@
                 padding: 0;
             }
         }
+
+        /* ── Check Editor Visual ── */
+        .check-field-tag {
+            position: absolute;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 0.78rem;
+            font-weight: bold;
+            cursor: grab;
+            user-select: none;
+            white-space: nowrap;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 10;
+            transition: box-shadow 0.1s;
+            display: none; /* oculto hasta cargar imagen */
+        }
+        .check-field-tag:active { cursor: grabbing; box-shadow: 0 4px 14px rgba(0,0,0,0.4); }
+        .check-field-tag.visible { display: block; }
+        #checkEditorContainer { cursor: default; }
     </style>
 </head>
 <body>
@@ -354,6 +373,7 @@
                 </div>
             </div>
             <div class="header-buttons">
+                <span id="deviceInfoLabel" style="font-size:0.8rem; color:#7f8c8d; padding: 6px 10px; background:#f0f0f0; border-radius:8px; font-weight:bold;"></span>
                 <button class="btn" id="driveSyncBtn" onclick="app.driveSync()" style="background:#4285f4; color:white; display:flex; align-items:center; gap:6px;">
                     ☁️ <span id="driveSyncLabel">Conectar Drive</span>
                 </button>
@@ -372,33 +392,33 @@
             </div>
         </div>
         
-        <div class="tabs">
-            <button class="tab active" onclick="app.switchTab('employees')">👥 Empleados</button>
-            <button class="tab" onclick="app.switchTab('attendances')">📋 Asistencias</button>
-            <button class="tab" onclick="app.switchTab('payroll')">💵 Nómina</button>
-            <button class="tab" onclick="app.switchTab('timecards')">📋 Time Cards</button>
-            <button class="tab" onclick="app.switchTab('checks')">🧾 Cheques</button>
-            <button class="tab" onclick="app.switchTab('history')">📊 Historial</button>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:20px; flex-wrap:wrap;">
+            <div class="tabs" style="margin-bottom:0; flex-shrink:0;">
+                <button class="tab active" onclick="app.switchTab('employees')">👥 Empleados</button>
+                <button class="tab" onclick="app.switchTab('attendances')">📋 Asistencias</button>
+                <button class="tab" onclick="app.switchTab('payroll')">💵 Nómina</button>
+                <button class="tab" onclick="app.switchTab('timecards')">📋 Time Cards</button>
+                <button class="tab" onclick="app.switchTab('checks')">🧾 Cheques</button>
+                <button class="tab" onclick="app.switchTab('history')">📊 Historial</button>
+            </div>
+            <div style="display:flex; gap:8px; margin-left:auto; flex-wrap:wrap;">
+                <div class="stat-card" style="padding:6px 12px; border-radius:8px; gap:6px;">
+                    <div style="font-size:1.1rem;">👥</div>
+                    <div><div class="stat-value" id="statEmployees" style="font-size:1rem; line-height:1.1;">0</div><div class="stat-label" style="font-size:0.7rem;">Empleados</div></div>
+                </div>
+                <div class="stat-card" style="padding:6px 12px; border-radius:8px; gap:6px;">
+                    <div style="font-size:1.1rem;">📅</div>
+                    <div><div class="stat-value" id="statDays" style="font-size:1rem; line-height:1.1;">0</div><div class="stat-label" style="font-size:0.7rem;">Días</div></div>
+                </div>
+                <div class="stat-card" style="padding:6px 12px; border-radius:8px; gap:6px;">
+                    <div style="font-size:1.1rem;">⏰</div>
+                    <div><div class="stat-value" id="statHours" style="font-size:1rem; line-height:1.1;">0</div><div class="stat-label" id="statHoursLabel" style="font-size:0.7rem;">Horas</div></div>
+                </div>
+            </div>
         </div>
         
         <!-- TAB EMPLEADOS -->
         <div class="tab-content active" id="tabEmployees">
-            <div class="card" style="background: linear-gradient(135deg, #fff5e6 0%, #ffe6cc 100%); border-left: 4px solid #e67e22;">
-                <h2 style="color: #d35400;">⚙️ Configuración de Administrador</h2>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>PIN del Administrador (4 dígitos):</label>
-                        <input type="text" id="adminPin" maxlength="4" placeholder="0000" style="font-weight: bold; font-size: 1.2rem;">
-                        <small style="color: #7f8c8d; margin-top: 5px;">Este PIN se usa para acceder al panel de administrador en el Reloj Checador</small>
-                    </div>
-                    <div class="form-group">
-                        <label>&nbsp;</label>
-                        <button class="btn btn-primary" onclick="app.saveAdminPin()" style="margin-top: 24px;">
-                            💾 Guardar PIN
-                        </button>
-                    </div>
-                </div>
-            </div>
             
             <div class="card" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); border-left: 4px solid #2196f3;">
                 <div class="collapsible-header" onclick="app.toggleCollapse('checkConfigContent')">
@@ -406,87 +426,176 @@
                     <span id="checkConfigContent_icon" class="collapse-icon collapsed" style="font-size: 1.5rem; color: #1565c0;">▼</span>
                 </div>
                 <div id="checkConfigContent" class="collapsible-content collapsed">
-                    <p style="color: #666; margin-bottom: 15px;">
-                        Ajusta la posición de cada elemento para que coincida con las ventanas de tu sobre.
-                        Los valores están en pulgadas desde la esquina superior izquierda.
-                    </p>
                     
-                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-bottom: 20px;">
-                        <div class="form-group">
-                            <label>Número de cheque (Arriba):</label>
-                            <input type="number" id="check_number_top" step="0.1" value="0.3" style="padding: 8px;">
-                            <small>pulgadas desde arriba</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Número de cheque (Derecha):</label>
-                            <input type="number" id="check_number_right" step="0.1" value="0.5" style="padding: 8px;">
-                            <small>pulgadas desde derecha</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Fecha (Arriba):</label>
-                            <input type="number" id="check_date_top" step="0.1" value="0.8" style="padding: 8px;">
-                            <small>pulgadas desde arriba</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Fecha (Derecha):</label>
-                            <input type="number" id="check_date_right" step="0.1" value="0.5" style="padding: 8px;">
-                            <small>pulgadas desde derecha</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Nombre empleado (Arriba):</label>
-                            <input type="number" id="check_payee_top" step="0.1" value="1.2" style="padding: 8px;">
-                            <small>pulgadas desde arriba</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Nombre empleado (Izquierda):</label>
-                            <input type="number" id="check_payee_left" step="0.1" value="1.2" style="padding: 8px;">
-                            <small>pulgadas desde izquierda</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Dirección empleado (Arriba):</label>
-                            <input type="number" id="check_address_top" step="0.1" value="1.5" style="padding: 8px;">
-                            <small>pulgadas desde arriba</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Dirección empleado (Izquierda):</label>
-                            <input type="number" id="check_address_left" step="0.1" value="1.2" style="padding: 8px;">
-                            <small>pulgadas desde izquierda</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Monto numérico (Arriba):</label>
-                            <input type="number" id="check_amount_top" step="0.1" value="1.2" style="padding: 8px;">
-                            <small>pulgadas desde arriba</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Monto numérico (Derecha):</label>
-                            <input type="number" id="check_amount_right" step="0.1" value="0.5" style="padding: 8px;">
-                            <small>pulgadas desde derecha</small>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>Monto en palabras (Arriba):</label>
-                            <input type="number" id="check_words_top" step="0.1" value="1.6" style="padding: 8px;">
-                            <small>pulgadas desde arriba</small>
-                        </div>
-                        <div class="form-group">
-                            <label>Monto en palabras (Izquierda):</label>
-                            <input type="number" id="check_words_left" step="0.1" value="0.5" style="padding: 8px;">
-                            <small>pulgadas desde izquierda</small>
+                    <!-- PASO 1: Subir imagen -->
+                    <div style="background: #e3f2fd; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #1565c0;">📁 Paso 1: Sube la imagen de tu cheque</h4>
+                        <p style="color: #555; margin: 0 0 10px 0; font-size: 0.9rem;">Acepta PNG, JPG o PDF (primera página). La imagen se usará como fondo para alinear los campos.</p>
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                            <label style="cursor:pointer; background:#1565c0; color:white; padding:10px 18px; border-radius:8px; font-weight:bold; display:inline-block;">
+                                📎 Seleccionar archivo
+                                <input type="file" id="checkImageUpload" accept="image/png,image/jpeg,application/pdf" style="display:none" onchange="app.loadCheckImage(event)">
+                            </label>
+                            <span id="checkImageName" style="color:#555; font-size:0.9rem;">Ningún archivo seleccionado</span>
+                            <button class="btn btn-secondary" onclick="app.clearCheckImage()" style="padding:8px 14px; font-size:0.85rem;">🗑️ Quitar imagen</button>
                         </div>
                     </div>
-                    
-                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                        <strong>💡 Tip:</strong> Imprime un cheque de prueba primero y ajusta los valores según sea necesario.
-                        Los valores por defecto son para sobres estándar de 3 ventanas (tamaño #10).
+
+                    <!-- PASO 1b: Firma digital -->
+                    <div style="background: #f3e5f5; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #6a1b9a;">✍️ Firma Digital (opcional)</h4>
+                        <p style="color: #555; margin: 0 0 10px 0; font-size: 0.9rem;">Sube una imagen PNG o JPG de la firma. Se imprimirá en el cheque en la posición que configures.</p>
+                        <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 10px;">
+                            <label style="cursor:pointer; background:#6a1b9a; color:white; padding:10px 18px; border-radius:8px; font-weight:bold; display:inline-block;">
+                                📎 Subir firma
+                                <input type="file" id="signatureUpload" accept="image/png,image/jpeg" style="display:none" onchange="app.loadSignatureImage(event)">
+                            </label>
+                            <span id="signatureName" style="color:#555; font-size:0.9rem;">Ningún archivo seleccionado</span>
+                            <button class="btn btn-secondary" onclick="app.clearSignatureImage()" style="padding:8px 14px; font-size:0.85rem;">🗑️ Quitar firma</button>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                            <label style="font-size:0.9rem; color:#555;">Ancho de la firma:</label>
+                            <input type="number" id="signatureWidth" value="1.5" step="0.1" min="0.3" max="4"
+                                style="width:80px; padding:6px; border:1px solid #ccc; border-radius:6px; font-size:0.9rem;"
+                                onchange="app.saveCheckConfig()">
+                            <span style="color:#888; font-size:0.85rem;">pulgadas</span>
+                            <div id="signaturePreviewThumb" style="display:none; border:1px solid #ccc; border-radius:4px; padding:4px; background:#fff;">
+                                <img id="signatureThumb" src="" style="height:40px; display:block;">
+                            </div>
+                        </div>
                     </div>
-                    
-                    <button class="btn btn-primary" onclick="app.saveCheckConfig()">
-                        💾 Guardar Configuración de Cheques
-                    </button>
+
+                    <!-- PASO 2: Editor visual -->
+                    <div style="background: #f3f3f3; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <h4 style="margin: 0 0 10px 0; color: #1565c0;">🖱️ Paso 2: Arrastra los campos sobre el cheque</h4>
+                        <p style="color: #555; margin: 0 0 12px 0; font-size: 0.9rem;">Cada etiqueta de color representa un campo. Arrástrala hasta la posición correcta en el cheque.</p>
+                        
+                        <!-- Contenedor del editor visual -->
+                        <div id="checkEditorContainer" style="position:relative; width:100%; max-width:850px; margin:0 auto; border:2px dashed #aaa; border-radius:6px; background:#fff; overflow:hidden; aspect-ratio:8.5/11;">
+                            <img id="checkBgImage" src="" alt="" style="position:absolute; inset:0; width:100%; height:100%; opacity:0; pointer-events:none; transition:opacity 0.3s; object-fit:fill;">
+                            <div id="checkEditorPlaceholder" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#aaa; font-size:1rem; flex-direction:column; gap:8px;">
+                                <span style="font-size:2.5rem;">🧾</span>
+                                <span>Sube la imagen del cheque para comenzar</span>
+                            </div>
+                            <!-- Campos arrastrables -->
+                            <div class="check-field-tag" id="cft_number"  data-field="number"  style="top:15%; right:6%;  left:auto; background:#e53935; color:white;">🔢 #Cheque</div>
+                            <div class="check-field-tag" id="cft_date"    data-field="date"    style="top:25%; right:6%;  left:auto; background:#8e24aa; color:white;">📅 Fecha</div>
+                            <div class="check-field-tag" id="cft_payee"   data-field="payee"   style="top:38%; left:14%; background:#1565c0; color:white;">👤 Nombre</div>
+                            <div class="check-field-tag" id="cft_address" data-field="address" style="top:46%; left:14%; background:#00838f; color:white;">🏠 Calle</div>
+                            <div class="check-field-tag" id="cft_city"    data-field="city"    style="top:54%; left:14%; background:#00695c; color:white;">🏙️ Ciudad/Estado/Zip</div>
+                            <div class="check-field-tag" id="cft_amount"  data-field="amount"  style="top:38%; right:6%;  left:auto; background:#2e7d32; color:white;">💵 $Monto</div>
+                            <div class="check-field-tag" id="cft_words"      data-field="words"      style="top:62%; left:6%;  background:#e65100; color:white;">✍️ Monto en palabras</div>
+                            <div class="check-field-tag" id="cft_payee_name2" data-field="payee_name2" style="top:70%; left:6%;  background:#6a1b9a; color:white;">👤 Nombre (bajo monto)</div>
+                            <div class="check-field-tag" id="cft_memo"        data-field="memo"        style="top:78%; left:6%;  background:#37474f; color:white;">📋 Período (Memo)</div>
+                            <div class="check-field-tag" id="cft_signature"   data-field="signature"   style="top:86%; right:6%; left:auto; background:#4a148c; color:white;">✍️ Firma</div>
+                        </div>
+                        
+                        <p style="color:#888; font-size:0.8rem; margin-top:8px; text-align:center;">
+                            💡 Las posiciones se guardan en pulgadas para la impresión real
+                        </p>
+                    </div>
+
+                    <!-- PASO 3: Valores manuales (colapsados) -->
+                    <details style="margin-bottom:15px;">
+                        <summary style="cursor:pointer; color:#1565c0; font-weight:bold; padding:8px; background:#e3f2fd; border-radius:6px;">
+                            ⚙️ Ajuste fino manual (pulgadas)
+                        </summary>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top:12px; padding:10px; background:#f5f5f5; border-radius:6px;">
+                            <div class="form-group">
+                                <label>🔢 # Cheque — Arriba:</label>
+                                <input type="number" id="check_number_top" step="0.05" value="0.3" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>🔢 # Cheque — Derecha:</label>
+                                <input type="number" id="check_number_right" step="0.05" value="0.5" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>📅 Fecha — Arriba:</label>
+                                <input type="number" id="check_date_top" step="0.05" value="0.8" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>📅 Fecha — Derecha:</label>
+                                <input type="number" id="check_date_right" step="0.05" value="0.5" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>👤 Nombre — Arriba:</label>
+                                <input type="number" id="check_payee_top" step="0.05" value="1.2" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>👤 Nombre — Izquierda:</label>
+                                <input type="number" id="check_payee_left" step="0.05" value="1.2" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>🏠 Calle — Arriba:</label>
+                                <input type="number" id="check_address_top" step="0.05" value="1.4" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>🏠 Calle — Izquierda:</label>
+                                <input type="number" id="check_address_left" step="0.05" value="1.2" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>🏙️ Ciudad/Estado/Zip — Arriba:</label>
+                                <input type="number" id="check_city_top" step="0.05" value="1.55" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>🏙️ Ciudad/Estado/Zip — Izquierda:</label>
+                                <input type="number" id="check_city_left" step="0.05" value="1.2" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>💵 Monto — Arriba:</label>
+                                <input type="number" id="check_amount_top" step="0.05" value="1.2" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>💵 Monto — Derecha:</label>
+                                <input type="number" id="check_amount_right" step="0.05" value="0.5" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>✍️ Palabras — Arriba:</label>
+                                <input type="number" id="check_words_top" step="0.05" value="1.6" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>✍️ Palabras — Izquierda:</label>
+                                <input type="number" id="check_words_left" step="0.05" value="0.5" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>👤 Nombre (bajo monto) — Arriba:</label>
+                                <input type="number" id="check_payee_name2_top" step="0.05" value="1.85" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>👤 Nombre (bajo monto) — Izquierda:</label>
+                                <input type="number" id="check_payee_name2_left" step="0.05" value="0.5" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>📋 Período (Memo) — Arriba:</label>
+                                <input type="number" id="check_memo_top" step="0.05" value="2.9" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>📋 Período (Memo) — Izquierda:</label>
+                                <input type="number" id="check_memo_left" step="0.05" value="0.5" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>✍️ Firma — Arriba:</label>
+                                <input type="number" id="check_signature_top" step="0.05" value="2.6" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                            <div class="form-group">
+                                <label>✍️ Firma — Derecha:</label>
+                                <input type="number" id="check_signature_right" step="0.05" value="1.5" style="padding: 8px;" onchange="app.syncEditorFromInputs()">
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Inputs ocultos para compatibilidad interna -->
+                    <input type="hidden" id="check_number_top_h">
+                    <input type="hidden" id="check_number_right_h">
+
+                    <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                        <button class="btn btn-primary" onclick="app.saveCheckConfig()">
+                            💾 Guardar Configuración
+                        </button>
+                        <button class="btn btn-secondary" onclick="app.resetCheckConfig()">
+                            🔄 Restaurar valores por defecto
+                        </button>
+                    </div>
                 </div>
             </div>
             
@@ -612,8 +721,8 @@
                             <option value="1">Lunes</option>
                             <option value="2">Martes</option>
                             <option value="3">Miércoles</option>
-                            <option value="4">Jueves</option>
-                            <option value="5" selected>Viernes</option>
+                            <option value="4" selected>Jueves</option>
+                            <option value="5">Viernes</option>
                             <option value="6">Sábado</option>
                         </select>
                         <small style="color: #7f8c8d; margin-top: 5px;">Día en que se paga a los empleados</small>
@@ -627,11 +736,11 @@
                             <label>Día de inicio de semana:</label>
                             <select id="weekStartDay" onchange="app.updateWeeklyExample()" style="font-size: 1.1rem; padding: 10px;">
                                 <option value="0">Domingo</option>
-                                <option value="1" selected>Lunes</option>
+                                <option value="1">Lunes</option>
                                 <option value="2">Martes</option>
                                 <option value="3">Miércoles</option>
                                 <option value="4">Jueves</option>
-                                <option value="5">Viernes</option>
+                                <option value="5" selected>Viernes</option>
                                 <option value="6">Sábado</option>
                             </select>
                             <small style="color: #7f8c8d; margin-top: 5px;">Primer día de la semana laboral</small>
@@ -691,9 +800,10 @@
                     </div>
                 </div>
                 
-                <button class="btn btn-success" onclick="app.saveWorkConfig()" style="margin-top: 15px;">
-                    💾 Guardar Configuración
-                </button>
+                <div style="display: flex; align-items: center; gap: 15px; margin-top: 15px; flex-wrap: wrap;">
+                    <button class="btn btn-success" onclick="app.saveWorkConfig()">💾 Guardar Configuración</button>
+                    <span id="configSavedLabel" style="color: #7f8c8d; font-size: 0.9rem;"></span>
+                </div>
                 
                 <div id="nextPaymentInfo" style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 20px; border-radius: 10px; margin-top: 15px; border-left: 4px solid #2196f3;">
                     <h4 style="color: #1565c0; margin-bottom: 10px;">📅 Próximo Día de Pago</h4>
@@ -723,9 +833,21 @@
             </div>
             
             <div class="card">
-                <div class="collapsible-header" onclick="app.toggleCollapse('employeesContent')">
-                    <h2 style="margin: 0;">👥 Empleados Registrados &nbsp;<span style="font-size:0.9rem; font-weight:normal; color:#7f8c8d;">(<span id="empCount">0</span> registrados)</span></h2>
-                    <span id="employeesContent_icon" class="collapse-icon collapsed" style="font-size: 1.5rem; color: #2c3e50;">▼</span>
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:0;">
+                    <div class="collapsible-header" onclick="app.toggleCollapse('employeesContent')" style="flex:1; margin-bottom:0;">
+                        <h2 style="margin:0;">👥 Empleados Registrados &nbsp;<span style="font-size:0.9rem; font-weight:normal; color:#7f8c8d;">(<span id="empCount">0</span> registrados)</span></h2>
+                        <span id="employeesContent_icon" class="collapse-icon collapsed" style="font-size:1.5rem; color:#2c3e50;">▼</span>
+                    </div>
+                    <!-- PIN Admin compacto -->
+                    <div style="display:flex; align-items:center; gap:6px; background:#fff5e6; border:1px solid #f0d0a0; border-radius:8px; padding:6px 12px; flex-shrink:0;">
+                        <span style="font-size:0.8rem; color:#b7770d; font-weight:600; white-space:nowrap;">🔑 PIN Admin:</span>
+                        <input type="text" id="adminPin" maxlength="4" placeholder="0000"
+                            style="width:54px; font-weight:bold; font-size:1rem; text-align:center; border:1px solid #ddd; border-radius:6px; padding:4px 6px;">
+                        <button onclick="app.saveAdminPin()"
+                            style="background:#e67e22; color:white; border:none; border-radius:6px; padding:5px 10px; cursor:pointer; font-size:0.8rem; font-weight:600; white-space:nowrap;">
+                            💾 Guardar
+                        </button>
+                    </div>
                 </div>
                 <div id="employeesContent" class="collapsible-content collapsed">
                 <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ffc107;">
@@ -742,63 +864,75 @@
         
         <!-- TAB ASISTENCIAS -->
         <div class="tab-content" id="tabAttendances">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-icon">👥</div>
-                    <div><div class="stat-value" id="statEmployees">0</div><div class="stat-label">Empleados</div></div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">📅</div>
-                    <div><div class="stat-value" id="statDays">0</div><div class="stat-label">Días Registrados</div></div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon">⏰</div>
-                    <div><div class="stat-value" id="statHours">0</div><div class="stat-label" id="statHoursLabel">Horas Totales</div></div>
-                </div>
-            </div>
             
             <div class="card">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h2 style="margin: 0;">Registros de Asistencia</h2>
-                    <div style="display: flex; gap: 10px;">
-                        <button class="btn btn-warning" onclick="app.cleanDuplicates()" title="Eliminar registros duplicados">
-                            🧹 Limpiar Duplicados
-                        </button>
-                        <button class="btn btn-success" onclick="app.openAttendanceModal()">
+                <!-- TÍTULO + FILTROS + BOTÓN en una sola línea -->
+                <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:14px;">
+                    <h2 style="margin:0; margin-right:6px; white-space:nowrap;">Registros</h2>
+                    <select id="filterEmployee" onchange="app.refreshAttendances()"
+                        style="padding:6px 10px; font-size:0.9rem; border:1px solid #ddd; border-radius:6px; min-width:160px;">
+                        <option value="all">👥 Todos los empleados</option>
+                    </select>
+                    <select id="filterPeriod" onchange="app.handlePeriodChange()"
+                        style="padding:6px 10px; font-size:0.9rem; border:1px solid #ddd; border-radius:6px;">
+                        <option value="today">📅 Hoy</option>
+                        <option value="week">Esta semana</option>
+                        <option value="lastweek">Semana pasada</option>
+                        <option value="month">Este mes</option>
+                        <option value="lastmonth">Mes pasado</option>
+                        <option value="last15">Últimos 15 días</option>
+                        <option value="last30">Últimos 30 días</option>
+                        <option value="all">Todo</option>
+                        <option value="custom">📅 Personalizado</option>
+                    </select>
+                    <select id="sortAttendances" onchange="app.refreshAttendances()"
+                        style="padding:6px 10px; font-size:0.9rem; border:1px solid #ddd; border-radius:6px;">
+                        <option value="alpha">🔤 A-Z</option>
+                        <option value="date">📅 Fecha</option>
+                        <option value="hours">⏰ Horas</option>
+                        <option value="late">⚠️ Tardanzas</option>
+                    </select>
+                    <!-- Botón toggle calendario (solo aparece cuando período = semana) -->
+                    <button id="calToggleBtn" onclick="app.toggleCalendar()" style="display:none;
+                        padding:6px 12px; font-size:0.9rem; border:1px solid #764ba2; border-radius:6px;
+                        background:white; color:#764ba2; cursor:pointer; font-weight:500;">
+                        📅 <span id="calToggleLabel">Ver calendario</span>
+                    </button>
+                    <div id="periodDateRange" style="font-size:0.82rem; color:#888;"></div>
+                    <!-- Botón agregar al final derecho -->
+                    <div style="margin-left:auto;">
+                        <button class="btn btn-success" onclick="app.openAttendanceModal()" style="white-space:nowrap;">
                             ➕ Agregar Registro Manual
                         </button>
                     </div>
                 </div>
-                <div class="form-grid" style="margin-bottom: 20px;">
-                    <div class="form-group">
-                        <label>Filtrar por empleado:</label>
-                        <select id="filterEmployee" onchange="app.refreshAttendances()">
-                            <option value="all">Todos</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Período:</label>
-                        <select id="filterPeriod" onchange="app.handlePeriodChange()">
-                            <option value="today">📅 Hoy</option>
-                            <option value="week">Esta semana</option>
-                            <option value="lastweek">Semana pasada</option>
-                            <option value="month">Este mes</option>
-                            <option value="lastmonth">Mes pasado</option>
-                            <option value="last15">Últimos 15 días</option>
-                            <option value="last30">Últimos 30 días</option>
-                            <option value="all">Todo</option>
-                            <option value="custom">📅 Personalizado</option>
-                        </select>
-                        <div id="periodDateRange" style="margin-top:6px; font-size:0.85rem; color:#666; text-align:center; display:none;"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>Ordenar por:</label>
-                        <select id="sortAttendances" onchange="app.refreshAttendances()" style="font-size: 1rem; padding: 10px;">
-                            <option value="alpha">🔤 Alfabético (A-Z)</option>
-                            <option value="date">📅 Fecha (más reciente)</option>
-                            <option value="hours">⏰ Más horas trabajadas</option>
-                            <option value="late">⚠️ Más retrasos</option>
-                        </select>
+
+                <!-- MINICALENDARIO RETRÁCTIL (Vie→Jue) -->
+                <div id="weekMiniCalendar" style="display:none; margin-bottom:12px;">
+                    <div style="background:white; border-radius:10px; box-shadow:0 2px 10px rgba(0,0,0,0.1);
+                                padding:0; overflow:hidden; max-width:310px; border:1px solid #e8e8f0;">
+                        <div style="background:linear-gradient(135deg,#667eea,#764ba2); padding:10px 14px;
+                                    display:flex; justify-content:space-between; align-items:center;">
+                            <span id="calMonthLabel" style="color:white; font-weight:bold; font-size:0.9rem;"></span>
+                            <button onclick="app.selectWeekDay('all')" id="calBtnAll"
+                                style="background:rgba(255,255,255,0.2); color:white; border:1.5px solid rgba(255,255,255,0.6);
+                                       padding:3px 10px; border-radius:20px; cursor:pointer; font-size:0.78rem; font-weight:bold;">
+                                Toda la semana
+                            </button>
+                        </div>
+                        <div style="display:grid; grid-template-columns:repeat(7,1fr); background:#f8f9fa; border-bottom:1px solid #eee;">
+                            <div style="text-align:center; padding:5px 0; font-size:0.72rem; font-weight:bold; color:#764ba2;">Vie</div>
+                            <div style="text-align:center; padding:5px 0; font-size:0.72rem; font-weight:bold; color:#888;">Sáb</div>
+                            <div style="text-align:center; padding:5px 0; font-size:0.72rem; font-weight:bold; color:#888;">Dom</div>
+                            <div style="text-align:center; padding:5px 0; font-size:0.72rem; font-weight:bold; color:#888;">Lun</div>
+                            <div style="text-align:center; padding:5px 0; font-size:0.72rem; font-weight:bold; color:#888;">Mar</div>
+                            <div style="text-align:center; padding:5px 0; font-size:0.72rem; font-weight:bold; color:#888;">Mié</div>
+                            <div style="text-align:center; padding:5px 0; font-size:0.72rem; font-weight:bold; color:#764ba2;">Jue</div>
+                        </div>
+                        <div id="weekDaysRow" style="display:grid; grid-template-columns:repeat(7,1fr); padding:6px; gap:3px;"></div>
+                        <div style="padding:5px 12px 8px; border-top:1px solid #f0f0f0;">
+                            <div id="calSelectedLabel" style="font-size:0.75rem; color:#999; text-align:center;"></div>
+                        </div>
                     </div>
                 </div>
                 
@@ -1056,7 +1190,21 @@
             </div>
             <div class="form-group">
                 <label>Dirección:</label>
-                <input type="text" id="empAddress" placeholder="123 Main St, Ciudad, Estado 12345">
+                <input type="text" id="empAddress" placeholder="123 Main St">
+            </div>
+            <div class="form-group" style="display:grid; grid-template-columns:1fr 80px 100px; gap:8px;">
+                <div>
+                    <label>Ciudad:</label>
+                    <input type="text" id="empCity" placeholder="Waco">
+                </div>
+                <div>
+                    <label>Estado:</label>
+                    <input type="text" id="empState" placeholder="TX" maxlength="2" style="text-transform:uppercase;">
+                </div>
+                <div>
+                    <label>Código Postal:</label>
+                    <input type="text" id="empZip" placeholder="76710" maxlength="10">
+                </div>
             </div>
             <div class="form-group">
                 <label>PIN (4 dígitos):</label>
@@ -1070,6 +1218,17 @@
                 <label>Deducción individual (%):</label>
                 <input type="number" id="empDeduction" step="0.1" min="0" max="100" placeholder="0" value="0">
                 <small style="color: #7f8c8d; margin-top: 5px;">Porcentaje sobre el pago bruto</small>
+            </div>
+            <div class="form-group">
+                <label>💳 Método de Pago:</label>
+                <select id="empPayMethod" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; font-size:1rem;">
+                    <option value="check">💵 Cheque</option>
+                    <option value="zelle">📱 Zelle</option>
+                    <option value="cashapp">💚 Cash App</option>
+                    <option value="venmo">💜 Venmo</option>
+                    <option value="cash">💰 Efectivo</option>
+                    <option value="direct">🏦 Direct Deposit</option>
+                </select>
             </div>
             <button class="btn btn-success" onclick="app.saveEmployee()" style="width: 100%; margin-top: 20px;">
                 💾 Guardar Empleado
@@ -1122,12 +1281,34 @@
             employees: [],
             attendances: [],
             payrollRecords: [],
+            checks: [], // Cheques generados (separado de payrollRecords)
             savedPayrollPeriods: [],
             CLIENT_ID: '701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com',
+            // ID único de este dispositivo — se genera automáticamente la primera vez
+            deviceId: localStorage.getItem('anas_deviceId') || (() => {
+                const id = 'dev_' + Date.now().toString(36) + '_' + Math.random().toString(36).substr(2,5);
+                localStorage.setItem('anas_deviceId', id);
+                return id;
+            })(),
+            deviceName: (() => {
+                const ua = navigator.userAgent;
+                if (/Mac/i.test(ua) && !/iPhone|iPad/i.test(ua)) return '🍎 Mac';
+                if (/Win/i.test(ua)) return '🖥️ PC';
+                if (/Android/i.test(ua)) return '📱 Android';
+                if (/iPhone|iPad/i.test(ua)) return '📱 iOS';
+                return '💻 Dispositivo';
+            })(),
             SCOPES: 'https://www.googleapis.com/auth/drive.file',
             FOLDER_NAME: 'AnasCleaningNomina',
             driveToken: null,
             driveConnected: false,
+            selectedCalDay: 'all', // Día seleccionado en el minicalendario ('all' = toda la semana)
+            calendarOpen: false,
+            // Mostrar nombre del dispositivo en UI al cargar
+            showDeviceInfo() {
+                const el = document.getElementById('deviceInfoLabel');
+                if (el) el.textContent = this.deviceName;
+            },
             driveFolderId: null,
             autoSyncInterval: null,
             tokenClient: null,
@@ -1137,8 +1318,8 @@
                 startTime: '08:00',
                 lateTolerance: 15,
                 payrollCycle: 'weekly',
-                payrollCloseDay: 5,
-                weekStartDay: 1, // Lunes por defecto
+                payrollCloseDay: 4, // Jueves - día de cierre nómina Ana's
+                weekStartDay: 5, // Viernes - inicio de semana Ana's
                 biweeklyType: '1-15',
                 monthlyType: '1-end',
                 monthlyStartDay: 1,
@@ -1158,12 +1339,21 @@
                 date_right: 0.5,
                 payee_top: 1.2,
                 payee_left: 1.2,
-                address_top: 1.5,
+                address_top: 1.4,
                 address_left: 1.2,
+                city_top: 1.55,
+                city_left: 1.2,
+                payee_name2_top: 1.85,
+                payee_name2_left: 0.5,
                 amount_top: 1.2,
                 amount_right: 0.5,
                 words_top: 1.6,
-                words_left: 0.5
+                words_left: 0.5,
+                memo_top: 2.9,
+                memo_left: 0.5,
+                signature_top: 2.6,
+                signature_right: 1.5,
+                signature_width: 1.5
             },
             
             cardsPerPage: 1,
@@ -1172,10 +1362,22 @@
                 this.loadData();
                 this.refreshEmployees();
                 this.refreshAttendances();
+                // Mostrar indicador si hay cambios pendientes de subir
+                if (localStorage.getItem('anas_pendingSync') === 'true') {
+                    setTimeout(() => {
+                        const btn = document.getElementById('driveSyncBtn');
+                        const lbl = document.getElementById('driveSyncLabel');
+                        if (btn && lbl) {
+                            btn.style.background = '#e67e22';
+                            lbl.textContent = '⚠️ Cambios sin subir';
+                        }
+                    }, 500);
+                }
                 const adminPinField = document.getElementById('adminPin');
                 if (adminPinField) adminPinField.value = this.adminPin;
                 this.loadWorkConfig();
                 this.loadCheckConfig();
+                setTimeout(() => this.showDeviceInfo(), 100);
             },
             
             togglePeriodFields() {
@@ -1253,7 +1455,7 @@
                 document.getElementById('lateTolerance').value = this.workConfig.lateTolerance;
                 document.getElementById('payrollCycle').value = this.workConfig.payrollCycle;
                 document.getElementById('payrollCloseDay').value = this.workConfig.payrollCloseDay;
-                document.getElementById('weekStartDay').value = this.workConfig.weekStartDay || 1;
+                document.getElementById('weekStartDay').value = this.workConfig.weekStartDay || 5;
                 document.getElementById('biweeklyType').value = this.workConfig.biweeklyType || '1-15';
                 document.getElementById('monthlyType').value = this.workConfig.monthlyType || '1-end';
                 document.getElementById('monthlyStartDay').value = this.workConfig.monthlyStartDay || 1;
@@ -1273,6 +1475,9 @@
                 this.toggleLateDeductionFields();
                 this.togglePeriodFields();
                 this.updateNextPaymentDisplay();
+                const savedAt = localStorage.getItem('anas_configSavedAt');
+                const label = document.getElementById('configSavedLabel');
+                if (label) label.textContent = savedAt ? `✅ Guardado: ${savedAt}` : '⚠️ Sin guardar aún';
             },
             
             toggleLunchFields() {
@@ -1418,6 +1623,10 @@
                 };
                 console.log('Nueva configuración:', this.workConfig);
                 this.save();
+                const savedAt = new Date().toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+                localStorage.setItem('anas_configSavedAt', savedAt);
+                const label = document.getElementById('configSavedLabel');
+                if (label) label.textContent = `✅ Guardado: ${savedAt}`;
                 console.log('Guardado en localStorage:', localStorage.getItem('anas_workConfig'));
                 this.updateNextPaymentDisplay();
                 alert('✅ Configuración guardada correctamente');
@@ -1426,38 +1635,391 @@
             
             saveCheckConfig() {
                 this.checkConfig = {
-                    number_top: parseFloat(document.getElementById('check_number_top').value),
-                    number_right: parseFloat(document.getElementById('check_number_right').value),
-                    date_top: parseFloat(document.getElementById('check_date_top').value),
-                    date_right: parseFloat(document.getElementById('check_date_right').value),
-                    payee_top: parseFloat(document.getElementById('check_payee_top').value),
-                    payee_left: parseFloat(document.getElementById('check_payee_left').value),
-                    address_top: parseFloat(document.getElementById('check_address_top').value),
-                    address_left: parseFloat(document.getElementById('check_address_left').value),
-                    amount_top: parseFloat(document.getElementById('check_amount_top').value),
-                    amount_right: parseFloat(document.getElementById('check_amount_right').value),
-                    words_top: parseFloat(document.getElementById('check_words_top').value),
-                    words_left: parseFloat(document.getElementById('check_words_left').value)
+                    number_top:    parseFloat(document.getElementById('check_number_top').value),
+                    number_right:  parseFloat(document.getElementById('check_number_right').value),
+                    date_top:      parseFloat(document.getElementById('check_date_top').value),
+                    date_right:    parseFloat(document.getElementById('check_date_right').value),
+                    payee_top:     parseFloat(document.getElementById('check_payee_top').value),
+                    payee_left:    parseFloat(document.getElementById('check_payee_left').value),
+                    address_top:   parseFloat(document.getElementById('check_address_top').value),
+                    address_left:  parseFloat(document.getElementById('check_address_left').value),
+                    city_top:      parseFloat(document.getElementById('check_city_top').value),
+                    city_left:     parseFloat(document.getElementById('check_city_left').value),
+                    amount_top:    parseFloat(document.getElementById('check_amount_top').value),
+                    amount_right:  parseFloat(document.getElementById('check_amount_right').value),
+                    words_top:         parseFloat(document.getElementById('check_words_top').value),
+                    words_left:        parseFloat(document.getElementById('check_words_left').value),
+                    payee_name2_top:   parseFloat(document.getElementById('check_payee_name2_top').value),
+                    payee_name2_left:  parseFloat(document.getElementById('check_payee_name2_left').value),
+                    memo_top:          parseFloat(document.getElementById('check_memo_top').value),
+                    memo_left:         parseFloat(document.getElementById('check_memo_left').value),
+                    signature_top:     parseFloat(document.getElementById('check_signature_top').value || 2.6),
+                    signature_right:   parseFloat(document.getElementById('check_signature_right').value || 1.5),
+                    signature_width:   parseFloat(document.getElementById('signatureWidth').value || 1.5)
                 };
                 this.save();
+                // Guardar imagen de fondo si existe
+                const img = document.getElementById('checkBgImage');
+                if (img && img.src && img.src.startsWith('data:')) {
+                    try { localStorage.setItem('anas_checkBgImage', img.src); } catch(e) {}
+                }
                 alert('✅ Configuración de cheques guardada correctamente');
             },
             
             loadCheckConfig() {
-                document.getElementById('check_number_top').value = this.checkConfig.number_top;
-                document.getElementById('check_number_right').value = this.checkConfig.number_right;
-                document.getElementById('check_date_top').value = this.checkConfig.date_top;
-                document.getElementById('check_date_right').value = this.checkConfig.date_right;
-                document.getElementById('check_payee_top').value = this.checkConfig.payee_top;
-                document.getElementById('check_payee_left').value = this.checkConfig.payee_left;
-                document.getElementById('check_address_top').value = this.checkConfig.address_top;
-                document.getElementById('check_address_left').value = this.checkConfig.address_left;
-                document.getElementById('check_amount_top').value = this.checkConfig.amount_top;
-                document.getElementById('check_amount_right').value = this.checkConfig.amount_right;
-                document.getElementById('check_words_top').value = this.checkConfig.words_top;
-                document.getElementById('check_words_left').value = this.checkConfig.words_left;
+                document.getElementById('check_number_top').value    = this.checkConfig.number_top;
+                document.getElementById('check_number_right').value  = this.checkConfig.number_right;
+                document.getElementById('check_date_top').value      = this.checkConfig.date_top;
+                document.getElementById('check_date_right').value    = this.checkConfig.date_right;
+                document.getElementById('check_payee_top').value     = this.checkConfig.payee_top;
+                document.getElementById('check_payee_left').value    = this.checkConfig.payee_left;
+                document.getElementById('check_address_top').value   = this.checkConfig.address_top;
+                document.getElementById('check_address_left').value  = this.checkConfig.address_left;
+                document.getElementById('check_city_top').value      = this.checkConfig.city_top || 1.55;
+                document.getElementById('check_city_left').value     = this.checkConfig.city_left || 1.2;
+                document.getElementById('check_amount_top').value    = this.checkConfig.amount_top;
+                document.getElementById('check_amount_right').value  = this.checkConfig.amount_right;
+                document.getElementById('check_words_top').value          = this.checkConfig.words_top;
+                document.getElementById('check_words_left').value         = this.checkConfig.words_left;
+                document.getElementById('check_payee_name2_top').value   = this.checkConfig.payee_name2_top || 1.85;
+                document.getElementById('check_payee_name2_left').value  = this.checkConfig.payee_name2_left || 0.5;
+                document.getElementById('check_memo_top').value          = this.checkConfig.memo_top || 2.9;
+                document.getElementById('check_memo_left').value         = this.checkConfig.memo_left || 0.5;
+                document.getElementById('signatureWidth').value          = this.checkConfig.signature_width || 1.5;
+                // Restaurar firma guardada
+                const savedSig = localStorage.getItem('anas_checkSignature');
+                if (savedSig) {
+                    const thumb = document.getElementById('signatureThumb');
+                    const thumbDiv = document.getElementById('signaturePreviewThumb');
+                    if (thumb) { thumb.src = savedSig; thumbDiv.style.display = 'block'; }
+                    document.getElementById('signatureName').textContent = 'Firma guardada';
+                }
+                // Restaurar imagen guardada
+                setTimeout(() => {
+                    const saved = localStorage.getItem('anas_checkBgImage');
+                    if (saved) {
+                        const img = document.getElementById('checkBgImage');
+                        const placeholder = document.getElementById('checkEditorPlaceholder');
+                        if (img) {
+                            img.src = saved;
+                            img.style.opacity = '1';
+                            if (placeholder) placeholder.style.display = 'none';
+                            document.getElementById('checkImageName').textContent = 'Imagen guardada';
+                            this.showCheckFieldTags();
+                            this.syncEditorFromInputs();
+                        }
+                    }
+                }, 300);
+            },
+
+            resetCheckConfig() {
+                if (!confirm('¿Restaurar posiciones por defecto?')) return;
+                const defaults = { number_top:0.3, number_right:0.5, date_top:0.8, date_right:0.5,
+                    payee_top:1.2, payee_left:1.2, address_top:1.4, address_left:1.2,
+                    city_top:1.55, city_left:1.2,
+                    amount_top:1.2, amount_right:0.5, words_top:1.6, words_left:0.5,
+                    memo_top:2.9, memo_left:0.5,
+                    signature_top:2.6, signature_right:1.5, signature_width:1.5 };
+                this.checkConfig = {...defaults};
+                this.loadCheckConfig();
+                this.syncEditorFromInputs();
+            },
+
+            clearCheckImage() {
+                const img = document.getElementById('checkBgImage');
+                const placeholder = document.getElementById('checkEditorPlaceholder');
+                if (img) { img.src = ''; img.style.opacity = '0'; }
+                if (placeholder) placeholder.style.display = 'flex';
+                document.getElementById('checkImageName').textContent = 'Ningún archivo seleccionado';
+                document.getElementById('checkImageUpload').value = '';
+                document.querySelectorAll('.check-field-tag').forEach(t => t.classList.remove('visible'));
+                try { localStorage.removeItem('anas_checkBgImage'); } catch(e) {}
+            },
+
+            loadCheckImage(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                document.getElementById('checkImageName').textContent = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    if (file.type === 'application/pdf') {
+                        // Renderizar PDF con PDF.js si disponible, sino mostrar mensaje
+                        this.renderPdfAsImage(e.target.result);
+                    } else {
+                        this.setCheckBgImage(e.target.result);
+                    }
+                };
+                reader.readAsDataURL(file);
+            },
+
+            renderPdfAsImage(dataUrl) {
+                // Cargar PDF.js dinámicamente
+                if (window.pdfjsLib) {
+                    this._renderPdfPage(dataUrl);
+                    return;
+                }
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+                script.onload = () => {
+                    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    this._renderPdfPage(dataUrl);
+                };
+                script.onerror = () => alert('No se pudo cargar el renderizador de PDF. Por favor convierte el PDF a PNG primero.');
+                document.head.appendChild(script);
+            },
+
+            _renderPdfPage(dataUrl) {
+                const base64 = dataUrl.split(',')[1];
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+                pdfjsLib.getDocument({ data: bytes }).promise.then(pdf => {
+                    pdf.getPage(1).then(page => {
+                        const viewport = page.getViewport({ scale: 2 });
+                        const canvas = document.createElement('canvas');
+                        canvas.width = viewport.width;
+                        canvas.height = viewport.height;
+                        page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise.then(() => {
+                            this.setCheckBgImage(canvas.toDataURL('image/png'));
+                        });
+                    });
+                }).catch(() => alert('Error al leer el PDF. Por favor usa una imagen PNG o JPG.'));
+            },
+
+            setCheckBgImage(src) {
+                const img = document.getElementById('checkBgImage');
+                const placeholder = document.getElementById('checkEditorPlaceholder');
+                img.src = src;
+                img.style.opacity = '1';
+                placeholder.style.display = 'none';
+                this.showCheckFieldTags();
+                this.syncEditorFromInputs();
+                this.initCheckDragDrop();
+            },
+
+            getSignatureDataUrl() {
+                return localStorage.getItem('anas_checkSignature') || '';
+            },
+
+            showCheckFieldTags() {
+                document.querySelectorAll('.check-field-tag').forEach(t => t.classList.add('visible'));
+            },
+
+            // Convierte posición en pulgadas → % del contenedor para el editor visual
+            // El cheque real es 8.5in ancho x 3.5in alto
+            syncEditorFromInputs() {
+                const cfg = this.checkConfig;
+                const W = 8.5, H = 11; // Hoja completa letter
+                const container = document.getElementById('checkEditorContainer');
+                if (!container) return;
+
+                const fields = [
+                    { id:'cft_number',  topIn: cfg.number_top,  rightIn: cfg.number_right,  side:'right' },
+                    { id:'cft_date',    topIn: cfg.date_top,    rightIn: cfg.date_right,    side:'right' },
+                    { id:'cft_payee',   topIn: cfg.payee_top,   leftIn:  cfg.payee_left,    side:'left'  },
+                    { id:'cft_address', topIn: cfg.address_top, leftIn:  cfg.address_left,  side:'left'  },
+                    { id:'cft_city',    topIn: cfg.city_top || 1.55, leftIn: cfg.city_left || 1.2, side:'left' },
+                    { id:'cft_amount',  topIn: cfg.amount_top,  rightIn: cfg.amount_right,  side:'right' },
+                    { id:'cft_words',      topIn: cfg.words_top,                leftIn: cfg.words_left,               side:'left' },
+                    { id:'cft_payee_name2', topIn: cfg.payee_name2_top || 1.85, leftIn: cfg.payee_name2_left || 0.5, side:'left' },
+                    { id:'cft_memo',        topIn: cfg.memo_top || 2.9,          leftIn: cfg.memo_left || 0.5,         side:'left' },
+                    { id:'cft_signature',   topIn: cfg.signature_top || 2.6,     rightIn: cfg.signature_right || 1.5,  side:'right' },
+                ];
+
+                fields.forEach(f => {
+                    const el = document.getElementById(f.id);
+                    if (!el) return;
+                    el.style.top = ((f.topIn / H) * 100).toFixed(2) + '%';
+                    if (f.side === 'right') {
+                        el.style.right = ((f.rightIn / W) * 100).toFixed(2) + '%';
+                        el.style.left = 'auto';
+                    } else {
+                        el.style.left = ((f.leftIn / W) * 100).toFixed(2) + '%';
+                        el.style.right = 'auto';
+                    }
+                });
+                // Mostrar preview de firma en el editor
+                const sigUrl = this.getSignatureDataUrl ? this.getSignatureDataUrl() : '';
+                let sigPreview = document.getElementById('cft_sig_preview');
+                if (sigUrl && container) {
+                    if (!sigPreview) {
+                        sigPreview = document.createElement('img');
+                        sigPreview.id = 'cft_sig_preview';
+                        sigPreview.style.cssText = 'position:absolute; z-index:9; pointer-events:none; opacity:0.85; border:1px dashed #4a148c;';
+                        container.appendChild(sigPreview);
+                    }
+                    const W = 8.5, H = 11;
+                    const cW = container.offsetWidth || 850;
+                    const PPI = cW / W;
+                    const sigW = (cfg.signature_width || 1.5) * PPI;
+                    const sigTop = (cfg.signature_top || 2.6) / H * 100;
+                    const sigRight = (cfg.signature_right || 1.5) / W * 100;
+                    sigPreview.src = sigUrl;
+                    sigPreview.style.width = sigW + 'px';
+                    sigPreview.style.top = sigTop + '%';
+                    sigPreview.style.right = sigRight + '%';
+                    sigPreview.style.left = 'auto';
+                    sigPreview.style.display = 'block';
+                } else if (sigPreview) {
+                    sigPreview.style.display = 'none';
+                }
+            },
+
+            // Actualiza los inputs de pulgadas desde posición % del editor
+            syncInputsFromEditor(fieldId, topPct, leftPct, rightPct) {
+                const W = 8.5, H = 11; // Hoja completa letter
+                const topIn = parseFloat(((topPct / 100) * H).toFixed(3));
+                const fieldMap = {
+                    number:  { top:'check_number_top',  side:'right', key:'check_number_right',  cfg_top:'number_top',  cfg_side:'number_right'  },
+                    date:    { top:'check_date_top',    side:'right', key:'check_date_right',    cfg_top:'date_top',    cfg_side:'date_right'    },
+                    payee:   { top:'check_payee_top',   side:'left',  key:'check_payee_left',    cfg_top:'payee_top',   cfg_side:'payee_left'    },
+                    address: { top:'check_address_top', side:'left',  key:'check_address_left',  cfg_top:'address_top', cfg_side:'address_left'  },
+                    city:    { top:'check_city_top',    side:'left',  key:'check_city_left',    cfg_top:'city_top',    cfg_side:'city_left'    },
+                    amount:  { top:'check_amount_top',  side:'right', key:'check_amount_right',  cfg_top:'amount_top',  cfg_side:'amount_right'  },
+                    words:       { top:'check_words_top',        side:'left', key:'check_words_left',        cfg_top:'words_top',       cfg_side:'words_left'       },
+                    payee_name2: { top:'check_payee_name2_top',  side:'left', key:'check_payee_name2_left',   cfg_top:'payee_name2_top', cfg_side:'payee_name2_left' },
+                    memo:        { top:'check_memo_top',         side:'left', key:'check_memo_left',          cfg_top:'memo_top',        cfg_side:'memo_left'        },
+                    signature:   { top:'check_signature_top',    side:'right',key:'check_signature_right',    cfg_top:'signature_top',   cfg_side:'signature_right'  },
+                };
+                const m = fieldMap[fieldId];
+                if (!m) return;
+                document.getElementById(m.top).value = topIn;
+                this.checkConfig[m.cfg_top] = topIn;
+                if (m.side === 'right' && rightPct !== null) {
+                    const rightIn = parseFloat(((rightPct / 100) * W).toFixed(3));
+                    document.getElementById(m.key).value = rightIn;
+                    this.checkConfig[m.cfg_side] = rightIn;
+                } else if (m.side === 'left' && leftPct !== null) {
+                    const leftIn = parseFloat(((leftPct / 100) * W).toFixed(3));
+                    document.getElementById(m.key).value = leftIn;
+                    this.checkConfig[m.cfg_side] = leftIn;
+                }
+            },
+
+            initCheckDragDrop() {
+                const container = document.getElementById('checkEditorContainer');
+                if (!container) return;
+
+                // Remover listeners anteriores reemplazando los tags con clones
+                document.querySelectorAll('.check-field-tag').forEach(tag => {
+                    const clone = tag.cloneNode(true);
+                    tag.parentNode.replaceChild(clone, tag);
+                });
+
+                const self = this;
+                let activeTag = null;
+                let startX, startY, startLeft, startTop;
+
+                document.querySelectorAll('.check-field-tag').forEach(tag => {
+                    tag.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        activeTag = tag;
+                        startX = e.clientX;
+                        startY = e.clientY;
+                        const rect = container.getBoundingClientRect();
+                        const tagRect = tag.getBoundingClientRect();
+                        startTop  = tagRect.top  - rect.top;
+                        startLeft = tagRect.left - rect.left;
+                        tag.style.left   = startLeft + 'px';
+                        tag.style.right  = 'auto';
+                        tag.style.top    = startTop  + 'px';
+                        tag.style.cursor = 'grabbing';
+                        tag.style.zIndex = '20';
+                    });
+
+                    tag.addEventListener('touchstart', function(e) {
+                        e.preventDefault();
+                        activeTag = tag;
+                        const t = e.touches[0];
+                        startX = t.clientX;
+                        startY = t.clientY;
+                        const rect = container.getBoundingClientRect();
+                        const tagRect = tag.getBoundingClientRect();
+                        startTop  = tagRect.top  - rect.top;
+                        startLeft = tagRect.left - rect.left;
+                        tag.style.left  = startLeft + 'px';
+                        tag.style.right = 'auto';
+                        tag.style.top   = startTop  + 'px';
+                        tag.style.zIndex = '20';
+                    }, {passive: false});
+                });
+
+                const onMove = (ex, ey) => {
+                    if (!activeTag) return;
+                    const rect = container.getBoundingClientRect();
+                    let newLeft = startLeft + (ex - startX);
+                    let newTop  = startTop  + (ey - startY);
+                    newLeft = Math.max(0, Math.min(newLeft, rect.width  - activeTag.offsetWidth));
+                    newTop  = Math.max(0, Math.min(newTop,  rect.height - activeTag.offsetHeight));
+                    activeTag.style.left = newLeft + 'px';
+                    activeTag.style.top  = newTop  + 'px';
+                };
+
+                const onUp = (ex, ey) => {
+                    if (!activeTag) return;
+                    activeTag.style.cursor = 'grab';
+                    activeTag.style.zIndex = '10';
+                    const rect    = container.getBoundingClientRect();
+                    const tagRect = activeTag.getBoundingClientRect();
+                    const topPct   = ((tagRect.top  - rect.top)  / rect.height) * 100;
+                    const leftPct  = ((tagRect.left - rect.left) / rect.width)  * 100;
+                    const rightPct = Math.max(0, (rect.right - tagRect.right) / rect.width * 100);
+                    self.syncInputsFromEditor(activeTag.dataset.field, topPct, leftPct, rightPct);
+                    activeTag = null;
+                };
+
+                document.addEventListener('mousemove', e => onMove(e.clientX, e.clientY));
+                document.addEventListener('mouseup',   e => onUp(e.clientX, e.clientY));
+                document.addEventListener('touchmove',  e => { if (activeTag) { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); } }, {passive: false});
+                document.addEventListener('touchend',   e => onUp(e.changedTouches[0].clientX, e.changedTouches[0].clientY));
             },
             
+            loadSignatureImage(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                document.getElementById('signatureName').textContent = file.name;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const src = e.target.result;
+                    const thumb = document.getElementById('signatureThumb');
+                    const thumbDiv = document.getElementById('signaturePreviewThumb');
+                    if (thumb) { thumb.src = src; thumbDiv.style.display = 'block'; }
+                    try { localStorage.setItem('anas_checkSignature', src); } catch(err) {
+                        alert('La imagen de firma es demasiado grande. Usa una imagen más pequeña.');
+                    }
+                    this.syncEditorFromInputs();
+                };
+                reader.readAsDataURL(file);
+            },
+
+            clearSignatureImage() {
+                document.getElementById('signatureName').textContent = 'Ningún archivo seleccionado';
+                document.getElementById('signatureUpload').value = '';
+                const thumb = document.getElementById('signatureThumb');
+                const thumbDiv = document.getElementById('signaturePreviewThumb');
+                if (thumb) { thumb.src = ''; thumbDiv.style.display = 'none'; }
+                try { localStorage.removeItem('anas_checkSignature'); } catch(e) {}
+                this.syncEditorFromInputs();
+            },
+
+            getEmpAddress(emp) {
+                // Retorna solo la línea de calle
+                if (!emp) return '';
+                return emp.address || '';
+            },
+
+            getEmpCityLine(emp) {
+                // Retorna Ciudad, Estado. Zip
+                if (!emp) return '';
+                const parts = [];
+                if (emp.city)  parts.push(emp.city);
+                if (emp.state) parts.push(emp.state + '.');
+                if (emp.zip)   parts.push(emp.zip);
+                return parts.join(', ');
+            },
+
             formatMoney(amount) {
                 return amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
             },
@@ -1482,6 +2044,10 @@
                 const icon = document.getElementById(id + '_icon');
                 content.classList.toggle('collapsed');
                 icon.classList.toggle('collapsed');
+                // Si se abre la config de cheques, reiniciar drag & drop después de la animación
+                if (id === 'checkConfigContent' && !content.classList.contains('collapsed')) {
+                    setTimeout(() => this.initCheckDragDrop(), 350);
+                }
             },
             
             // HELPER: Convert 24hr to 12hr AM/PM format
@@ -1497,12 +2063,15 @@
                 document.getElementById('floatingPrint').style.display = 'none';
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                
-                event.target.classList.add('active');
+
+                // Marcar el tab activo por nombre, no por event.target
+                const tabNames = ['employees','attendances','payroll','timecards','checks','history'];
+                document.querySelectorAll('.tab').forEach((t, i) => {
+                    if (tabNames[i] === tab) t.classList.add('active');
+                });
                 document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
                 
                 if (tab === 'attendances') this.refreshAttendances();
-                // payroll calculated on demand
                 if (tab === 'timecards') this.refreshTimeCards();
                 if (tab === 'checks') this.refreshChecks();
                 if (tab === 'history') { this.refreshHistory(); this.renderSavedPayrollList(); }
@@ -1549,6 +2118,9 @@
                 document.getElementById('empId').value = '';
                 document.getElementById('empName').value = '';
                 document.getElementById('empAddress').value = '';
+                document.getElementById('empCity').value = '';
+                document.getElementById('empState').value = '';
+                document.getElementById('empZip').value = '';
                 document.getElementById('empPin').value = '';
                 document.getElementById('empRate').value = '';
                 document.getElementById('employeeModal').classList.add('active');
@@ -1562,9 +2134,13 @@
                 document.getElementById('empId').value = emp.id;
                 document.getElementById('empName').value = emp.name;
                 document.getElementById('empAddress').value = emp.address || '';
+                document.getElementById('empCity').value = emp.city || '';
+                document.getElementById('empState').value = emp.state || '';
+                document.getElementById('empZip').value = emp.zip || '';
                 document.getElementById('empPin').value = emp.pin;
                 document.getElementById('empRate').value = emp.rate;
                 document.getElementById('empDeduction').value = emp.deduction || 0;
+                document.getElementById('empPayMethod').value = emp.payMethod || 'check';
                 document.getElementById('employeeModal').classList.add('active');
             },
             
@@ -1573,6 +2149,9 @@
                 document.getElementById('empId').value = '';
                 document.getElementById('empName').value = '';
                 document.getElementById('empAddress').value = '';
+                document.getElementById('empCity').value = '';
+                document.getElementById('empState').value = '';
+                document.getElementById('empZip').value = '';
                 document.getElementById('empPin').value = '';
                 document.getElementById('empRate').value = '';
             },
@@ -1581,6 +2160,9 @@
                 const empId = document.getElementById('empId').value;
                 const name = document.getElementById('empName').value.trim();
                 const address = document.getElementById('empAddress').value.trim();
+                const city    = document.getElementById('empCity').value.trim();
+                const state   = document.getElementById('empState').value.trim().toUpperCase();
+                const zip     = document.getElementById('empZip').value.trim();
                 const pin = document.getElementById('empPin').value.trim();
                 const rate = parseFloat(document.getElementById('empRate').value);
                 
@@ -1607,9 +2189,13 @@
                     if (emp) {
                         emp.name = name;
                         emp.address = address;
+                        emp.city = city;
+                        emp.state = state;
+                        emp.zip = zip;
                         emp.pin = pin;
                         emp.rate = rate;
                         emp.deduction = parseFloat(document.getElementById('empDeduction').value) || 0;
+                        emp.payMethod = document.getElementById('empPayMethod').value || 'check';
                         
                         // Actualizar nombre en asistencias
                         this.attendances.forEach(att => {
@@ -1622,15 +2208,16 @@
                     }
                 } else {
                     // AGREGAR nuevo empleado
-                    this.employees.push({
+                    this.employees.push({ updatedAt: new Date().toISOString(),
                         id: 'emp' + Date.now(),
                         name,
                         address,
                         pin,
                         rate,
-                        deduction: parseFloat(document.getElementById('empDeduction').value) || 0
+                        deduction: parseFloat(document.getElementById('empDeduction').value) || 0,
+                        payMethod: document.getElementById('empPayMethod').value || 'check'
                     });
-                    alert('✅ Empleado agregado correctamente');
+                    alert('✅ Empleado agregado correctamente.\n\n📌 RECUERDA:\nImporta este empleado en AnaCS Scheduler\n  → Sección Empleados → 📥 Importar desde Nómina');
                 }
                 
                 this.save();
@@ -1673,6 +2260,7 @@
                                 <th>PIN</th>
                                 <th>Tarifa/Hora</th>
                                 <th>Deducción %</th>
+                                <th>💳 Pago</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
@@ -1686,6 +2274,7 @@
                             <td><span class="badge badge-info">${emp.pin}</span></td>
                             <td>$${this.formatMoney(emp.rate)}/hr</td>
                             <td>${emp.deduction > 0 ? `<span class="badge badge-warning">${emp.deduction}%</span>` : '<span style="color:#aaa;">—</span>'}</td>
+                            <td>${{'check':'💵 Cheque','zelle':'📱 Zelle','cashapp':'💚 Cash App','venmo':'💜 Venmo','cash':'💰 Efectivo','direct':'🏦 Direct'}[emp.payMethod || 'check'] || '💵 Cheque'}</td>
                             <td>
                                 <div class="action-buttons">
                                     <button class="btn btn-primary btn-sm" onclick="app.editEmployee('${emp.id}')">
@@ -1911,6 +2500,8 @@
                         att.checkIn = checkIn;
                         att.checkOut = checkOut;
                         att.hours = checkOut ? hours : null;
+                        att.updatedAt = new Date().toISOString(); // marca de tiempo para sync
+                        att.manualEdit = true;
                         this.save();
                         this.closeAttendanceModal();
                         this.refreshAttendances();
@@ -1944,6 +2535,8 @@
                             
                             if (confirm(message)) {
                                 duplicate.checkIn = checkIn;
+                                duplicate.updatedAt = new Date().toISOString();
+                                duplicate.manualEdit = true;
                                 if (duplicate.checkOut) {
                                     const [inH, inM] = checkIn.split(':').map(Number);
                                     const [outH, outM] = duplicate.checkOut.split(':').map(Number);
@@ -1964,6 +2557,8 @@
                             
                             if (confirm(message)) {
                                 duplicate.checkOut = checkOut;
+                                duplicate.updatedAt = new Date().toISOString();
+                                duplicate.manualEdit = true;
                                 if (duplicate.checkIn) {
                                     const [inH, inM] = duplicate.checkIn.split(':').map(Number);
                                     const [outH, outM] = checkOut.split(':').map(Number);
@@ -2007,7 +2602,9 @@
                         date,
                         checkIn,
                         checkOut,
-                        hours: checkOut ? hours : null
+                        hours: checkOut ? hours : null,
+                        updatedAt: new Date().toISOString(),
+                        manualEdit: true
                     });
                     alert('✅ Registro agregado correctamente');
                 }
@@ -2020,21 +2617,184 @@
             handlePeriodChange() {
                 const filterPeriod = document.getElementById('filterPeriod').value;
                 const customRange = document.getElementById('customDateRange');
-                
+                const miniCal = document.getElementById('weekMiniCalendar');
+                const calToggleBtn = document.getElementById('calToggleBtn');
+
                 if (filterPeriod === 'custom') {
                     customRange.style.display = 'block';
-                    // Set default dates (last 30 days)
+                    miniCal.style.display = 'none';
+                    if (calToggleBtn) calToggleBtn.style.display = 'none';
                     const today = new Date();
                     const thirtyDaysAgo = new Date(today);
                     thirtyDaysAgo.setDate(today.getDate() - 30);
-                    
                     document.getElementById('customEndDate').value = today.toISOString().split('T')[0];
                     document.getElementById('customStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+                } else if (filterPeriod === 'week') {
+                    customRange.style.display = 'none';
+                    // Mostrar botón toggle, calendario colapsado por defecto
+                    if (calToggleBtn) calToggleBtn.style.display = 'inline-flex';
+                    miniCal.style.display = 'none'; // Empieza colapsado
+                    this.calendarOpen = false;
+                    const lbl = document.getElementById('calToggleLabel');
+                    if (lbl) lbl.textContent = 'Ver calendario';
+                    this.buildWeekCalendar();
                 } else {
                     customRange.style.display = 'none';
+                    miniCal.style.display = 'none';
+                    if (calToggleBtn) calToggleBtn.style.display = 'none';
+                    this.selectedCalDay = 'all';
                 }
-                
+
                 this.refreshAttendances();
+            },
+
+            // Toggle mostrar/ocultar el minicalendario
+            toggleCalendar() {
+                this.calendarOpen = !this.calendarOpen;
+                const miniCal = document.getElementById('weekMiniCalendar');
+                const lbl = document.getElementById('calToggleLabel');
+                const btn = document.getElementById('calToggleBtn');
+                if (miniCal) miniCal.style.display = this.calendarOpen ? 'block' : 'none';
+                if (lbl) lbl.textContent = this.calendarOpen ? 'Ocultar calendario' : 'Ver calendario';
+                if (btn) {
+                    btn.style.background = this.calendarOpen ? '#764ba2' : 'white';
+                    btn.style.color = this.calendarOpen ? 'white' : '#764ba2';
+                }
+                if (this.calendarOpen) this.buildWeekCalendar();
+            },
+
+            // Construye el calendario estilo mensual con los 7 días del período activo (Vie→Jue)
+            buildWeekCalendar() {
+                const container = document.getElementById('weekDaysRow');
+                if (!container) return;
+
+                const weekStart = this.getWeekStart(); // Viernes
+                const today = new Date();
+                today.setHours(0,0,0,0);
+
+                // Header: mostrar rango del período
+                const monthLabel = document.getElementById('calMonthLabel');
+                if (monthLabel) {
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    const opts = { month: 'long', day: 'numeric' };
+                    const startStr = weekStart.toLocaleDateString('es-MX', opts);
+                    const endStr = weekEnd.toLocaleDateString('es-MX', opts);
+                    // Si están en el mismo mes
+                    const sameMonth = weekStart.getMonth() === weekEnd.getMonth();
+                    monthLabel.textContent = sameMonth
+                        ? `${weekStart.toLocaleDateString('es-MX', {month:'long', year:'numeric'})}`
+                        : `${weekStart.toLocaleDateString('es-MX', {month:'short'})} – ${weekEnd.toLocaleDateString('es-MX', {month:'short', year:'numeric'})}`;
+                }
+
+                container.innerHTML = '';
+
+                for (let i = 0; i < 7; i++) {
+                    const day = new Date(weekStart);
+                    day.setDate(weekStart.getDate() + i);
+                    const dateStr = day.toISOString().split('T')[0];
+                    const isToday = day.getTime() === today.getTime();
+                    const isFuture = day > today;
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+
+                    // Contar asistencias de ese día
+                    const count = this.attendances.filter(a => a.date === dateStr).length;
+                    const hasRecords = count > 0;
+
+                    const btn = document.createElement('button');
+                    btn.onclick = () => { if (!isFuture) this.selectWeekDay(dateStr); };
+                    btn.id = `calDay_${dateStr}`;
+                    btn.disabled = isFuture;
+                    btn.style.cssText = `
+                        border: none;
+                        border-radius: 8px;
+                        padding: 6px 2px;
+                        cursor: ${isFuture ? 'default' : 'pointer'};
+                        text-align: center;
+                        transition: all 0.15s;
+                        opacity: ${isFuture ? '0.35' : '1'};
+                        background: ${isToday ? '#764ba2' : 'transparent'};
+                        color: ${isToday ? 'white' : isFuture ? '#aaa' : '#2c3e50'};
+                        width: 100%;
+                        position: relative;
+                    `;
+                    btn.innerHTML = `
+                        <div style="font-size:1.05rem; font-weight:${isToday ? 'bold' : '500'}; line-height:1.8;">${day.getDate()}</div>
+                        <div style="font-size:0.6rem; color:${isToday ? 'rgba(255,255,255,0.85)' : hasRecords ? '#27ae60' : '#ddd'}; margin-top:1px;">
+                            ${hasRecords ? '●'.repeat(Math.min(count,3)) : '·'}
+                        </div>
+                    `;
+                    container.appendChild(btn);
+                }
+
+                // Actualizar label y botón "Toda la semana"
+                this.updateCalLabel('all');
+                this.highlightCalDay('all');
+            },
+
+            // Selecciona un día específico o toda la semana
+            selectWeekDay(dateStr) {
+                this.selectedCalDay = dateStr;
+                this.highlightCalDay(dateStr);
+                this.updateCalLabel(dateStr);
+                this.refreshAttendances();
+            },
+
+            // Actualiza el resaltado visual del día seleccionado
+            highlightCalDay(dateStr) {
+                const weekStart = this.getWeekStart();
+                const today = new Date(); today.setHours(0,0,0,0);
+
+                for (let i = 0; i < 7; i++) {
+                    const d = new Date(weekStart);
+                    d.setDate(weekStart.getDate() + i);
+                    const ds = d.toISOString().split('T')[0];
+                    const btn = document.getElementById(`calDay_${ds}`);
+                    if (!btn) continue;
+
+                    const isSelected = dateStr === ds;
+                    const isToday = d.getTime() === today.getTime();
+                    const hasRecords = this.attendances.some(a => a.date === ds);
+
+                    if (isSelected) {
+                        btn.style.background = '#667eea';
+                        btn.style.color = 'white';
+                        btn.style.transform = 'scale(1.08)';
+                        btn.style.boxShadow = '0 2px 8px rgba(102,126,234,0.4)';
+                    } else if (isToday) {
+                        btn.style.background = '#764ba2';
+                        btn.style.color = 'white';
+                        btn.style.transform = 'scale(1)';
+                        btn.style.boxShadow = 'none';
+                    } else {
+                        btn.style.background = 'transparent';
+                        btn.style.color = '#2c3e50';
+                        btn.style.transform = 'scale(1)';
+                        btn.style.boxShadow = 'none';
+                    }
+                }
+
+                // Botón "Toda la semana"
+                const btnAll = document.getElementById('calBtnAll');
+                if (btnAll) {
+                    btnAll.style.background = dateStr === 'all' ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.2)';
+                    btnAll.style.color = dateStr === 'all' ? '#764ba2' : 'white';
+                    btnAll.style.fontWeight = dateStr === 'all' ? 'bold' : 'normal';
+                }
+            },
+
+            updateCalLabel(dateStr) {
+                const label = document.getElementById('calSelectedLabel');
+                if (!label) return;
+                if (dateStr === 'all') {
+                    const ws = this.getWeekStart();
+                    const we = new Date(ws); we.setDate(ws.getDate() + 6);
+                    const fmt = d => d.toLocaleDateString('es-MX', {month:'short', day:'numeric'});
+                    label.textContent = `Mostrando: ${fmt(ws)} — ${fmt(we)}`;
+                } else {
+                    const d = new Date(dateStr + 'T12:00:00');
+                    label.textContent = `Mostrando: ${d.toLocaleDateString('es-MX', {weekday:'long', month:'long', day:'numeric'})}`;
+                }
             },
             
             refreshAttendances() {
@@ -2077,7 +2837,7 @@
                     const absentEmps = this.employees.filter(e => !presentIds.includes(e.id));
                     if (absentEmps.length > 0) {
                         const absentHtml = `
-                            <div style="background:#fff3cd; border:1px solid #ffc107; border-radius:8px; padding:15px; margin-bottom:20px;">
+                            <div id="absentBlock" style="background:#fff3cd; border:1px solid #ffc107; border-radius:8px; padding:15px; margin-bottom:20px;">
                                 <strong>⚠️ Sin registro hoy (${absentEmps.length} empleadas):</strong>
                                 <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:8px;">
                                     ${absentEmps.sort((a,b) => a.name.localeCompare(b.name)).map(e => 
@@ -2087,28 +2847,38 @@
                             </div>`;
                         setTimeout(() => {
                             const container = document.getElementById('attendancesTable');
-                            if (container) container.insertAdjacentHTML('afterbegin', absentHtml);
+                            if (container) {
+                                const old = document.getElementById('absentBlock');
+                                if (old) old.remove();
+                                container.insertAdjacentHTML('afterbegin', absentHtml);
+                            }
                         }, 50);
                     }
 
                 } else if (filterPeriod === 'week') {
                     // Esta semana - respetando weekStartDay
-                    const weekStartDay = this.workConfig.weekStartDay || 1;
+                    const weekStartDay = this.workConfig.weekStartDay || 5;
                     const dayOfWeek = today.getDay();
                     const daysBack = (dayOfWeek - weekStartDay + 7) % 7;
                     const weekStart = new Date(today);
                     weekStart.setDate(today.getDate() - daysBack);
                     const weekEnd = new Date(weekStart);
                     weekEnd.setDate(weekStart.getDate() + 6);
-                    
-                    filtered = filtered.filter(a => {
-                        const attDate = new Date(a.date + 'T00:00:00');
-                        return attDate >= weekStart && attDate <= weekEnd;
-                    });
+
+                    // Si hay un día específico seleccionado en el minicalendario → filtrar por ese día
+                    const selectedDay = this.selectedCalDay;
+                    if (selectedDay && selectedDay !== 'all') {
+                        filtered = filtered.filter(a => a.date === selectedDay);
+                    } else {
+                        filtered = filtered.filter(a => {
+                            const attDate = new Date(a.date + 'T00:00:00');
+                            return attDate >= weekStart && attDate <= weekEnd;
+                        });
+                    }
                     
                 } else if (filterPeriod === 'lastweek') {
                     // Semana pasada - respetando weekStartDay
-                    const weekStartDay = this.workConfig.weekStartDay || 1;
+                    const weekStartDay = this.workConfig.weekStartDay || 5;
                     const dayOfWeek = today.getDay();
                     const daysBack = (dayOfWeek - weekStartDay + 7) % 7;
                     const thisWeekStart = new Date(today);
@@ -2189,7 +2959,7 @@
                 // Update period date range label
                 const periodLabelEl = document.getElementById('periodDateRange');
                 if (periodLabelEl) {
-                    const weekStartDay = this.workConfig.weekStartDay || 1;
+                    const weekStartDay = this.workConfig.weekStartDay || 5;
                     const dayOfWeek = today.getDay();
                     const daysBack = (dayOfWeek - weekStartDay + 7) % 7;
                     let rangeStart, rangeEnd, periodName = periodNames[filterPeriod] || '';
@@ -2237,22 +3007,6 @@
                     return;
                 }
                 
-                let html = `
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Empleado</th>
-                                <th>Fecha</th>
-                                <th>Entrada</th>
-                                <th>Salida</th>
-                                <th>Horas</th>
-                                <th>Estado</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
-                
                 const sortBy = document.getElementById('sortAttendances') ? document.getElementById('sortAttendances').value : 'alpha';
                 if (sortBy === 'alpha') {
                     filtered.sort((a, b) => a.employeeName.localeCompare(b.employeeName) || new Date(b.date) - new Date(a.date));
@@ -2270,42 +3024,70 @@
                 } else {
                     filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
                 }
-                filtered.forEach(att => {
-                    const status = att.checkOut ? 
-                        `<span class="badge badge-success">Completo</span>` : 
-                        `<span class="badge badge-warning">Pendiente</span>`;
-                    
-                    // Verificar si llegó tarde
-                    const isLate = this.isLate(att.checkIn);
-                    const rowStyle = isLate ? 'background-color: #ffebee;' : '';
-                    const nameStyle = isLate ? 'color: #c62828; font-weight: bold;' : '';
+
+                // Contador de registros
+                const totalRecords = filtered.length;
+                const lateCount = filtered.filter(a => this.isLate(a.checkIn)).length;
+                const pendingCount = filtered.filter(a => !a.checkOut).length;
+
+                let html = `
+                    <div style="font-size:0.8rem; color:#888; margin-bottom:8px; padding:0 2px;">
+                        ${totalRecords} registro${totalRecords !== 1 ? 's' : ''}
+                        ${lateCount > 0 ? ` · <span style="color:#e74c3c;">⚠️ ${lateCount} tardanza${lateCount !== 1 ? 's' : ''}</span>` : ''}
+                        ${pendingCount > 0 ? ` · <span style="color:#f39c12;">⏳ ${pendingCount} sin salida</span>` : ''}
+                    </div>
+                    <div style="overflow-x:auto;">
+                    <table style="font-size:0.85rem; border-collapse:collapse; width:100%;">
+                        <thead>
+                            <tr style="background:#f5f5f5;">
+                                <th style="padding:7px 10px; text-align:left; font-size:0.8rem; color:#555; font-weight:600; border-bottom:2px solid #e0e0e0; white-space:nowrap;">Empleado</th>
+                                <th style="padding:7px 10px; text-align:left; font-size:0.8rem; color:#555; font-weight:600; border-bottom:2px solid #e0e0e0; white-space:nowrap;">Fecha</th>
+                                <th style="padding:7px 10px; text-align:center; font-size:0.8rem; color:#555; font-weight:600; border-bottom:2px solid #e0e0e0; white-space:nowrap;">Entrada</th>
+                                <th style="padding:7px 10px; text-align:center; font-size:0.8rem; color:#555; font-weight:600; border-bottom:2px solid #e0e0e0; white-space:nowrap;">Salida</th>
+                                <th style="padding:7px 10px; text-align:center; font-size:0.8rem; color:#555; font-weight:600; border-bottom:2px solid #e0e0e0; white-space:nowrap;">Horas</th>
+                                <th style="padding:7px 10px; text-align:center; font-size:0.8rem; color:#555; font-weight:600; border-bottom:2px solid #e0e0e0; white-space:nowrap;">Estado</th>
+                                <th style="padding:7px 10px; text-align:center; font-size:0.8rem; color:#555; font-weight:600; border-bottom:2px solid #e0e0e0; white-space:nowrap;">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                filtered.forEach((att, idx) => {
+                    const attDay = new Date(att.date + 'T12:00:00').getDay();
+                    const isWeekendAtt = attDay === 0 || attDay === 6;
+                    const isLate = !isWeekendAtt && this.isLate(att.checkIn);
+                    const hasCheckOut = !!att.checkOut;
+                    const rowBg = isLate ? '#fff5f5' : (idx % 2 === 0 ? '#ffffff' : '#fafafa');
+                    const nameBold = isLate ? 'font-weight:600; color:#c0392b;' : 'font-weight:500;';
                     const lateIcon = isLate ? '⚠️ ' : '';
-                    
-                    // Formato USA: MM/DD/YYYY
-                    const dateParts = att.date.split('-');
-                    const dateUSA = `${dateParts[1]}/${dateParts[2]}/${dateParts[0]}`;
-                    
+
+                    // Fecha corta: Mar 11
+                    const d = new Date(att.date + 'T12:00:00');
+                    const dateShort = d.toLocaleDateString('es-MX', { weekday:'short', month:'short', day:'numeric' });
+
+                    const statusBadge = hasCheckOut
+                        ? `<span style="background:#e8f5e9; color:#2e7d32; padding:2px 7px; border-radius:10px; font-size:0.75rem; font-weight:500;">✓ Completo</span>`
+                        : `<span style="background:#fff8e1; color:#f57f17; padding:2px 7px; border-radius:10px; font-size:0.75rem; font-weight:500;">⏳ Pendiente</span>`;
+
                     html += `
-                        <tr style="${rowStyle}">
-                            <td><strong style="${nameStyle}">${lateIcon}${att.employeeName}</strong></td>
-                            <td>${dateUSA}</td>
-                            <td style="${nameStyle}">${this.formatTime12Hour(att.checkIn)}</td>
-                            <td>${this.formatTime12Hour(att.checkOut)}</td>
-                            <td><strong>${att.hours ? att.hours.toFixed(2) : '-'} hrs</strong></td>
-                            <td>${status}</td>
-                            <td style="display:flex; gap:5px;">
-                                <button class="btn btn-primary btn-sm" data-id="${att.id}" onclick="app.editAttendance(this.getAttribute('data-id'))">
-                                    ✏️ Editar
-                                </button>
-                                <button class="btn btn-sm" style="background:#e74c3c; color:white;" data-id="${att.id}" onclick="app.deleteAttendance(this.getAttribute('data-id'))">
-                                    🗑️
-                                </button>
+                        <tr style="background:${rowBg}; border-bottom:1px solid #f0f0f0;">
+                            <td style="padding:6px 10px; ${nameBold}">${lateIcon}${att.employeeName}</td>
+                            <td style="padding:6px 10px; color:#555; white-space:nowrap;">${dateShort}</td>
+                            <td style="padding:6px 10px; text-align:center; color:${isLate ? '#c0392b' : '#2c3e50'}; font-weight:500;">${this.formatTime12Hour(att.checkIn)}</td>
+                            <td style="padding:6px 10px; text-align:center; color:#555;">${hasCheckOut ? this.formatTime12Hour(att.checkOut) : '<span style="color:#ccc;">—</span>'}</td>
+                            <td style="padding:6px 10px; text-align:center; font-weight:600; color:#2c3e50;">${att.hours ? att.hours.toFixed(2) : '<span style="color:#ccc;">—</span>'}</td>
+                            <td style="padding:6px 10px; text-align:center;">${statusBadge}</td>
+                            <td style="padding:6px 10px; text-align:center; white-space:nowrap;">
+                                <button style="background:#e8f0fe; color:#3c4dd6; border:none; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:0.78rem; margin-right:3px;"
+                                    data-id="${att.id}" onclick="app.editAttendance(this.getAttribute('data-id'))">✏️</button>
+                                <button style="background:#fce8e6; color:#c62828; border:none; padding:3px 8px; border-radius:5px; cursor:pointer; font-size:0.78rem;"
+                                    data-id="${att.id}" onclick="app.deleteAttendance(this.getAttribute('data-id'))">🗑️</button>
                             </td>
                         </tr>
                     `;
                 });
-                
-                html += '</tbody></table>';
+
+                html += '</tbody></table></div>';
                 container.innerHTML = html;
             },
             
@@ -2358,7 +3140,7 @@
                 
                 if (period === 'week') {
                     // Esta semana - respetando weekStartDay de configuracion
-                    const weekStartDay = this.workConfig.weekStartDay || 1;
+                    const weekStartDay = this.workConfig.weekStartDay || 5;
                     const dayOfWeek = today.getDay();
                     const daysBack = (dayOfWeek - weekStartDay + 7) % 7;
                     startDate = new Date(today);
@@ -2369,7 +3151,7 @@
                     
                 } else if (period === 'lastweek') {
                     // Semana pasada - respetando weekStartDay de configuracion
-                    const weekStartDay = this.workConfig.weekStartDay || 1;
+                    const weekStartDay = this.workConfig.weekStartDay || 5;
                     const dayOfWeek = today.getDay();
                     const daysBack = (dayOfWeek - weekStartDay + 7) % 7;
                     const thisWeekStart = new Date(today);
@@ -2454,9 +3236,11 @@
                 }
                 
                 // Filtrar asistencias por rango de fechas
+                // IMPORTANTE: incluir registros sin hours para capturar tardanzas
+                // aunque no tengan checkOut completo
                 const periodAttendances = this.attendances.filter(a => {
                     const date = new Date(a.date + 'T00:00:00');
-                    return date >= startDate && date <= endDate && a.hours;
+                    return date >= startDate && date <= endDate && a.checkIn;
                 });
                 
                 // Mostrar período seleccionado
@@ -2494,7 +3278,8 @@
                     }
                     
                     const p = payroll[att.employeeId];
-                    let dailyHours = Math.round(att.hours * 100) / 100;
+                    // Proteger contra hours null/undefined (ej: sin checkOut aún)
+                    let dailyHours = att.hours ? Math.round(att.hours * 100) / 100 : 0;
                     
                     // PASO 1: Registrar horas trabajadas (antes de descuentos)
                     p.totalWorkedHours = Math.round((p.totalWorkedHours + dailyHours) * 100) / 100;
@@ -2506,16 +3291,20 @@
                         p.lunchDeductions = Math.round((p.lunchDeductions + lunchDeduction) * 100) / 100;
                     }
                     
-                    // PASO 2b: Tardanza (no aplica fines de semana)
+                    // PASO 2b: Tardanza — solo días laborales, respeta tolerancia
                     if (this.workConfig.enableLateDeduction && att.checkIn) {
                         const attDay = new Date(att.date + 'T12:00:00').getDay();
                         const isWeekend = attDay === 0 || attDay === 6;
                         if (!isWeekend) {
                             const [sH, sM] = this.workConfig.startTime.split(':').map(Number);
                             const [cH, cM] = att.checkIn.split(':').map(Number);
-                            const diff = (cH * 60 + cM) - (sH * 60 + sM) - this.workConfig.lateTolerance;
-                            if (diff > 0) {
-                                p.lateMinutes += Math.min(diff, this.workConfig.lateDeductionMax || 30);
+                            const retrasoTotal = (cH * 60 + cM) - (sH * 60 + sM); // minutos desde hora oficial
+                            const tolerancia = this.workConfig.lateTolerance || 0;
+                            const maxDescuento = this.workConfig.lateDeductionMax || 30;
+                            // Solo descuenta si el retraso SUPERA la tolerancia
+                            if (retrasoTotal > tolerancia) {
+                                const minutosADescontar = Math.min(retrasoTotal, maxDescuento);
+                                p.lateMinutes += minutosADescontar;
                             }
                         }
                     }
@@ -2566,7 +3355,10 @@
                 if (sortBy === 'alpha') payrollArr.sort((a,b) => a.employeeName.localeCompare(b.employeeName));
                 else if (sortBy === 'pay') payrollArr.sort((a,b) => b.netPay - a.netPay);
                 else if (sortBy === 'late') payrollArr.sort((a,b) => b.lateMinutes - a.lateMinutes);
-                this.payrollRecords = payrollArr; // Guardar para exportar a Drive
+                this.currentPayrollCalc = payrollArr; // Resultado temporal del cálculo (NO sobreescribe cheques)
+                // Guardar período para usarlo en cheques
+                const _fmt = (d) => { const mm=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0'), yy=d.getFullYear(); return mm+'/'+dd+'/'+yy; };
+                this.currentPayrollPeriod = _fmt(startDate) + ' - ' + _fmt(endDate);
                 this.displayPayrollResults(payrollArr, startDate, endDate);
             },
             
@@ -2650,11 +3442,7 @@
                             ${this.workConfig.enableLateDeduction ? `<td style="color: #e74c3c;">${p.lateMinutes > 0 ? `-${p.lateMinutes} min (-$${this.formatMoney(p.latePenalty)})` : '—'}</td>` : ''}
                             <td style="color: #e74c3c;">${p.empDeduction > 0 ? `-${p.empDeduction}% (-$${this.formatMoney(p.deductions)})` : '—'}</td>
                             <td><strong style="color: #2980b9; font-size: 1.1rem;">$${this.formatMoney(p.netPay)}</strong></td>
-                            <td>
-                                <button class="btn btn-primary btn-sm" onclick="app.generateCheck('${p.employeeId}', ${p.totalHours}, ${p.grossPay}, ${p.deductions}, ${p.netPay})">
-                                    🧾 Generar Cheque
-                                </button>
-                            </td>
+                            <td style="text-align:center; color:#888; font-size:0.8rem;">—</td>
                         </tr>
                     `;
                 });
@@ -2725,6 +3513,15 @@
                     </div>
                 `;
                 
+                // Botón Confirmar Nómina
+                html += `
+                    <div style="margin-top:20px; text-align:center;">
+                        <button class="btn btn-success" style="font-size:1.1rem; padding:14px 35px;" onclick="app.openCheckAssignment()">
+                            ✅ Confirmar Nómina → Asignar Cheques
+                        </button>
+                    </div>
+                `;
+
                 container.innerHTML = html;
                 
                 // Actualizar fecha de pago en resultados
@@ -3096,8 +3893,9 @@
                         if (att.checkIn) {
                             const [sH, sM] = this.workConfig.startTime.split(':').map(Number);
                             const [cH, cM] = att.checkIn.split(':').map(Number);
-                            const diff = (cH * 60 + cM) - (sH * 60 + sM) - this.workConfig.lateTolerance;
-                            if (diff > 0) totalLateMinutes += Math.min(diff, this.workConfig.lateDeductionMax || 30);
+                            const retrasoTC = (cH * 60 + cM) - (sH * 60 + sM);
+                            const tolTC = this.workConfig.lateTolerance || 0;
+                            if (retrasoTC > tolTC) totalLateMinutes += Math.min(retrasoTC, this.workConfig.lateDeductionMax || 30);
                         }
                     });
                     if (totalLateMinutes > 0) {
@@ -3191,6 +3989,571 @@
             },
             
             // CHEQUES
+            openCheckAssignment() {
+                const payroll = this.currentPayrollCalc;
+                if (!payroll || payroll.length === 0) { alert('Primero calcula la nómina'); return; }
+
+                // Separar por método de pago
+                const checkEmps = [];
+                const digitalEmps = [];
+                payroll.forEach((p, i) => {
+                    const emp = this.employees.find(e => e.id === p.employeeId);
+                    const method = emp ? (emp.payMethod || 'check') : 'check';
+                    if (method === 'check') checkEmps.push({ p, i, emp, method });
+                    else digitalEmps.push({ p, i, emp, method });
+                });
+
+                const usedNums = this.checks.map(c => c.checkNumber).filter(n => !isNaN(n));
+                const nextNum = usedNums.length > 0 ? Math.max(...usedNums) + 1 : 1001;
+
+                const existing = document.getElementById('checkAssignModal');
+                if (existing) existing.remove();
+
+                const modal = document.createElement('div');
+                modal.id = 'checkAssignModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;overflow-y:auto;';
+
+                const methodLabel = { zelle:'📱 Zelle', cashapp:'💚 Cash App', venmo:'💜 Venmo', cash:'💰 Efectivo', direct:'🏦 Direct Deposit' };
+
+                const checkRows = checkEmps.map(({ p, i }) => `
+                    <tr>
+                        <td style="padding:10px 12px;"><strong>${p.employeeName}</strong></td>
+                        <td style="padding:10px 12px;text-align:right;color:#27ae60;font-weight:bold;">$${this.formatMoney(p.netPay)}</td>
+                        <td style="padding:10px 12px;text-align:center;">
+                            <input type="number" id="chknum_${i}" value="" style="width:90px;padding:6px 8px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:1rem;" placeholder="# Chq">
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;">
+                            <input type="checkbox" id="chkprint_${i}" checked style="width:18px;height:18px;cursor:pointer;">
+                        </td>
+                    </tr>`).join('');
+
+                const digitalRows = digitalEmps.map(({ p, i, method }) => `
+                    <tr>
+                        <td style="padding:10px 12px;"><strong>${p.employeeName}</strong></td>
+                        <td style="padding:10px 12px;text-align:right;color:#27ae60;font-weight:bold;">$${this.formatMoney(p.netPay)}</td>
+                        <td style="padding:10px 12px;text-align:center;color:#1565c0;font-size:0.85rem;">${methodLabel[method] || method}</td>
+                        <td style="padding:10px 12px;text-align:center;">
+                            <input type="text" id="txtxn_${i}" placeholder="# Transacción" style="width:130px;padding:6px 8px;border:1px solid #90caf9;border-radius:6px;text-align:center;font-size:0.9rem;">
+                        </td>
+                        <td style="padding:10px 12px;text-align:center;">
+                            <input type="checkbox" id="chkprint_${i}" checked style="width:18px;height:18px;cursor:pointer;">
+                        </td>
+                    </tr>`).join('');
+
+                const payDateISO = (() => { const d = this.calculateNextPaymentDate(); return d.toISOString().split('T')[0]; })();
+                const payDateUSA = (() => { const parts = payDateISO.split('-'); return parts[1]+'/'+parts[2]+'/'+parts[0]; })();
+
+                const checkSection = checkEmps.length > 0 ? `
+                    <div style="margin-bottom:20px;">
+                        <div style="background:#1565c0;color:white;padding:10px 14px;border-radius:8px 8px 0 0;font-weight:bold;">💵 Pago con Cheque (${checkEmps.length} empleado${checkEmps.length>1?'s':''})</div>
+                        <div style="background:#e3f2fd;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <label style="font-weight:bold;color:#1565c0;">Número inicial:</label>
+                            <input type="number" id="autoFillStart" value="${nextNum}" style="width:100px;padding:6px;border:1px solid #90caf9;border-radius:6px;font-size:1rem;text-align:center;">
+                            <button onclick="app.autoFillCheckNumbers()" style="background:#1565c0;color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:bold;">⚡ Autollenar</button>
+                        </div>
+                        <div style="overflow-x:auto;">
+                            <table style="width:100%;border-collapse:collapse;">
+                                <thead><tr style="background:#34495e;color:white;">
+                                    <th style="padding:10px 12px;text-align:left;">Empleado</th>
+                                    <th style="padding:10px 12px;text-align:right;">Neto</th>
+                                    <th style="padding:10px 12px;text-align:center;"># Cheque</th>
+                                    <th style="padding:10px 12px;text-align:center;">Imprimir</th>
+                                </tr></thead>
+                                <tbody>${checkRows}</tbody>
+                            </table>
+                        </div>
+                        <div style="text-align:right;margin-top:8px;">
+                            <button onclick="app.printChecksOnly()" style="background:#27ae60;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:bold;">🖨️ Imprimir Cheques</button>
+                        </div>
+                    </div>` : '';
+
+                const digitalSection = digitalEmps.length > 0 ? `
+                    <div style="margin-bottom:20px;">
+                        <div style="background:#6a1b9a;color:white;padding:10px 14px;border-radius:8px 8px 0 0;font-weight:bold;">📱 Pago Digital (${digitalEmps.length} empleado${digitalEmps.length>1?'s':''})</div>
+                        <div style="overflow-x:auto;margin-top:4px;">
+                            <table style="width:100%;border-collapse:collapse;">
+                                <thead><tr style="background:#34495e;color:white;">
+                                    <th style="padding:10px 12px;text-align:left;">Empleado</th>
+                                    <th style="padding:10px 12px;text-align:right;">Neto</th>
+                                    <th style="padding:10px 12px;text-align:center;">Método</th>
+                                    <th style="padding:10px 12px;text-align:center;"># Transacción</th>
+                                    <th style="padding:10px 12px;text-align:center;">Talones</th>
+                                </tr></thead>
+                                <tbody>${digitalRows}</tbody>
+                            </table>
+                        </div>
+                        <div style="text-align:right;margin-top:8px;">
+                            <button onclick="app.printDigitalStubsOnly()" style="background:#6a1b9a;color:white;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:bold;">🖨️ Imprimir Talones</button>
+                        </div>
+                    </div>` : '';
+
+                modal.innerHTML = `
+                    <div style="background:#fff;border-radius:12px;padding:24px;max-width:700px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.4);max-height:90vh;overflow-y:auto;">
+                        <h3 style="margin:0 0 6px 0;color:#1565c0;">✅ Confirmar Nómina</h3>
+                        <p style="color:#666;margin:0 0 12px 0;font-size:0.9rem;">${payroll.length} empleados</p>
+                        <div style="background:#e8f5e9;border-radius:8px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;">
+                            <span style="font-size:1.2rem;">📅</span>
+                            <div>
+                                <div style="font-weight:bold;color:#2e7d32;font-size:0.85rem;">Fecha de Pago</div>
+                                <div style="font-size:1rem;color:#1b5e20;font-weight:600;">${payDateUSA}</div>
+                                <input type="hidden" id="checkPayDate" value="${payDateISO}">
+                            </div>
+                        </div>
+                        ${checkSection}
+                        ${digitalSection}
+                        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px;">
+                            <button onclick="document.getElementById('checkAssignModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                            <button onclick="app.confirmAndPrintChecks()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar Todo</button>
+                        </div>
+                    </div>`;
+
+                document.body.appendChild(modal);
+                modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+            },
+
+            autoFillCheckNumbers() {
+                const start = parseInt(document.getElementById('autoFillStart').value);
+                if (isNaN(start) || start < 1) { alert('Ingresa un número inicial válido'); return; }
+                let seq = start;
+                (this.currentPayrollCalc || []).forEach((p, i) => {
+                    const emp = this.employees.find(e => e.id === p.employeeId);
+                    const method = emp ? (emp.payMethod || 'check') : 'check';
+                    if (method === 'check') {
+                        const input = document.getElementById('chknum_' + i);
+                        const checked = document.getElementById('chkprint_' + i);
+                        if (input && (!checked || checked.checked)) input.value = seq++;
+                    }
+                });
+            },
+
+            printChecksOnly() { this.confirmAndPrintChecks(true, false); },
+            printDigitalStubsOnly() { this.confirmAndPrintChecks(false, true); },
+
+            toggleAllChecks(checked, count) {
+                for (let i = 0; i < count; i++) {
+                    const cb = document.getElementById('chkprint_' + i);
+                    if (cb) cb.checked = checked;
+                }
+            },
+
+            confirmAndPrintChecks(onlyChecks = false, onlyDigital = false) {
+                const payroll = this.currentPayrollCalc;
+                if (!payroll || payroll.length === 0) return;
+
+                const cfg = this.checkConfig;
+                const bgImage = localStorage.getItem('anas_checkBgImage') || '';
+                const payDateInput = document.getElementById('checkPayDate');
+                const payDateVal = payDateInput ? payDateInput.value : new Date().toLocaleDateString('en-CA');
+
+                // Verificar que cheques marcados tienen número (solo si se van a imprimir cheques)
+                if (!onlyDigital) {
+                    let allValid = true;
+                    payroll.forEach((p, i) => {
+                        const emp = this.employees.find(e => e.id === p.employeeId);
+                        const method = emp ? (emp.payMethod || 'check') : 'check';
+                        if (method === 'check') {
+                            const numInput = document.getElementById('chknum_' + i);
+                            const printChk = document.getElementById('chkprint_' + i);
+                            if (printChk && printChk.checked && (!numInput || !numInput.value)) allValid = false;
+                        }
+                    });
+                    if (!allValid) { alert('Por favor asigna número de cheque a los empleados marcados (o usa Autollenar).'); return; }
+                }
+
+                const toPrintChecks = [];
+                const toPrintDigital = [];
+
+                payroll.forEach((p, i) => {
+                    const emp = this.employees.find(e => e.id === p.employeeId);
+                    const method = emp ? (emp.payMethod || 'check') : 'check';
+                    const printChk = document.getElementById('chkprint_' + i);
+                    const shouldPrint = printChk ? printChk.checked : true;
+
+                    if (method === 'check') {
+                        const numInput = document.getElementById('chknum_' + i);
+                        const check = {
+                            id: Date.now() + i,
+                            date: payDateVal + 'T12:00:00.000Z',
+                            employeeId: p.employeeId,
+                            employeeName: p.employeeName,
+                            employeeAddress: emp ? this.getEmpAddress(emp) : '',
+                            employeeCity: emp ? this.getEmpCityLine(emp) : '',
+                            period: this.currentPayrollPeriod || '',
+                            signatureUrl: this.getSignatureDataUrl(),
+                            hours: p.totalHours,
+                            gross: p.grossPay,
+                            deductions: p.deductions || 0,
+                            net: p.netPay,
+                            checkNumber: parseInt(numInput ? numInput.value : 0),
+                            payMethod: 'check',
+                            printed: shouldPrint
+                        };
+                        this.checks.push(check);
+                        if (shouldPrint) toPrintChecks.push(check);
+                    } else {
+                        const txnInput = document.getElementById('txtxn_' + i);
+                        const check = {
+                            id: Date.now() + i + 1000,
+                            date: payDateVal + 'T12:00:00.000Z',
+                            employeeId: p.employeeId,
+                            employeeName: p.employeeName,
+                            employeeAddress: emp ? this.getEmpAddress(emp) : '',
+                            employeeCity: emp ? this.getEmpCityLine(emp) : '',
+                            period: this.currentPayrollPeriod || '',
+                            hours: p.totalHours,
+                            gross: p.grossPay,
+                            deductions: p.deductions || 0,
+                            net: p.netPay,
+                            checkNumber: txnInput ? (txnInput.value.trim() || '—') : '—',
+                            payMethod: method,
+                            printed: shouldPrint
+                        };
+                        this.checks.push(check);
+                        if (shouldPrint) toPrintDigital.push(check);
+                    }
+                });
+
+                this.save();
+                document.getElementById('checkAssignModal').remove();
+
+                if (!onlyDigital && toPrintChecks.length > 0) this.previewChecks(toPrintChecks, cfg, bgImage);
+                if (!onlyChecks && toPrintDigital.length > 0) this.previewDigitalStubs(toPrintDigital);
+                if (toPrintChecks.length === 0 && toPrintDigital.length === 0) {
+                    alert('Registros guardados. No se seleccionó ninguno para imprimir.');
+                    this.switchTab('checks');
+                }
+            },
+
+            previewDigitalStubs(checks) {
+                const self = this;
+                const methodLabel = { zelle:'📱 Zelle', cashapp:'💚 Cash App', venmo:'💜 Venmo', cash:'💰 Efectivo', direct:'🏦 Direct Deposit' };
+                const printWindow = window.open('', '', 'width=900,height=700');
+                let html = `<html><head><title>Talones de Pago Digital</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+                    .emp-group { max-width: 800px; margin: 0 auto 30px; }
+                    .stub-wrap { border: 2px solid #6a1b9a; border-radius: 8px; overflow: hidden; margin-bottom: 30px; }
+                    .stub-divider { border-top: 3px dashed #6a1b9a; margin: 10px 0 30px 0; }
+                    .stub-header { background: #6a1b9a; color: white; padding: 10px 16px; display: flex; justify-content: space-between; font-weight: bold; }
+                    .stub-label { text-align: center; font-size: 0.75rem; color: #888; letter-spacing: 2px; padding: 4px; border-bottom: 1px dashed #ddd; background: #f9f9f9; }
+                    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+                    td { padding: 6px 12px; border: 1px solid #e0e0e0; }
+                    .total-row { background: #e8f5e9; font-weight: bold; }
+                    @media print { .emp-group { page-break-after: always; } }
+                </style></head><body>`;
+
+                checks.forEach(check => {
+                    const dateParts = check.date.split('T')[0].split('-');
+                    const dateUSA = dateParts[1]+'/'+dateParts[2]+'/'+dateParts[0];
+                    const method = methodLabel[check.payMethod] || check.payMethod || 'Digital';
+                    const stub = (label) => `
+                        <div class="stub-wrap">
+                            <div class="stub-header">
+                                <span>Ana's Cleaning Service</span>
+                                <span>Txn: ${check.checkNumber}</span>
+                            </div>
+                            <div class="stub-label">${label}</div>
+                            <table>
+                                <tr><td>Empleado</td><td><strong>${check.employeeName}</strong></td><td>Período</td><td>${check.period || dateUSA}</td></tr>
+                                <tr><td>Fecha Pago</td><td>${dateUSA}</td><td>Método</td><td>${method}</td></tr>
+                                <tr><td>Horas</td><td>${check.hours.toFixed(2)} hrs</td><td>Bruto</td><td>$${self.formatMoney(check.gross)}</td></tr>
+                                <tr><td>Deducciones</td><td>${check.deductions > 0 ? '-$'+self.formatMoney(check.deductions) : '—'}</td><td></td><td></td></tr>
+                                <tr class="total-row"><td colspan="2">PAGO NETO:</td><td colspan="2">$${self.formatMoney(check.net)}</td></tr>
+                            </table>
+                        </div>`;
+                    html += `<div class="emp-group">${stub('TALÓN PARA EL EMPLEADO')}<div class="stub-divider"></div>${stub("TALÓN PARA ANA'S CLEANING SERVICE")}</div>`;
+                });
+
+                html += `
+                    <div style="text-align:center; padding:20px; border-top:2px solid #6a1b9a; margin-top:20px;">
+                        <button onclick="window.print()" style="background:#6a1b9a;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:bold;margin-right:10px;">🖨️ Imprimir</button>
+                        <button onclick="window.close()" style="background:#95a5a6;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:bold;">✕ Cerrar</button>
+                    </div>
+                    <style>@media print { button { display:none !important; } }</style>
+                </body></html>`;
+                printWindow.document.write(html);
+                printWindow.document.close();
+            },
+
+            previewChecks(checks, cfg, bgImage) {
+                const self = this;
+                const existing = document.getElementById('checkPreviewAllModal');
+                if (existing) existing.remove();
+
+                // Hoja completa 8.5 x 11in — preview a 680px de ancho
+                const W = 680;
+                const H  = Math.round(W / (8.5 / 11));        // hoja completa
+                const Hs = Math.round(W / (8.5 / 3.667));     // cada sección
+                const PPI = W / 8.5;
+                const px = (inch) => Math.round(inch * PPI);
+
+                const safeBg = bgImage ? bgImage.replace(/"/g, "'") : '';
+
+                const pages = checks.map((check) => {
+                    const dateParts = check.date.split('T')[0].split('-');
+                    const dateUSA = dateParts[1] + '/' + dateParts[2] + '/' + dateParts[0];
+                    const netAmount  = self.formatMoney(check.net || check.gross || 0);
+                    const grossAmount = self.formatMoney(check.gross || 0);
+                    const dedAmount  = self.formatMoney(check.deductions || 0);
+                    const wordsAmount = self.numberToWords(netAmount);
+
+                    // ── Talón helper — posicionado DENTRO del sheet ──
+                    const stubHtml = (label, offsetTop) => {
+                        const tp = offsetTop;
+                        return '<div style="position:absolute; top:' + tp + 'px; left:0; width:' + W + 'px; background:#fff; font-family:Arial,sans-serif; box-sizing:border-box; border-top:2px dashed #aaa;">' +
+                            '<div style="display:flex; justify-content:space-between; padding:6px 14px 4px; border-bottom:1px solid #ddd; font-size:8.5pt;">' +
+                                '<strong>Ana&#39;s Cleaning Service</strong>' +
+                                '<span style="color:#666;">Cheque #' + check.checkNumber + '</span>' +
+                            '</div>' +
+                            '<div style="text-align:center; font-size:7pt; color:#aaa; letter-spacing:2px; padding:2px;">' + label + '</div>' +
+                            '<table style="width:calc(100% - 20px); margin:4px 10px; border-collapse:collapse; font-size:8pt;">' +
+                                '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Empleado</td><td style="padding:3px 6px; border:1px solid #e0e0e0;"><strong>' + check.employeeName + '</strong></td>' +
+                                    '<td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Período</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">' + (check.period || dateUSA) + '</td></tr>' +
+                                '<tr><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Fecha Pago</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">' + dateUSA + '</td></tr>' +
+                                '<tr><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Horas</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">' + check.hours.toFixed(2) + ' hrs</td>' +
+                                    '<td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Bruto</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">$' + grossAmount + '</td></tr>' +
+                                '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Deducciones</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">' + (check.deductions > 0 ? '-$' + dedAmount : '—') + '</td>' +
+                                    '<td colspan="2" style="padding:3px 6px; border:1px solid #e0e0e0;"></td></tr>' +
+                                '<tr style="background:#e8f5e9;"><td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt;"><strong>PAGO NETO:</strong></td>' +
+                                    '<td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt; color:#1565c0;"><strong>$' + netAmount + '</strong></td></tr>' +
+                            '</table>' +
+                        '</div>';
+                    };
+
+                    // ── Hoja completa: todo dentro de un solo div ──
+                    const sheet =
+                        '<div style="position:relative; width:' + W + 'px; height:' + H + 'px;' +
+                            (bgImage
+                                ? 'background-image:url(' + safeBg + '); background-size:100% 100%; background-repeat:no-repeat;'
+                                : 'background:#f9f9f9;') +
+                            ' font-family:Courier New,monospace; overflow:hidden; border:1px solid #ccc;">' +
+
+                            // Campos del cheque (sección 1)
+                            '<div style="position:absolute; top:' + px(cfg.payee_top) + 'px; left:' + px(cfg.payee_left) + 'px; font-size:10pt; font-weight:bold;">' + check.employeeName + '</div>' +
+                            (check.employeeAddress ? '<div style="position:absolute; top:' + px(cfg.address_top) + 'px; left:' + px(cfg.address_left) + 'px; font-size:8.5pt;">' + check.employeeAddress + '</div>' : '') +
+                            (check.employeeCity ? '<div style="position:absolute; top:' + px(cfg.city_top || cfg.address_top + 0.15) + 'px; left:' + px(cfg.city_left || cfg.address_left) + 'px; font-size:8.5pt;">' + check.employeeCity + '</div>' : '') +
+                            '<div style="position:absolute; top:' + px(cfg.date_top) + 'px; right:' + px(cfg.date_right) + 'px; font-size:9pt;">' + dateUSA + '</div>' +
+                            '<div style="position:absolute; top:' + px(cfg.amount_top) + 'px; right:' + px(cfg.amount_right) + 'px; font-size:12pt; font-weight:bold;">' + netAmount + '</div>' +
+                            '<div style="position:absolute; top:' + px(cfg.words_top) + 'px; left:' + px(cfg.words_left) + 'px; font-size:8.5pt;">' + wordsAmount + '</div>' +
+                            '<div style="position:absolute; top:' + px(cfg.payee_name2_top || cfg.words_top + 0.15) + 'px; left:' + px(cfg.payee_name2_left || cfg.words_left) + 'px; font-size:8.5pt; font-weight:bold;">' + check.employeeName + '</div>' +
+                            (check.period ? '<div style="position:absolute; top:' + px(cfg.memo_top || 2.9) + 'px; left:' + px(cfg.memo_left || 0.5) + 'px; font-size:8.5pt;">' + check.period + '</div>' : '') +
+                            (check.signatureUrl ? '<img src="' + check.signatureUrl + '" style="position:absolute; top:' + px(cfg.signature_top || 2.6) + 'px; right:' + px(cfg.signature_right || 1.5) + 'px; width:' + px(cfg.signature_width || 1.5) + 'px; pointer-events:none;">' : '') +
+
+                            // Talones dentro de la hoja, en secciones 2 y 3
+                            stubHtml('TALÓN PARA EL EMPLEADO',  Hs) +
+                            stubHtml("TALÓN PARA ANA'S CLEANING SERVICE", Hs * 2) +
+
+                        '</div>';
+
+                    return '<div style="margin-bottom:30px;">' +
+                        '<div style="font-size:0.85rem; color:#555; margin-bottom:6px; font-weight:bold; padding:4px 8px; background:#e3f2fd; border-radius:4px; display:inline-block;">Cheque #' + check.checkNumber + ' — ' + check.employeeName + '</div>' +
+                        sheet +
+                    '</div>';
+                }).join('');
+
+                const modal = document.createElement('div');
+                modal.id = 'checkPreviewAllModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;box-sizing:border-box;overflow-y:auto;';
+
+                modal.innerHTML =
+                    '<div style="background:#f0f0f0;border-radius:12px;padding:20px;max-width:740px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.5);">' +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+                            '<h3 style="margin:0;color:#1565c0;">🔍 Preview — ' + checks.length + ' cheque(s)</h3>' +
+                            '<div style="display:flex;gap:10px;">' +
+                                '<button onclick="app._doPrintChecks()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1rem;">🖨️ Imprimir</button>' +
+                                '<button onclick="document.getElementById(&quot;checkPreviewAllModal&quot;).remove()" style="background:#e74c3c;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">✕</button>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div>' + pages + '</div>' +
+                    '</div>';
+
+                document.body.appendChild(modal);
+                modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+                this._pendingPrintChecks = { checks, cfg, bgImage };
+            },
+
+            _doPrintChecks() {
+                const modal = document.getElementById('checkPreviewAllModal');
+                if (modal) modal.remove();
+                const p = this._pendingPrintChecks;
+                if (p) {
+                    // Abrir directamente ventana de impresión sin fondo distorsionado
+                    this.printMultipleChecks(p.checks, p.cfg, '');
+                }
+            },
+
+            printMultipleChecks(checks, cfg, bgImage) {
+                // Hoja completa 8.5 x 11in — 3 secciones de 3.667in cada una
+                // Sección 1: Cheque (banco)
+                // Sección 2: Talón empleado
+                // Sección 3: Talón empleador
+
+                const self = this;
+
+                const pagesHtml = checks.map(check => {
+                    const dateParts = check.date.split('T')[0].split('-');
+                    const dateUSA = dateParts[1] + '/' + dateParts[2] + '/' + dateParts[0];
+                    const netAmount = self.formatMoney(check.net || check.gross || 0);
+                    const grossAmount = self.formatMoney(check.gross || 0);
+                    const dedAmount = self.formatMoney(check.deductions || 0);
+                    const wordsAmount = self.numberToWords(netAmount);
+
+                    // Sección 1: Cheque real
+                    const sec1 =
+                        '<div class="check-section check-real">' +
+                            '<div class="bg-check screen-only"></div>' +
+                            '<div class="cf-payee">'  + check.employeeName + '</div>' +
+                            (check.employeeAddress ? '<div class="cf-address">' + check.employeeAddress + '</div>' : '') +
+                            (check.employeeCity ? '<div class="cf-city">' + check.employeeCity + '</div>' : '') +
+                            '<div class="cf-date">'   + dateUSA + '</div>' +
+                            '<div class="cf-amount">' + netAmount + '</div>' +
+                            '<div class="cf-words">'  + wordsAmount + '</div>' +
+                            '<div class="cf-payee-name2">' + check.employeeName + '</div>' +
+                            (check.period ? '<div class="cf-memo">' + check.period + '</div>' : '') +
+                            (check.signatureUrl ? '<img src="' + check.signatureUrl + '" class="cf-signature" style="position:absolute; z-index:1; top:' + cfg.signature_top + 'in; right:' + cfg.signature_right + 'in; width:' + (cfg.signature_width || 1.5) + 'in; pointer-events:none;">' : '') +
+                            '<div class="cf-sigline"></div>' +
+                        '</div>';
+
+                    // Talón helper — misma estructura para secciones 2 y 3
+                    const stub = (label) =>
+                        '<div class="check-section check-stub">' +
+                            '<div class="stub-header">' +
+                                '<span class="stub-company">Ana&#39;s Cleaning Service</span>' +
+                                '<span class="stub-checknum">Cheque #' + check.checkNumber + '</span>' +
+                            '</div>' +
+                            '<div class="stub-label">' + label + '</div>' +
+                            '<table class="stub-table">' +
+                                '<tr><td>Empleado:</td><td><strong>' + check.employeeName + '</strong></td>' +
+                                    '<td>Período:</td><td>' + (check.period || dateUSA) + '</td></tr>' +
+                                '<tr><td>Fecha Pago:</td><td colspan="3">' + dateUSA + '</td></tr>' +
+                                '<tr><td>Horas trabajadas:</td><td>' + check.hours.toFixed(2) + ' hrs</td>' +
+                                    '<td>Tarifa:</td><td>$' + self.formatMoney(check.gross / (check.hours || 1)) + '/hr</td></tr>' +
+                                '<tr><td>Pago Bruto:</td><td>$' + grossAmount + '</td>' +
+                                    '<td>Deducciones:</td><td>' + (check.deductions > 0 ? '-$' + dedAmount : '—') + '</td></tr>' +
+                                '<tr class="stub-total"><td colspan="2">PAGO NETO:</td>' +
+                                    '<td colspan="2"><strong>$' + netAmount + '</strong></td></tr>' +
+                            '</table>' +
+                        '</div>';
+
+                    return '<div class="check-page">' + sec1 + stub('TALÓN PARA EL EMPLEADO') + stub("TALÓN PARA ANA'S CLEANING SERVICE") + '</div>';
+                }).join('');
+
+                const bgCss = bgImage
+                    ? '.screen-only { background-image: url("' + bgImage + '"); background-size: 100% 100%; background-repeat: no-repeat; }'
+                    : '';
+
+                const printWindow = window.open('', '', 'width:960,height:800');
+                printWindow.document.write(`<!DOCTYPE html><html><head>
+                    <title>Cheques — Ana's Cleaning Service</title>
+                    <style>
+                        * { box-sizing: border-box; margin:0; padding:0; }
+                        body { font-family: 'Courier New', monospace; background:#f0f0f0; }
+
+                        /* ── Layout de página ── */
+                        .check-page {
+                            width: 8.5in;
+                            height: 11in;
+                            display: flex;
+                            flex-direction: column;
+                            page-break-after: always;
+                            background: white;
+                            margin: 0 auto;
+                        }
+                        .check-page:last-child { page-break-after: avoid; }
+
+                        /* ── Sección base ── */
+                        .check-section {
+                            width: 100%;
+                            height: 3.667in;
+                            position: relative;
+                            overflow: hidden;
+                            border-bottom: 3px dashed #999;
+                            padding-bottom: 0;
+                        }
+                        .check-section:last-child { border-bottom: none; }
+
+                        /* ── Fondo del cheque (solo pantalla) ── */
+                        .bg-check {
+                            position: absolute;
+                            inset: 0;
+                            z-index: 0;
+                            pointer-events: none;
+                        }
+                        ${bgCss}
+
+                        /* ── Campos del cheque (sección 1) ── */
+                        .cf-payee   { position:absolute; z-index:1; top:${cfg.payee_top}in;   left:${cfg.payee_left}in;   font-size:12pt; font-weight:bold; }
+                        .cf-address { position:absolute; z-index:1; top:${cfg.address_top}in; left:${cfg.address_left}in; font-size:10pt; }
+                        .cf-date    { position:absolute; z-index:1; top:${cfg.date_top}in;    right:${cfg.date_right}in;  font-size:11pt; }
+                        .cf-amount  { position:absolute; z-index:1; top:${cfg.amount_top}in;  right:${cfg.amount_right}in; font-size:13pt; font-weight:bold; }
+                        .cf-city    { position:absolute; z-index:1; top:${cfg.city_top || cfg.address_top + 0.15}in; left:${cfg.city_left || cfg.address_left}in; font-size:10pt; }
+                        .cf-words   { position:absolute; z-index:1; top:${cfg.words_top}in;   left:${cfg.words_left}in;   font-size:10pt; }
+                        .cf-payee-name2 { position:absolute; z-index:1; top:${cfg.payee_name2_top || 1.85}in; left:${cfg.payee_name2_left || 0.5}in; font-size:10pt; font-weight:bold; line-height:1.3; }
+                        .cf-memo    { position:absolute; z-index:1; top:${cfg.memo_top || 2.9}in; left:${cfg.memo_left || 0.5}in; font-size:9pt; }
+                        .cf-sigline { position:absolute; z-index:1; bottom:0.3in; right:1.2in; width:2.5in; border-bottom:1px solid #000; }
+                        .cf-signature { position:absolute; z-index:2; top:${cfg.signature_top}in; right:${cfg.signature_right}in; width:${cfg.signature_width || 1.5}in; pointer-events:none; }
+
+                        /* ── Talones ── */
+                        .stub-header {
+                            display: flex;
+                            justify-content: space-between;
+                            padding: 10px 20px 6px;
+                            border-bottom: 1px solid #ccc;
+                            font-size: 10pt;
+                        }
+                        .stub-company { font-weight: bold; }
+                        .stub-checknum { color: #555; }
+                        .stub-label {
+                            text-align: center;
+                            font-size: 8pt;
+                            color: #888;
+                            letter-spacing: 2px;
+                            padding: 4px;
+                            text-transform: uppercase;
+                        }
+                        .stub-table {
+                            width: calc(100% - 40px);
+                            margin: 8px 20px;
+                            border-collapse: collapse;
+                            font-size: 9.5pt;
+                        }
+                        .stub-table td {
+                            padding: 5px 8px;
+                            border: 1px solid #e0e0e0;
+                        }
+                        .stub-table td:nth-child(1),
+                        .stub-table td:nth-child(3) {
+                            background: #f5f5f5;
+                            color: #555;
+                            width: 28%;
+                        }
+                        .stub-total td {
+                            background: #e8f5e9 !important;
+                            font-size: 11pt;
+                            color: #1565c0;
+                            border-top: 2px solid #27ae60 !important;
+                        }
+
+                        /* ── Impresión ── */
+                        @media print {
+                            @page { size: 8.5in 11in; margin: 0; }
+                            body { background: white; }
+                            .screen-only { display: none !important; }
+                            .bg-check { display: none !important; }
+                            .check-page { margin: 0; box-shadow: none; }
+                        }
+                    </style>
+                </head><body>
+                    <div id="printBar" style="text-align:center;padding:16px;background:#f8f8f8;border-bottom:2px solid #27ae60;position:sticky;top:0;z-index:999;">
+                        <button onclick="window.print()" style="background:#27ae60;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:bold;margin-right:10px;">🖨️ Imprimir</button>
+                        <button onclick="window.close()" style="background:#95a5a6;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:bold;">✕ Cerrar</button>
+                    </div>
+                    <style>@media print{#printBar{display:none!important}}</style>
+                    ${pagesHtml}
+                </body></html>`);
+                printWindow.document.close();
+            },
+
             generateCheck(employeeId, hours, gross, deductions, net) {
                 const emp = this.employees.find(e => e.id === employeeId);
                 
@@ -3199,18 +4562,18 @@
                     date: new Date().toISOString(),
                     employeeId,
                     employeeName: emp.name,
-                    employeeAddress: emp.address || '',
+                    employeeAddress: this.getEmpAddress(emp),
                     hours,
                     gross,
                     deductions: deductions || 0,
                     net: net || gross,
-                    checkNumber: this.payrollRecords.length + 1001
+                    checkNumber: this.checks.length + 1001
                 };
                 
-                this.payrollRecords.push(check);
+                this.checks.push(check);
                 this.save();
                 
-                alert(`✅ Cheque #${check.checkNumber} generado para ${emp.name}\n\nBruto: $${this.formatMoney(gross)}\nDeducciones: -$${check.this.formatMoney(deductions)}\nNeto: $${this.formatMoney(check.net)}`);
+                alert(`✅ Cheque #${check.checkNumber} generado para ${emp.name}\n\nBruto: $${this.formatMoney(gross)}\nDeducciones: -$${this.formatMoney(deductions || 0)}\nNeto: $${this.formatMoney(check.net)}`);
                 this.refreshChecks();
                 this.switchTab('checks');
             },
@@ -3218,12 +4581,12 @@
             refreshChecks() {
                 const container = document.getElementById('checksContent');
                 
-                if (this.payrollRecords.length === 0) {
+                if (!this.checks || this.checks.length === 0) {
                     container.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-state-icon">🧾</div>
                             <h3>No hay cheques generados</h3>
-                            <p>Calcula la nómina primero</p>
+                            <p>Calcula la nómina primero y presiona "Generar Cheque"</p>
                         </div>
                     `;
                     return;
@@ -3246,8 +4609,9 @@
                         <tbody>
                 `;
                 
-                this.payrollRecords.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(check => {
-                    const dateParts = check.date.split('T')[0].split('-');
+                this.checks.sort((a, b) => new Date(b.date||0) - new Date(a.date||0)).forEach(check => {
+                    const rawDate = check.date || new Date().toISOString();
+                    const dateParts = rawDate.split('T')[0].split('-');
                     const dateUSA = `${dateParts[1]}/${dateParts[2]}/${dateParts[0]}`;
                     
                     html += `
@@ -3256,10 +4620,13 @@
                             <td>${dateUSA}</td>
                             <td>${check.employeeName}</td>
                             <td>${check.hours.toFixed(2)} hrs</td>
-                            <td style="color: #27ae60; font-weight: bold;">$${check.this.formatMoney(gross)}</td>
+                            <td style="color: #27ae60; font-weight: bold;">$${this.formatMoney(check.gross || 0)}</td>
                             <td style="color: #e74c3c;">-$${(check.deductions || 0).toFixed(2)}</td>
                             <td style="color: #2980b9; font-weight: bold; font-size: 1.1rem;">$${this.formatMoney(check.net || check.gross)}</td>
-                            <td>
+                            <td style="display:flex; gap:6px;">
+                                <button class="btn btn-secondary btn-sm" onclick="app.viewCheck(${check.id})">
+                                    👁️ Ver
+                                </button>
                                 <button class="btn btn-primary btn-sm" onclick="app.printCheck(${check.id})">
                                     🖨️ Imprimir
                                 </button>
@@ -3273,7 +4640,7 @@
             },
             
             printCheck(checkId) {
-                const check = this.payrollRecords.find(c => c.id === checkId);
+                const check = this.checks.find(c => c.id === checkId);
                 const cfg = this.checkConfig;
                 
                 const dateParts = check.date.split('T')[0].split('-');
@@ -3337,8 +4704,8 @@
                             }
                             .memo {
                                 position: absolute;
-                                bottom: 0.5in;
-                                left: 0.5in;
+                                top: ${cfg.memo_top || 2.9}in;
+                                left: ${cfg.memo_left || 0.5}in;
                                 font-size: 9pt;
                             }
                             .signature-line {
@@ -3356,25 +4723,114 @@
                             <div class="date">${dateUSA}</div>
                             <div class="payee">${check.employeeName}</div>
                             ${check.employeeAddress ? `<div class="address">${check.employeeAddress}</div>` : ''}
-                            <div class="amount-number">$${this.formatMoney(check.net || check.gross)}</div>
-                            <div class="amount-words">${this.numberToWords(this.formatMoney(check.net || check.gross))} DOLLARS</div>
-                            <div class="memo">Memo: ${check.hours.toFixed(2)} hrs worked</div>
+                            <div class="amount-number">${this.formatMoney(check.net || check.gross)}</div>
+                            <div class="amount-words">${this.numberToWords(this.formatMoney(check.net || check.gross))}</div>
+                            ${check.period ? '<div class="memo">' + check.period + '</div>' : ''}
                             <div class="signature-line"></div>
                         </div>
                     </body>
                     </html>
                 `);
+                printWindow.document.write('<div style="text-align:center;padding:20px;"><button onclick="window.print()" style="background:#27ae60;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:bold;margin-right:10px;">🖨️ Imprimir</button><button onclick="window.close()" style="background:#95a5a6;color:white;border:none;padding:12px 30px;border-radius:8px;cursor:pointer;font-size:1rem;font-weight:bold;">✕ Cerrar</button></div><style>@media print{button{display:none!important}}</style>');
                 printWindow.document.close();
-                printWindow.print();
             },
             
+            viewCheck(checkId) {
+                const check = this.checks.find(c => c.id === checkId);
+                if (!check) { alert('Cheque no encontrado'); return; }
+                const cfg = this.checkConfig;
+
+                const dateParts = (check.date || new Date().toISOString()).split('T')[0].split('-');
+                const dateUSA = dateParts[1] + '/' + dateParts[2] + '/' + dateParts[0];
+                const netAmount = this.formatMoney(check.net || check.gross || 0);
+                const bgImage = localStorage.getItem('anas_checkBgImage') || '';
+
+                const existing = document.getElementById('checkPreviewModal');
+                if (existing) existing.remove();
+
+                // 750px = 8.5in => 1in = ~88px  (sección cheque = 3.667in)
+                const checkW = 750;
+                const checkH = Math.round(checkW / (8.5 / 3.667));
+                const PPI = checkW / 8.5;
+                const px = (inch) => Math.round(inch * PPI);
+
+                const safeBg = bgImage ? bgImage.replace(/"/g, "'") : '';
+                const bgStyle = bgImage
+                    ? 'background-image:url(' + safeBg + '); background-size:100% 100%; background-repeat:no-repeat;'
+                    : 'background:#fff; border:2px solid #999;';
+                // La imagen de fondo es solo para pantalla (no se imprime)
+
+                const addressHtml = check.employeeAddress
+                    ? '<div style="position:absolute; top:' + px(cfg.address_top) + 'px; left:' + px(cfg.address_left) + 'px; font-size:10pt;">' + check.employeeAddress + '</div>'
+                    : '';
+
+                const noImgHint = !bgImage
+                    ? '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ccc;font-size:0.85rem;pointer-events:none;">Sube la imagen del cheque en Configuracion para ver el fondo</div>'
+                    : '';
+
+                const tipHtml = !bgImage
+                    ? '<p style="text-align:center;color:#e67e22;font-size:0.85rem;margin-top:10px;">Tip: Sube la imagen de tu cheque en <strong>Empleados > Configuracion de Cheques</strong> para ver el preview con el fondo real.</p>'
+                    : '';
+
+                const modal = document.createElement('div');
+                modal.id = 'checkPreviewModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box;';
+
+                modal.innerHTML =
+                    '<div style="background:#fff;border-radius:12px;padding:20px;max-width:820px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.5);">' +
+                        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
+                            '<h3 style="margin:0;color:#1565c0;">Cheque #' + check.checkNumber + ' — ' + check.employeeName + '</h3>' +
+                            '<div style="display:flex;gap:10px;">' +
+                                '<button onclick="app.printCheck(' + check.id + ')" style="background:#27ae60;color:white;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Imprimir</button>' +
+                                '<button onclick="document.getElementById(&quot;checkPreviewModal&quot;).remove()" style="background:#e74c3c;color:white;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">&#10005; Cerrar</button>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div style="overflow-x:auto;">' +
+                            '<div style="position:relative;width:' + checkW + 'px;height:' + checkH + 'px;' + bgStyle + 'font-family:Courier New,monospace;overflow:hidden;margin:0 auto;">' +
+                                noImgHint +
+                                '<div style="position:absolute;top:' + px(cfg.number_top) + 'px;right:' + px(cfg.number_right) + 'px;font-size:13pt;font-weight:bold;">#' + check.checkNumber + '</div>' +
+                                '<div style="position:absolute;top:' + px(cfg.date_top) + 'px;right:' + px(cfg.date_right) + 'px;font-size:11pt;">' + dateUSA + '</div>' +
+                                '<div style="position:absolute;top:' + px(cfg.payee_top) + 'px;left:' + px(cfg.payee_left) + 'px;font-size:12pt;font-weight:bold;">' + check.employeeName + '</div>' +
+                                addressHtml +
+                                '<div style="position:absolute;top:' + px(cfg.amount_top) + 'px;right:' + px(cfg.amount_right) + 'px;font-size:14pt;font-weight:bold;">' + netAmount + '</div>' +
+                                '<div style="position:absolute;top:' + px(cfg.words_top) + 'px;left:' + px(cfg.words_left) + 'px;font-size:9pt;">' + this.numberToWords(netAmount) + '</div>' +
+                                (check.period ? '<div style="position:absolute; top:' + px(cfg.memo_top || 2.9) + 'px; left:' + px(cfg.memo_left || 0.5) + 'px; font-size:8pt;">' + check.period + '</div>' : '') +
+                                '<div style="position:absolute;bottom:' + px(0.35) + 'px;right:' + px(1.5) + 'px;width:' + px(2.5) + 'px;border-bottom:1px solid #000;"></div>' +
+                            '</div>' +
+                        '</div>' +
+                        tipHtml +
+                    '</div>';
+
+                document.body.appendChild(modal);
+                modal.addEventListener('click', function(e) { if (e.target === modal) modal.remove(); });
+            },
+
             numberToWords(amount) {
-                // Simple conversion for check amount
-                const num = parseFloat(amount);
+                const ones = ['','ONE','TWO','THREE','FOUR','FIVE','SIX','SEVEN','EIGHT','NINE',
+                    'TEN','ELEVEN','TWELVE','THIRTEEN','FOURTEEN','FIFTEEN','SIXTEEN','SEVENTEEN','EIGHTEEN','NINETEEN'];
+                const tens = ['','','TWENTY','THIRTY','FORTY','FIFTY','SIXTY','SEVENTY','EIGHTY','NINETY'];
+
+                const below100 = (n) => {
+                    if (n < 20) return ones[n];
+                    return tens[Math.floor(n/10)] + (n%10 ? '-' + ones[n%10] : '');
+                };
+                const below1000 = (n) => {
+                    if (n < 100) return below100(n);
+                    return ones[Math.floor(n/100)] + ' HUNDRED' + (n%100 ? ' ' + below100(n%100) : '');
+                };
+                const toWords = (n) => {
+                    if (n === 0) return 'ZERO';
+                    let result = '';
+                    if (n >= 1000000) { result += below1000(Math.floor(n/1000000)) + ' MILLION '; n %= 1000000; }
+                    if (n >= 1000)    { result += below1000(Math.floor(n/1000)) + ' THOUSAND '; n %= 1000; }
+                    if (n > 0)        { result += below1000(n); }
+                    return result.trim();
+                };
+
+                const num = parseFloat(amount.toString().replace(/,/g,''));
                 const dollars = Math.floor(num);
                 const cents = Math.round((num - dollars) * 100);
-                
-                return `**${dollars}.${cents.toString().padStart(2, '0')}`;
+                return toWords(dollars) + ' AND ' + cents.toString().padStart(2,'0') + '/100';
             },
             
             // HISTORIAL
@@ -3545,13 +5001,13 @@
                 const endDate = new Date(endStr + 'T23:59:59');
                 const fmt = (d) => `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
                 const label = `${fmt(startDate)} — ${fmt(endDate)}`;
-                this.savedPayrollPeriods.push({
+                this.savedPayrollPeriods.push({ updatedAt: new Date().toISOString(),
                     id: 'np_' + Date.now(),
                     start: startStr,
                     end: endStr,
                     label,
                     savedAt: new Date().toISOString(),
-                    payroll: JSON.parse(JSON.stringify(this.payrollRecords || []))
+                    payroll: JSON.parse(JSON.stringify(this.currentPayrollCalc || []))
                 });
                 this.saveData();
                 alert('✅ Nómina guardada en historial');
@@ -3603,7 +5059,7 @@
                 // Recalculate from attendances
                 const periodAttendances = this.attendances.filter(a => {
                     const d = new Date(a.date + 'T00:00:00');
-                    return d >= startDate && d <= endDate && a.hours;
+                    return d >= startDate && d <= endDate && a.checkIn;
                 });
                 
                 if (periodAttendances.length === 0) {
@@ -3629,7 +5085,9 @@
                         const [sH, sM] = this.workConfig.startTime.split(':').map(Number);
                         const [cH, cM] = att.checkIn.split(':').map(Number);
                         const diff = (cH*60+cM)-(sH*60+sM)-this.workConfig.lateTolerance;
-                        if (diff > 0) p.lateMinutes += Math.min(diff, this.workConfig.lateDeductionMax || 30);
+                        const retraso2 = (cH * 60 + cM) - (sH * 60 + sM);
+                        const tol2 = this.workConfig.lateTolerance || 0;
+                        if (retraso2 > tol2) p.lateMinutes += Math.min(retraso2, this.workConfig.lateDeductionMax || 30);
                     }
                     if (this.workConfig.enableOvertime && dh > this.workConfig.overtimeThreshold) {
                         p.regularHours = Math.round((p.regularHours + this.workConfig.overtimeThreshold) * 100) / 100;
@@ -3731,7 +5189,7 @@
                     const p = payroll[att.employeeId];
                     let dh = Math.round(att.hours * 100) / 100;
                     if (this.workConfig.enableLunchBreak && dh >= this.workConfig.lunchThreshold) { dh = Math.round((dh - this.workConfig.lunchDuration)*100)/100; p.lunchDeductions += this.workConfig.lunchDuration; }
-                    if (this.workConfig.enableLateDeduction && att.checkIn) { const [sH,sM]=this.workConfig.startTime.split(':').map(Number); const [cH,cM]=att.checkIn.split(':').map(Number); const diff=(cH*60+cM)-(sH*60+sM)-this.workConfig.lateTolerance; if(diff>0) p.lateMinutes+=Math.min(diff,this.workConfig.lateDeductionMax||30); }
+                    if (this.workConfig.enableLateDeduction && att.checkIn) { const [sH,sM]=this.workConfig.startTime.split(':').map(Number); const [cH,cM]=att.checkIn.split(':').map(Number); const retraso3=(cH*60+cM)-(sH*60+sM); const tol3=this.workConfig.lateTolerance||0; if(retraso3>tol3) p.lateMinutes+=Math.min(retraso3,this.workConfig.lateDeductionMax||30); }
                     if (this.workConfig.enableOvertime && dh > this.workConfig.overtimeThreshold) { p.regularHours+=this.workConfig.overtimeThreshold; p.overtimeHours+=(dh-this.workConfig.overtimeThreshold); } else { p.regularHours+=dh; }
                     p.totalHours = Math.round((p.totalHours + dh)*100)/100;
                 });
@@ -3829,13 +5287,10 @@
                         document.getElementById('driveSyncBtn').style.background = '#27ae60';
                         await this.driveGetOrCreateFolder();
                         this.startAutoSync();
-                        // Si no hay empleados locales, bajar de Drive primero
-                        if (this.employees.length === 0) {
-                            await this.driveDownloadNomina();
-                        } else {
-                            // Ya tiene datos, subir a Drive
-                            await this.driveSyncNow();
-                        }
+                        // Siempre comparar timestamps: el más reciente gana
+                        await this.driveMergeOnConnect();
+                        // Bajar asistencias del Reloj inmediatamente al conectar
+                        await this.driveDownloadClock();
                         // Show toast instead of blocking alert
                         const toast = document.createElement('div');
                         toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#27ae60;color:white;padding:15px 20px;border-radius:10px;z-index:9999;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
@@ -3850,7 +5305,15 @@
             async refreshTokenIfNeeded() {
                 if (!this.tokenClient) return;
                 if (!this.tokenExpiry || Date.now() > this.tokenExpiry) {
-                    this.tokenClient.requestAccessToken({ prompt: '' });
+                    // Token expirado — detener autosync y pedir reconexión manual
+                    this.driveConnected = false;
+                    if (this.autoSyncInterval) {
+                        clearInterval(this.autoSyncInterval);
+                        this.autoSyncInterval = null;
+                    }
+                    document.getElementById('driveSyncLabel').textContent = '⚠️ Reconectar Drive';
+                    document.getElementById('driveSyncBtn').style.background = '#e74c3c';
+                    throw new Error('Token expirado — reconexión manual requerida');
                 }
             },
 
@@ -3896,12 +5359,50 @@
                 await this.refreshTokenIfNeeded();
                 try {
                     document.getElementById('driveSyncLabel').textContent = 'Sincronizando...';
+
+                    // Merge empleados con Drive antes de subir — nunca sobreescribir
+                    let mergedEmployees = [...this.employees];
+                    try {
+                        const searchRes = await fetch(
+                            `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_sync.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false&fields=files(id)`,
+                            { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                        );
+                        const searchData = await searchRes.json();
+                        if (searchData.files && searchData.files.length > 0) {
+                            const fileRes = await fetch(
+                                `https://www.googleapis.com/drive/v3/files/${searchData.files[0].id}?alt=media`,
+                                { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                            );
+                            const driveData = await fileRes.json();
+                            if (driveData.employees) {
+                                driveData.employees.forEach(remote => {
+                                    const idx = mergedEmployees.findIndex(e => e.id === remote.id);
+                                    if (idx < 0) {
+                                        // Empleado en Drive que no tengo localmente → agregar
+                                        mergedEmployees.push(remote);
+                                        // También agregar localmente
+                                        this.employees.push(remote);
+                                        localStorage.setItem('anas_employees', JSON.stringify(this.employees));
+                                    }
+                                });
+                            }
+                        }
+                    } catch(mergeErr) {
+                        console.warn('Merge pre-upload warning:', mergeErr);
+                    }
+
                     const data = {
-                        exportType: 'nomina_sync', exportDate: new Date().toISOString(),
+                        exportType: 'nomina_sync',
+                        exportDate: new Date().toISOString(),
                         source: "Ana's Cleaning Nomina",
-                        employees: this.employees, attendances: this.attendances,
-                        payrollRecords: this.payrollRecords, savedPayrollPeriods: this.savedPayrollPeriods,
-                        adminPin: this.adminPin, workConfig: this.workConfig
+                        deviceId: this.deviceId,
+                        deviceName: this.deviceName,
+                        employees: mergedEmployees,
+                        attendances: this.attendances,
+                        payrollRecords: this.payrollRecords,
+                        savedPayrollPeriods: this.savedPayrollPeriods,
+                        adminPin: this.adminPin,
+                        workConfig: this.workConfig
                     };
                     await this.driveUploadFile('anas_nomina_sync.json', JSON.stringify(data, null, 2));
 
@@ -3913,6 +5414,7 @@
                     }
 
                     const now = new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+                    localStorage.setItem('anas_lastSyncAt', new Date().toISOString()); // Marcar timestamp de último sync exitoso
                     document.getElementById('driveSyncLabel').textContent = `Sync ${now}`;
                     document.getElementById('driveSyncBtn').style.background = '#27ae60';
                 } catch(err) {
@@ -3972,7 +5474,7 @@
             },
 
             async driveDownloadNomina() {
-                // Download anas_nomina_sync.json and load into localStorage
+                // Descarga anas_nomina_sync.json — workConfig NUNCA se sobreescribe
                 try {
                     const searchRes = await fetch(
                         `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_sync.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
@@ -3987,31 +5489,135 @@
                     );
                     const data = await fileRes.json();
 
-                    // Load data into app
-                    if (data.employees) this.employees = data.employees;
-                    if (data.attendances) this.attendances = data.attendances;
-                    if (data.payrollRecords) this.payrollRecords = data.payrollRecords;
-                    if (data.savedPayrollPeriods) this.savedPayrollPeriods = data.savedPayrollPeriods;
-                    if (data.workConfig) this.workConfig = data.workConfig;
+                    // ── MERGE INTELIGENTE por updatedAt ──
+                    // Nunca se reemplazan arrays completos — cada registro compite individualmente
+                    // workConfig NUNCA se toca — la config local siempre prevalece
 
-                    // Save to localStorage
+                    // Merge empleados
+                    if (data.employees) {
+                        data.employees.forEach(remote => {
+                            const idx = this.employees.findIndex(e => e.id === remote.id);
+                            if (idx < 0) {
+                                this.employees.push(remote); // Empleado nuevo
+                            } else {
+                                const localTime = this.employees[idx].updatedAt || '';
+                                const remoteTime = remote.updatedAt || '';
+                                if (remoteTime > localTime) this.employees[idx] = remote; // Remoto más reciente
+                            }
+                        });
+                    }
+
+                    // Merge asistencias
+                    if (data.attendances) {
+                        data.attendances.forEach(remote => {
+                            const idx = this.attendances.findIndex(a =>
+                                a.employeeId === remote.employeeId && a.date === remote.date
+                            );
+                            if (idx < 0) {
+                                this.attendances.push(remote); // Asistencia nueva
+                            } else {
+                                const local = this.attendances[idx];
+                                const localTime = local.updatedAt || local.checkOut || '';
+                                const remoteTime = remote.updatedAt || remote.checkOut || '';
+                                // Gana el más reciente; si remoto tiene checkOut y local no → remoto gana
+                                if (remoteTime > localTime || (!local.checkOut && remote.checkOut)) {
+                                    this.attendances[idx] = remote;
+                                }
+                            }
+                        });
+                    }
+
+                    // Merge períodos de nómina
+                    if (data.savedPayrollPeriods) {
+                        data.savedPayrollPeriods.forEach(remote => {
+                            const idx = this.savedPayrollPeriods.findIndex(p => p.id === remote.id);
+                            if (idx < 0) {
+                                this.savedPayrollPeriods.push(remote); // Período nuevo
+                            } else {
+                                const localTime = this.savedPayrollPeriods[idx].updatedAt || '';
+                                const remoteTime = remote.updatedAt || '';
+                                if (remoteTime > localTime) this.savedPayrollPeriods[idx] = remote;
+                            }
+                        });
+                    }
+
+                    // payrollRecords — merge por id
+                    if (data.payrollRecords) {
+                        data.payrollRecords.forEach(remote => {
+                            const idx = this.payrollRecords.findIndex(r => r.id === remote.id);
+                            if (idx < 0) this.payrollRecords.push(remote);
+                        });
+                    }
+
+                    // Guardar en localStorage (sin tocar workConfig)
                     localStorage.setItem('anas_employees', JSON.stringify(this.employees));
                     localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
                     localStorage.setItem('anas_payroll', JSON.stringify(this.payrollRecords));
+                localStorage.setItem('anas_checks', JSON.stringify(this.checks || []));
                     localStorage.setItem('anas_payroll_periods', JSON.stringify(this.savedPayrollPeriods));
-                    localStorage.setItem('anas_workConfig', JSON.stringify(this.workConfig));
+                    localStorage.setItem('anas_lastSyncAt', new Date().toISOString());
 
                     // Refresh UI
                     this.refreshEmployees();
                     this.refreshAttendances();
                     this.refreshChecks();
 
-                    const syncTime = data.exportDate ? new Date(data.exportDate).toLocaleString('en-US') : '—';
                     document.getElementById('driveSyncLabel').textContent = `Sync ${new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}`;
-                    return true;
+                    return data;
                 } catch(err) {
                     console.error('Download nomina error:', err);
                     return false;
+                }
+            },
+
+            // Compara timestamp local vs Drive al conectar — el más reciente gana
+            async driveMergeOnConnect() {
+                try {
+                    const searchRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_sync.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false&fields=files(id,modifiedTime)`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const searchData = await searchRes.json();
+
+                    if (!searchData.files || searchData.files.length === 0) {
+                        console.log('📤 Sin archivo en Drive → subiendo local');
+                        await this.driveSyncNow();
+                        return;
+                    }
+
+                    const driveModified = new Date(searchData.files[0].modifiedTime);
+                    const localSavedAt = localStorage.getItem('anas_lastSyncAt');
+                    const localModified = localSavedAt ? new Date(localSavedAt) : null;
+
+                    console.log('🔄 Drive:', driveModified, '| Local:', localModified);
+
+                    const hasLocalData = this.employees.length > 0 || this.attendances.length > 0;
+
+                    if (!localModified && !hasLocalData) {
+                        // Sin datos locales ni timestamp → primera vez, bajar Drive
+                        console.log('📥 Sin datos locales → bajando Drive');
+                        await this.driveDownloadNomina();
+                        this.loadWorkConfig();
+                    } else if (!localModified && hasLocalData) {
+                        // Hay datos locales pero sin timestamp → conservar local y subir
+                        console.log('📤 Datos locales sin timestamp → subiendo local');
+                        await this.driveSyncNow();
+                    } else if (driveModified > localModified) {
+                        // Drive más reciente → bajar
+                        console.log('📥 Drive más reciente → bajando');
+                        await this.driveDownloadNomina();
+                        this.loadWorkConfig();
+                    } else {
+                        // Local más reciente → subir
+                        console.log('📤 Local más reciente → subiendo');
+                        await this.driveSyncNow();
+                    }
+                    // Limpiar flag de pendientes
+                    localStorage.removeItem('anas_pendingSync');
+                    localStorage.removeItem('anas_pendingSyncAt');
+                } catch(err) {
+                    console.warn('driveMergeOnConnect error, subiendo local:', err);
+                    await this.driveSyncNow();
                 }
             },
 
@@ -4037,38 +5643,60 @@
                         const idx = this.attendances.findIndex(a => a.employeeId === att.employeeId && a.date === att.date);
                         if (idx >= 0) {
                             const local = this.attendances[idx];
-                            // Only update if incoming has MORE info
-                            if (!local.checkOut && att.checkOut) {
+                            // Merge: el registro con más información gana
+                            // Si fue editado manualmente en Nómina → nunca sobreescribir con datos del Reloj
+                            if (local.manualEdit && local.checkOut) {
+                                // noop: proteger edición manual solo si ya tiene checkOut
+                            } else if (!local.checkOut && att.checkOut) {
+                                // Reloj tiene checkOut, local no → actualizar
                                 this.attendances[idx] = att;
                                 updated++;
                             } else if (local.checkOut && att.checkOut) {
-                                // Both have checkOut - keep the most recent
-                                this.attendances[idx] = att;
-                                updated++;
+                                // Ambos tienen checkOut → usar el más reciente por timestamp
+                                const localTime = local.updatedAt || local.checkOut || '';
+                                const attTime   = att.updatedAt  || att.checkOut  || '';
+                                if (attTime > localTime) {
+                                    this.attendances[idx] = att;
+                                    updated++;
+                                }
                             }
+                            // Si local tiene checkOut y reloj no → mantener local (más completo)
                         } else {
                             this.attendances.push(att);
                             added++;
                         }
                     });
-                    this.save();
-                    this.refreshAttendances();
-                    const syncTime = clockData.exportDate ? new Date(clockData.exportDate).toLocaleString('en-US') : '—';
-                    // Silent auto-sync - update label only
+                    if (added > 0 || updated > 0) {
+                        this.save();
+                        this.refreshAttendances();
+                        console.log(`🕐 Reloj sync: +${added} nuevas, ~${updated} actualizadas`);
+                    }
                     document.getElementById('driveSyncLabel').textContent = `Sync ${new Date().toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'})}`;
                 } catch(err) {
-                    alert('❌ Error: ' + err.message);
+                    console.error('driveDownloadClock error:', err.message);
                 }
             },
 
             startAutoSync() {
                 if (this.autoSyncInterval) clearInterval(this.autoSyncInterval);
                 this.autoSyncInterval = setInterval(async () => {
-                    if (this.driveConnected) {
-                        await this.driveDownloadClock(); // Bajar asistencias del Reloj
-                        await this.driveSyncNow();       // Subir datos de Nómina
+                    if (!this.driveConnected) return;
+                    // Verificar token antes de sincronizar
+                    if (!this.tokenExpiry || Date.now() > this.tokenExpiry) {
+                        this.driveConnected = false;
+                        clearInterval(this.autoSyncInterval);
+                        this.autoSyncInterval = null;
+                        document.getElementById('driveSyncLabel').textContent = '⚠️ Reconectar Drive';
+                        document.getElementById('driveSyncBtn').style.background = '#e74c3c';
+                        return;
                     }
-                }, 5 * 60 * 1000);
+                    try {
+                        await this.driveDownloadClock(); // 1. Bajar asistencias del Reloj
+                        await this.driveSyncNow();       // 2. Subir datos de Nómina actualizados
+                    } catch(e) {
+                        console.warn('Auto-sync error:', e);
+                    }
+                }, 3 * 60 * 1000); // Cada 3 minutos
             },
 
             importFromDrive() {
@@ -4166,7 +5794,20 @@
             
             // PERSISTENCIA
             save() {
-                if (this.driveConnected) setTimeout(() => this.driveSyncNow(), 500);
+                if (this.driveConnected) {
+                    setTimeout(() => this.driveSyncNow(), 500);
+                } else {
+                    // Marcar que hay cambios pendientes de subir
+                    localStorage.setItem('anas_pendingSync', 'true');
+                    localStorage.setItem('anas_pendingSyncAt', new Date().toISOString());
+                    // Mostrar indicador visual
+                    const btn = document.getElementById('driveSyncBtn');
+                    const lbl = document.getElementById('driveSyncLabel');
+                    if (btn && lbl) {
+                        btn.style.background = '#e67e22';
+                        lbl.textContent = '⚠️ Cambios sin subir';
+                    }
+                }
                 localStorage.setItem('anas_employees', JSON.stringify(this.employees));
                 localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
                 localStorage.setItem('anas_payroll', JSON.stringify(this.payrollRecords));
@@ -4230,6 +5871,7 @@
                 this.employees = JSON.parse(localStorage.getItem('anas_employees') || '[]');
                 this.attendances = JSON.parse(localStorage.getItem('anas_attendances') || '[]');
                 this.payrollRecords = JSON.parse(localStorage.getItem('anas_payroll') || '[]');
+                this.checks = JSON.parse(localStorage.getItem('anas_checks') || '[]');
                 this.savedPayrollPeriods = JSON.parse(localStorage.getItem('anas_payroll_periods') || '[]');
                 this.adminPin = localStorage.getItem('anas_adminPin') || '0000';
                 
@@ -4237,8 +5879,8 @@
                     startTime: '08:00',
                     lateTolerance: 15,
                     payrollCycle: 'weekly',
-                    payrollCloseDay: 5,
-                    weekStartDay: 1,
+                    payrollCloseDay: 4, // Jueves
+                    weekStartDay: 5, // Viernes
                     biweeklyType: '1-15',
                     monthlyType: '1-end',
                     monthlyStartDay: 1,
@@ -4279,6 +5921,46 @@
         };
         
         app.init();
+
+        // ── Detectar cambios en localStorage desde el Reloj (misma PC) ──
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'anas_attendances') {
+                app.attendances = JSON.parse(e.newValue || '[]');
+                app.refreshAttendances();
+                console.log('📋 Asistencias actualizadas desde Reloj');
+            }
+            if (e.key === 'anas_employees') {
+                app.employees = JSON.parse(e.newValue || '[]');
+                app.refreshEmployees();
+            }
+        });
+
+        // ── Detectar cuando la app vuelve al primer plano ──
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible') {
+                if (app.driveConnected) {
+                    if (!app.tokenExpiry || Date.now() > app.tokenExpiry) {
+                        app.driveConnected = false;
+                        document.getElementById('driveSyncLabel').textContent = '⚠️ Reconectar Drive';
+                        document.getElementById('driveSyncBtn').style.background = '#e74c3c';
+                    } else {
+                        try {
+                            await app.driveSyncNow();
+                            app.startAutoSync();
+                        } catch(e) { console.warn('visibilitychange sync error:', e); }
+                    }
+                }
+            }
+        });
+
+        // pageshow — Safari bfcache
+        window.addEventListener('pageshow', (e) => {
+            if (e.persisted) {
+                app.startAutoSync();
+                app.refreshAttendances();
+            }
+        });
+
     </script>
 </body>
 </html>
