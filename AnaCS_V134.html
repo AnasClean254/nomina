@@ -1407,6 +1407,13 @@ class Scheduler {
         setTimeout(() => this.updateRemindersBadge(), 600);
         // Actualizar badge cada hora
         setInterval(() => this.updateRemindersBadge(), 60 * 60 * 1000);
+        // ☁️ Autosincronizar con Drive cada 10 minutos (solo si hay cambios)
+        setInterval(() => {
+            if (this.driveConnected && this.localDirty) {
+                console.log('⏱️ Autosync Drive...');
+                this.driveSyncNow();
+            }
+        }, 10 * 60 * 1000);
 
     }
     
@@ -6270,14 +6277,17 @@ class Scheduler {
         const select = document.getElementById('invoiceClient');
         const currentValue = select.value; // Guardar valor actual si existe
         select.innerHTML = '<option value="">-- Selecciona Cliente --</option>';
-        // Ordenar por nombre para facilitar búsqueda
+        // Mostrar nombres únicos — para clientes con múltiples propiedades
+        // se toma el primer registro (la factura agrupa todas las propiedades)
         const sortedClis = [...this.clis].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+        const seenNames = new Set();
         sortedClis.forEach(c => {
+            const nameKey = c.name.trim().toLowerCase();
+            if (seenNames.has(nameKey)) return; // ya está en el dropdown
+            seenNames.add(nameKey);
             const option = document.createElement('option');
             option.value = c.id;
-            // Si el cliente tiene propId distinto al nombre, mostrarlo
-            const hasProp = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
-            option.textContent = hasProp ? `${c.name} — ${c.propId}` : c.name;
+            option.textContent = c.name;
             select.appendChild(option);
         });
         
@@ -8190,6 +8200,54 @@ class Scheduler {
         this.tokenClient.requestAccessToken({ prompt: '' });
     }
 
+    async uploadQuikTrackFile() {
+        if (!this.driveConnected || !this.driveFolderId) return;
+        try {
+            // Construir servicios por fecha y grupo para QuikTrack
+            const qtData = {};
+            this.servs.forEach(s => {
+                if (!s.date) return;
+                const cli = this.clis.find(c => String(c.id) === String(s.cliId));
+                if (!cli) return;
+                const grupo = s.grupo || 'Sin Grupo';
+                if (!qtData[s.date]) qtData[s.date] = {};
+                if (!qtData[s.date][grupo]) qtData[s.date][grupo] = { group: grupo, date: s.date, services: [] };
+                qtData[s.date][grupo].services.push({
+                    id: s.id,
+                    clientName: cli.name,
+                    propId: cli.propId || '',
+                    address: [cli.address, cli.city].filter(Boolean).join(', '),
+                    phone: cli.tel || cli.phone || '',
+                    scheduledStart: s.timeStart || '',
+                    scheduledEnd: s.timeEnd || '',
+                    price: parseFloat(cli.price) || 0,
+                    status: s.status || 'pending',
+                    note: s.note || ''
+                });
+            });
+
+            const qtFile = 'anaCS_quiktrack.json';
+            const srQt = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=name='${qtFile}'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                { headers: { Authorization: `Bearer ${this.driveToken}` } }
+            );
+            const sdQt = await srQt.json();
+            const qtFileId = sdQt.files && sdQt.files.length > 0 ? sdQt.files[0].id : null;
+            const formQt = new FormData();
+            const metaQt = { name: qtFile, parents: qtFileId ? undefined : [this.driveFolderId] };
+            formQt.append('metadata', new Blob([JSON.stringify(metaQt)], { type: 'application/json' }));
+            formQt.append('file', new Blob([JSON.stringify(qtData, null, 2)], { type: 'application/json' }));
+            await fetch(
+                qtFileId ? `https://www.googleapis.com/upload/drive/v3/files/${qtFileId}?uploadType=multipart`
+                         : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                { method: qtFileId ? 'PATCH' : 'POST', headers: { Authorization: `Bearer ${this.driveToken}` }, body: formQt }
+            );
+            console.log('✅ anaCS_quiktrack.json actualizado en Drive');
+        } catch(e) {
+            console.warn('⚠️ No se pudo actualizar anaCS_quiktrack.json:', e.message);
+        }
+    }
+
     async refreshTokenIfNeeded() {
         if (!this.tokenClient) return;
         if (!this.tokenExpiry || Date.now() > this.tokenExpiry) {
@@ -8271,6 +8329,9 @@ class Scheduler {
             this.localDirty = false; // Cambios subidos exitosamente
             document.getElementById('driveSyncLabel').textContent = `Sync ${now}`;
             document.getElementById('driveSyncBtn').style.background = '#27ae60';
+
+            // ── Subir archivo para QuikTrack ──
+            await this.uploadQuikTrackFile();
         } catch(err) {
             document.getElementById('driveSyncLabel').textContent = '⚠️ Error';
             document.getElementById('driveSyncBtn').style.background = '#e74c3c';
