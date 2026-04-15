@@ -13,7 +13,7 @@
             --color-unico: #95a5a6; --color-diario: #e67e22; --color-2xsemana: #d35400; --color-3xsemana: #e84393; 
             --color-semanal: #2980b9; --color-quincenal: #9b59b6; --color-mensual: #27ae60;
             --color-airbnb: #FF5A5F; --color-cada3semanas: #16a085;
-            --emp-col-width: 260px; 
+            --emp-col-width: 150px; 
         }
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; }
@@ -88,7 +88,7 @@
 
         /* Celdas */
         .cells-container { display: grid; background: #fff; }
-        .time-cell { border-right: 1px solid #d0d5dd; border-bottom: 1px solid #d0d5dd; padding: 6px; min-height: 70px; transition: 0.2s; }
+        .time-cell { border-right: 1px solid #d0d5dd; border-bottom: 1px solid #d0d5dd; padding: 6px; min-height: 70px; transition: 0.2s; min-width: 0; overflow: hidden; }
         .time-cell:hover { background-color: #fcfcfc; }
         .time-cell.today { background-color: var(--today-bg) !important; }
 
@@ -105,7 +105,11 @@
             box-shadow: 0 1px 4px rgba(0,0,0,0.18); 
             line-height: 1.3;
             text-shadow: 0 1px 1px rgba(0,0,0,0.2);
+            min-width: 0;
+            max-width: 100%;
+            overflow: hidden;
         }
+        .ev-time { font-size: 0.62rem; font-weight: 600; color: inherit; opacity: 0.85; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
         .ev-propid { font-size: 0.62rem; font-weight: 400; opacity: 0.90; padding-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
         .ev-prop { 
             font-size: 0.68rem; 
@@ -114,6 +118,9 @@
             letter-spacing: 0.01em;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
+        .ev-row { display: flex; align-items: baseline; gap: 4px; min-width: 0; overflow: hidden; }
+        .ev-time-col { font-size: 0.62rem; font-weight: 700; white-space: nowrap; flex-shrink: 0; opacity: 0.9; min-width: 0; }
+        .ev-name-col { font-size: 0.68rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
 
         /* Modales */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); }
@@ -432,7 +439,7 @@
         /* Fila 1: Logo + Fecha + Botones */
         .header-row-1-final {
             display: grid;
-            grid-template-columns: 260px 1fr auto;
+            grid-template-columns: 150px 1fr auto;
             align-items: center;
             padding: 8px 15px;
             background: #1a2535;
@@ -497,7 +504,7 @@
         /* Fila 2: Navegación + Filtros */
         .header-row-2-final {
             display: grid;
-            grid-template-columns: 260px 1fr auto;
+            grid-template-columns: 150px 1fr auto;
             align-items: center;
             padding: 6px 15px;
             background: #f4f6f8;
@@ -739,7 +746,6 @@
                 <button class="btn-action" onclick="app.showSMSModal()" style="background:#2980b9; color:white">📲 SMS Grupos</button>
                 <button class="btn-action btn-dark" onclick="app.exportar()">📥 Exportar</button>
                 <button class="btn-action btn-dark" onclick="app.importar()">📂 Importar</button>
-                <button class="btn-action" onclick="app.importClientsFromExcel()" style="background:#27ae60; color:white;">📊 Importar Clientes Excel</button>
                 <button class="btn-action" id="driveSyncBtn" onclick="app.driveSync()" style="background:#4285f4; color:white;">☁️ <span id="driveSyncLabel">Drive</span></button>
             </div>
         </div>
@@ -818,6 +824,16 @@
                     <input type="number" id="mPriority" value="1" min="1" max="99" style="width:100px">
                     <small style="color:#666; display:block; margin-top:4px">1=primero, 2=segundo, 3=tercero...</small>
                 </div>
+                <div style="grid-column: span 2; display:grid; grid-template-columns:1fr 1fr; gap:10px; background:#f0f7ff; padding:12px; border-radius:8px; border:1px solid #c5d8ff;">
+                    <div>
+                        <label style="font-size:0.85rem; color:#0D2B8E; font-weight:600;">🕐 Hora de llegada</label>
+                        <input type="time" id="mTimeStart" style="width:100%; padding:6px; border:1px solid #c5d8ff; border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.85rem; color:#0D2B8E; font-weight:600;">🕑 Hora de salida</label>
+                        <input type="time" id="mTimeEnd" style="width:100%; padding:6px; border:1px solid #c5d8ff; border-radius:6px;">
+                    </div>
+                </div>
                 <div style="grid-column: span 2; display:flex; align-items:center; gap:12px; background:#fff3cd; padding:10px 14px; border-radius:8px; border:1px solid #ffc107;">
                     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin:0; font-weight:600; color:#856404;">
                         <input type="checkbox" id="mCancelled" style="width:18px; height:18px; accent-color:#e74c3c;">
@@ -870,15 +886,51 @@
     
 
 <div id="customizeModal" class="modal">
-    <div class="modal-content" style="max-width:800px">
-        <h2>🎨 Personalizar Colores</h2>
-        <p style="color:#666; margin-bottom:20px">Selecciona un color para cada tipo de recurrencia</p>
-        
+    <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 style="margin:0;">🎨 Personalizar Colores</h2>
+            <button onclick="app.closeCustomize()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#999;">✕</button>
+        </div>
+
+        <!-- Selector de tipo -->
+        <div style="margin-bottom:16px;">
+            <label style="font-size:0.85rem; font-weight:600; color:#555; display:block; margin-bottom:6px;">Tipo de serie</label>
+            <select id="colorTypeSelect" onchange="app.renderColorEditor()"
+                style="width:100%; padding:10px; border:2px solid var(--primary); border-radius:8px; font-size:0.95rem; font-weight:600;">
+                <option value="">— Selecciona un tipo —</option>
+                <option value="unico">Único</option>
+                <option value="diario">Diario</option>
+                <option value="2xsemana">2x Semana</option>
+                <option value="3xsemana">3x Semana</option>
+                <option value="semanal">Semanal</option>
+                <option value="cada3semanas">Cada 3 Semanas</option>
+                <option value="quincenal">Quincenal</option>
+                <option value="mensual">Mensual</option>
+                <option value="airbnb">AirBnB</option>
+            </select>
+        </div>
+
+        <!-- Editor de color (se muestra al seleccionar tipo) -->
         <div id="colorCustomization"></div>
-        
+
         <div style="display:flex; gap:6px; margin-top:20px">
-            <button class="btn" onclick="app.resetColors()" style="background:#95a5a6; flex:1">↺ Restaurar Colores por Defecto</button>
+            <button class="btn" onclick="app.resetColors()" style="background:#95a5a6; flex:1">↺ Restaurar Colores</button>
             <button class="btn" onclick="app.closeCustomize()" style="background:var(--primary); flex:1">✓ Cerrar</button>
+        </div>
+        <div style="margin-top:24px; padding:16px; background:#fff5f5; border:2px solid #e74c3c; border-radius:10px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                <span style="font-size:1.3rem;">⚠️</span>
+                <strong style="color:#c0392b; font-size:0.95rem;">ZONA DE PELIGRO</strong>
+            </div>
+            <p style="color:#666; font-size:0.82rem; margin-bottom:10px;">
+                Esta acción eliminará <strong>TODOS los servicios</strong> registrados en el calendario.<br>
+                Los clientes, empleados y grupos <strong>no se verán afectados</strong>.<br>
+                <strong>Esta operación NO se puede deshacer.</strong>
+            </p>
+            <button class="btn" onclick="app.clearAllServices()"
+                style="background:#e74c3c; color:white; width:100%; font-weight:700;">
+                🗑️ Borrar TODOS los Servicios del Calendario
+            </button>
         </div>
     </div>
 </div>
@@ -909,10 +961,10 @@
                 <div id="listE" style="max-height:450px; overflow-y:auto"></div>
             </div>
             <div id="secCli" style="display:none">
-                <div style="margin-bottom:15px; display:flex; gap:8px;">
+                <div style="margin-bottom:8px; display:flex; gap:8px;">
+                    <button onclick="app.importClientsFromExcel()" class="btn" style="background:#27ae60; color:white; flex:1">📊 Importar Excel</button>
                     <button onclick="app.importClientsCSV()" class="btn" style="background:#3498db; color:white; flex:1">📥 Importar CSV</button>
                     <button onclick="app.exportClientsCSV()" class="btn" style="background:#9b59b6; color:white; flex:1">📤 Exportar CSV</button>
-                    <button onclick="app.downloadClientTemplate()" class="btn" style="background:#27ae60; color:white; flex:1">📋 Plantilla</button>
                     <button onclick="app.toggleCliForm()" id="btnToggleCliForm" class="btn" style="background:#e67e22; color:white; flex:1">➕ Nuevo Cliente</button>
                 </div>
 
@@ -949,6 +1001,12 @@
                             <option value="biweekly">📅 Facturar Quincenalmente</option>
                             <option value="monthly">📅 Facturar Mensualmente</option>
                             <option value="perservice">📅 Facturar por Servicio</option>
+                        </select>
+                        <label style="font-size:0.8rem; color:#555; margin-top:6px; display:block; grid-column:span 2;">💳 Tipo de Cobro</label>
+                        <select id="cliInvoicingType" style="grid-column:span 2">
+                            <option value="monthly">📋 Mensual (suma de visitas del mes)</option>
+                            <option value="fixed_monthly">📌 Cargo Fijo Mensual (monto fijo)</option>
+                            <option value="perservice">🧾 Por Servicio (cada visita)</option>
                         </select>
                     </div>
                     <div id="regenBlock" style="display:none; background:#fff3cd; border:1px solid #ffc107; border-radius:8px; padding:10px; margin-bottom:8px;">
@@ -987,9 +1045,43 @@
 
             <div id="secConfig" style="display:none">
                 <h3 style="margin-top:0; color:var(--primary)">🎨 Configuración de Colores por Tipo de Serie</h3>
-                <p style="color:#666; margin-bottom:20px">Personaliza el color que se mostrará en el calendario para cada tipo de recurrencia</p>
-                
+                <p style="color:#666; margin-bottom:12px">Selecciona un tipo de serie para personalizar sus colores</p>
+
+                <!-- Dropdown selector -->
+                <div style="margin-bottom:16px;">
+                    <select id="seriesTypeSelect" onchange="app.renderSeriesConfig()"
+                        style="width:100%; padding:10px; border:2px solid var(--primary); border-radius:8px; font-size:0.95rem; font-weight:600; color:#333;">
+                        <option value="">— Selecciona un tipo de serie —</option>
+                        <option value="unico">⚪ Único</option>
+                        <option value="diario">📅 Diario</option>
+                        <option value="2xsemana">📆 2x Semana</option>
+                        <option value="3xsemana">📆 3x Semana</option>
+                        <option value="semanal">📅 Semanal</option>
+                        <option value="cada3semanas">📆 Cada 3 Semanas</option>
+                        <option value="quincenal">🗓️ Quincenal</option>
+                        <option value="mensual">📆 Mensual</option>
+                        <option value="airbnb">🏠 AirBnB</option>
+                    </select>
+                </div>
+
                 <div id="seriesConfigList"></div>
+
+                <!-- Zona de peligro -->
+                <div style="margin-top:24px; padding:16px; background:#fff5f5; border:2px solid #e74c3c; border-radius:10px;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                        <span style="font-size:1.3rem;">⚠️</span>
+                        <strong style="color:#c0392b; font-size:0.95rem;">ZONA DE PELIGRO</strong>
+                    </div>
+                    <p style="color:#666; font-size:0.82rem; margin-bottom:10px;">
+                        Elimina <strong>TODOS los servicios</strong> del calendario.<br>
+                        Clientes, empleados y grupos <strong>no se verán afectados</strong>.<br>
+                        <strong>Esta operación NO se puede deshacer.</strong>
+                    </p>
+                    <button class="btn" onclick="app.clearAllServices()"
+                        style="background:#e74c3c; color:white; width:100%; font-weight:700;">
+                        🗑️ Borrar TODOS los Servicios del Calendario
+                    </button>
+                </div>
             </div>
         </div>
         <button class="btn" onclick="app.closeCatalog()" style="width:100%; margin-top:20px; background:#2c3e50; color:white">CERRAR</button>
@@ -1315,6 +1407,7 @@ class Scheduler {
         setTimeout(() => this.updateRemindersBadge(), 600);
         // Actualizar badge cada hora
         setInterval(() => this.updateRemindersBadge(), 60 * 60 * 1000);
+
     }
     
     // 🔔 RECORDATORIOS — Servicios mensuales en 2 días
@@ -1419,6 +1512,79 @@ class Scheduler {
             <div class="footer">Generado el ${new Date().toLocaleDateString('es-US',{dateStyle:'long'})}</div>
             </body></html>`);
         win.document.close(); win.print();
+    }
+
+    // Reordenar TODA la semana actual al cargar
+    reorderAllByTime() {
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const mon = this.getMon(today);
+        let changed = false;
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(mon);
+            d.setDate(mon.getDate() + i);
+            const dateStr = d.toLocaleDateString('en-CA');
+            Object.keys(this.grupos).forEach(grupo => {
+                const serviciosDelDia = this.servs.filter(s => {
+                    if (s.date !== dateStr || s.cancelled) return false;
+                    return s.empId === grupo || (this.grupos[grupo] && this.grupos[grupo].includes(s.empId.toString()));
+                });
+                const conHora = serviciosDelDia.filter(s => s.timeStart);
+                if (conHora.length === 0) return;
+                serviciosDelDia.sort((a, b) => {
+                    const aTime = a.timeStart || '';
+                    const bTime = b.timeStart || '';
+                    if (aTime && bTime) return aTime.localeCompare(bTime);
+                    if (aTime) return -1;
+                    if (bTime) return 1;
+                    return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
+                });
+                serviciosDelDia.forEach((s, idx) => {
+                    const real = this.servs.find(x => x.id === s.id);
+                    if (real && real.priority !== idx + 1) {
+                        real.priority = idx + 1;
+                        changed = true;
+                    }
+                });
+            });
+        }
+        if (changed) { this.save(); this.render(); }
+    }
+
+    // Reordenar prioridad de servicios del día por hora
+    reorderPriorityByTime(grupo, fecha) {
+        if (!fecha) return;
+        const serviciosDelDia = this.servs.filter(s => {
+            if (s.date !== fecha || s.cancelled) return false;
+            return s.empId === grupo || (this.grupos[grupo] && this.grupos[grupo].includes(s.empId.toString()));
+        });
+        // Solo reordenar si al menos uno tiene hora
+        const conHora = serviciosDelDia.filter(s => s.timeStart);
+        if (conHora.length === 0) return;
+        // Ordenar: primero los que tienen hora (por hora), luego los que no (por prioridad actual)
+        serviciosDelDia.sort((a, b) => {
+            const aTime = a.timeStart || '';
+            const bTime = b.timeStart || '';
+            if (aTime && bTime) return aTime.localeCompare(bTime);
+            if (aTime) return -1;
+            if (bTime) return 1;
+            return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
+        });
+        // Reasignar prioridad 1, 2, 3...
+        serviciosDelDia.forEach((s, idx) => {
+            const real = this.servs.find(x => x.id === s.id);
+            if (real) real.priority = idx + 1;
+        });
+        this.save();
+    }
+
+    // Helper formato 12h
+    fmt12(t) {
+        if (!t) return '';
+        const [h, m] = t.split(':').map(Number);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12 = h % 12 || 12;
+        return `${h12}:${String(m).padStart(2,'0')} ${ampm}`;
     }
 
     // Helper para obtener fecha local en formato YYYY-MM-DD
@@ -1594,7 +1760,14 @@ class Scheduler {
                         daily.forEach(s => { if(!seen.has(s.id)) { seen.add(s.id); allServs.push({...s, grupo: g}); } });
                     });
 
-                    allServs.sort((a,b) => (parseInt(a.priority)||999) - (parseInt(b.priority)||999));
+                    allServs.sort((a,b) => {
+                        const aTime = a.timeStart || '';
+                        const bTime = b.timeStart || '';
+                        if (aTime && bTime) return aTime.localeCompare(bTime);
+                        if (aTime) return -1;
+                        if (bTime) return 1;
+                        return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
+                    });
 
                     const MAX_VISIBLE = 3;
                     const visible = allServs.slice(0, MAX_VISIBLE);
@@ -1754,7 +1927,15 @@ class Scheduler {
             return this.grupos[nombreGrupo].includes(s.empId.toString());
         });
         if(fCli !== 'all') daily = daily.filter(s => s.cliId == fCli);
-        daily.sort((a,b) => (parseInt(a.priority)||999)-(parseInt(b.priority)||999));
+        daily.sort((a,b) => {
+            // Ordenar por hora si tienen hora, sino por prioridad
+            const aTime = a.timeStart || '';
+            const bTime = b.timeStart || '';
+            if (aTime && bTime) return aTime.localeCompare(bTime);
+            if (aTime) return -1;
+            if (bTime) return 1;
+            return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
+        });
         daily.forEach(s => {
             const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
             const div = document.createElement('div'); div.className = 'service-event';
@@ -1774,9 +1955,12 @@ class Scheduler {
                 div.style.backgroundColor = bgColor4;
                 const textMode4 = this.getTextMode(typeKey4);
                 div.style.color = textMode4 === 'auto' ? getTextColor(bgColor4) : (textMode4 === 'white' ? '#fff' : '#000');
-                const mainLine = `${prioPrefix}${c.name}${c.city ? ' - ' + c.city : ''}`;
-                const propLine = showPropId && c.propId ? `<div class="ev-propid">${c.propId}</div>` : '';
-                div.innerHTML = `<div class="ev-prop">${mainLine}</div>${propLine}`;
+                const propPart = showPropId && c.propId ? ` - ${c.propId}` : '';
+                const mainLine = `${prioPrefix}${c.name}${propPart}${c.city ? ' - ' + c.city : ''}`;
+                const timeLine = (s.timeStart || s.timeEnd)
+                    ? `<div class="ev-time">${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}</div>`
+                    : '';
+                div.innerHTML = `<div class="ev-prop">${mainLine}</div>${timeLine}`;
             }
             div.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
             cell.appendChild(div);
@@ -1825,6 +2009,8 @@ class Scheduler {
             if(suggBadgeE) suggBadgeE.style.display = 'none'; 
             document.getElementById('taskName').value = s.name || ''; 
             if(document.getElementById('mPriority')) document.getElementById('mPriority').value = s.priority || '3';
+            document.getElementById('mTimeStart').value = s.timeStart || '';
+            document.getElementById('mTimeEnd').value = s.timeEnd || '';
             document.getElementById('mCancelled').checked = s.cancelled || false;
             document.getElementById('btnDel').style.display = 'inline-block';
 
@@ -1835,6 +2021,8 @@ class Scheduler {
             document.getElementById('mDate').value = d || new Date().toLocaleDateString('en-CA');
             const suggBadge = document.getElementById('groupSuggestion');
             if(suggBadge) suggBadge.style.display = 'none';
+            document.getElementById('mTimeStart').value = '';
+            document.getElementById('mTimeEnd').value = '';
             if(document.getElementById('mCli').value) setTimeout(() => this.suggestGroup(), 50); 
             document.getElementById('taskName').value = ''; 
             if(document.getElementById('mPriority')) document.getElementById('mPriority').value = '1';
@@ -1924,7 +2112,8 @@ class Scheduler {
         const opcion = confirm("¿Borrar SOLO este servicio?\n\n✅ Aceptar = Solo este\n❌ Cancelar = Ver más opciones");
         if (opcion) {
             this.servs = this.servs.filter(s => s.id !== this.editing.id);
-            this.save(); 
+            this.save();
+            this.reorderPriorityByTime(document.getElementById('mEmp').value, document.getElementById('mDate').value);
             this.closeModal(); 
             this.render();
             // ✅ Actualizar Finanzas si está abierto
@@ -2015,7 +2204,9 @@ class Scheduler {
             id: this.editing?this.editing.id:Date.now(), 
             cliId: document.getElementById('mCli').value, 
             empId: document.getElementById('mEmp').value, 
-            date: document.getElementById('mDate').value, 
+            date: document.getElementById('mDate').value,
+            timeStart: document.getElementById('mTimeStart').value || '',
+            timeEnd: document.getElementById('mTimeEnd').value || '', 
             name: document.getElementById('taskName').value,
             priority: document.getElementById('mPriority')?.value || '1',
             cancelled: isCancelled
@@ -2264,102 +2455,135 @@ class Scheduler {
     closeCustomize() {
         document.getElementById('customizeModal').style.display = 'none';
     }
-    
-    renderColorCustomization() {
-        const types = [
-            {key: 'unico', name: 'Único', default: '#95a5a6'},
-            {key: 'diario', name: 'Diario', default: '#e67e22'},
-            {key: '2xsemana', name: '2x Semana', default: '#d35400'},
-            {key: '3xsemana', name: '3x Semana', default: '#e84393'},
-            {key: 'semanal', name: 'Semanal', default: '#2980b9'},
-            {key: 'cada3semanas', name: 'Cada 3 Semanas', default: '#16a085'},
-            {key: 'quincenal', name: 'Quincenal', default: '#9b59b6'},
-            {key: 'mensual', name: 'Mensual', default: '#27ae60'},
-            {key: 'airbnb', name: 'AirBnB', default: '#FF5A5F'}
-        ];
-        
-        // Paleta de 24 colores
-        const palette = [
-            '#e74c3c', '#c0392b', '#d35400', '#e67e22',
-            '#f39c12', '#f1c40f', '#27ae60', '#2ecc71',
-            '#16a085', '#1abc9c', '#2980b9', '#3498db',
-            '#8e44ad', '#9b59b6', '#34495e', '#2c3e50',
-            '#e84393', '#fd79a8', '#00b894', '#00cec9',
-            '#0984e3', '#6c5ce7', '#95a5a6', '#7f8c8d'
-        ];
-        
-        let html = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:15px">';
-        
-        types.forEach(type => {
-            const currentColor = this.getColor(type.key);
-            const currentTextMode = this.getTextMode(type.key); // 'auto' | 'white' | 'black'
-            const autoTextColor = getTextColor(currentColor);
 
-            const paletteHtml = palette.map(color => {
-                const selected = currentColor.toLowerCase() === color.toLowerCase() ? 'selected' : '';
-                return `<div class="color-option ${selected}" 
-                             style="background:${color}" 
-                             onclick="app.updateColor('${type.key}', '${color}')"
-                             title="${color}">
-                        </div>`;
-            }).join('');
+    clearAllServices() {
+        // Primera confirmación
+        const first = confirm(
+            '⚠️ ADVERTENCIA\n\n' +
+            'Estás a punto de ELIMINAR TODOS LOS SERVICIOS del calendario.\n\n' +
+            '• Esta acción NO se puede deshacer\n' +
+            '• Los clientes y empleados NO se verán afectados\n' +
+            '• Los servicios en Drive también serán reemplazados\n\n' +
+            '¿Deseas continuar?'
+        );
+        if (!first) return;
 
-            // Preview del cuadro de servicio con el color actual
-            const previewTextColor = currentTextMode === 'auto' ? autoTextColor : (currentTextMode === 'white' ? '#fff' : '#000');
-            const previewShadow = previewTextColor === '#fff' ? '0 1px 1px rgba(0,0,0,0.3)' : '0 1px 1px rgba(255,255,255,0.3)';
+        // Segunda confirmación
+        const second = confirm(
+            '🛑 CONFIRMACIÓN FINAL\n\n' +
+            'Esta es tu ÚLTIMA oportunidad para cancelar.\n\n' +
+            'Se eliminarán ' + this.servs.length + ' servicio(s) permanentemente.\n\n' +
+            '¿Estás COMPLETAMENTE SEGURO?'
+        );
+        if (!second) return;
 
-            html += `
-                <div class="recurrence-color-item">
-                    <h4>${type.name}</h4>
-                    <div style="display:flex; align-items:center; gap:12px; margin-bottom:10px">
-                        <!-- Preview cuadro servicio -->
-                        <div style="background:${currentColor}; border-radius:6px; padding:8px 12px;
-                                    border-left:3px solid rgba(0,0,0,0.25); box-shadow:0 2px 5px rgba(0,0,0,0.15);
-                                    min-width:90px; text-align:center;">
-                            <span style="color:${previewTextColor}; font-weight:700; font-size:0.82rem; text-shadow:${previewShadow};">
-                                Cliente Ejemplo
-                            </span>
-                        </div>
-                        <div style="flex:1">
-                            <div style="font-size:0.78rem; color:#999; margin-bottom:4px;">Color fondo</div>
-                            <div style="font-family:monospace; font-weight:bold; color:#333; font-size:0.85rem;">${currentColor.toUpperCase()}</div>
-                        </div>
-                    </div>
-                    <!-- Selector color de texto -->
-                    <div style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
-                        <span style="font-size:0.75rem; color:#666; font-weight:600;">Letra:</span>
-                        <button onclick="app.updateTextMode('${type.key}','auto')"
-                            style="padding:3px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer; font-weight:600;
-                                   border: 2px solid ${currentTextMode==='auto'?'#3498db':'#ddd'};
-                                   background:${currentTextMode==='auto'?'#ebf5fb':'#fff'};
-                                   color:${currentTextMode==='auto'?'#2980b9':'#666'};">
-                            Auto (${autoTextColor==='#fff'?'blanca':'negra'})
-                        </button>
-                        <button onclick="app.updateTextMode('${type.key}','white')"
-                            style="padding:3px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer; font-weight:700;
-                                   border: 2px solid ${currentTextMode==='white'?'#3498db':'#ddd'};
-                                   background:${currentTextMode==='white'?'#333':'#fff'};
-                                   color:${currentTextMode==='white'?'white':'#666'};">
-                            Blanca
-                        </button>
-                        <button onclick="app.updateTextMode('${type.key}','black')"
-                            style="padding:3px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer; font-weight:700;
-                                   border: 2px solid ${currentTextMode==='black'?'#3498db':'#ddd'};
-                                   background:${currentTextMode==='black'?'#f5f5f5':'#fff'};
-                                   color:${currentTextMode==='black'?'#222':'#666'};">
-                            Negra
-                        </button>
-                    </div>
-                    <div class="color-palette">
-                        ${paletteHtml}
-                    </div>
-                </div>
-            `;
-        });
-        
-        document.getElementById('colorCustomization').innerHTML = html;
+        // Borrar servicios
+        this.servs = [];
+        this.save();
+        this.render();
+        this.closeCustomize();
+        alert('✅ Todos los servicios han sido eliminados.\nYa puedes empezar a crear las series.');
     }
     
+    renderColorCustomization() {
+        // Ya no se usa — renderColorEditor() reemplaza esta función
+        this.renderColorEditor();
+    }
+
+    renderColorEditor() {
+        const sel = document.getElementById('colorTypeSelect');
+        const container = document.getElementById('colorCustomization');
+        if (!sel || !container) return;
+
+        const typeKey = sel.value;
+        if (!typeKey) {
+            container.innerHTML = '<p style="color:#aaa; text-align:center; padding:20px 0; font-size:0.88rem;">Selecciona un tipo de serie para configurar sus colores.</p>';
+            return;
+        }
+
+        const typeNames = {
+            unico:'Único', diario:'Diario', '2xsemana':'2x Semana',
+            '3xsemana':'3x Semana', semanal:'Semanal',
+            cada3semanas:'Cada 3 Semanas', quincenal:'Quincenal',
+            mensual:'Mensual', airbnb:'AirBnB'
+        };
+
+        const palette = [
+            '#e74c3c','#c0392b','#d35400','#e67e22',
+            '#f39c12','#f1c40f','#27ae60','#2ecc71',
+            '#16a085','#1abc9c','#0D2B8E','#1A4FCC',
+            '#8e44ad','#9b59b6','#34495e','#2c3e50',
+            '#e84393','#fd79a8','#00b894','#00cec9',
+            '#0984e3','#6c5ce7','#95a5a6','#7f8c8d'
+        ];
+
+        const currentColor = this.getColor(typeKey);
+        const currentTextMode = this.getTextMode(typeKey);
+        const autoTextColor = getTextColor(currentColor);
+        const previewTextColor = currentTextMode === 'auto' ? autoTextColor : (currentTextMode === 'white' ? '#fff' : '#000');
+
+        const paletteHtml = palette.map(color => {
+            const selected = currentColor.toLowerCase() === color.toLowerCase();
+            return `<div onclick="app.updateColorAndRefresh('${typeKey}','${color}')"
+                        title="${color}"
+                        style="width:32px;height:32px;border-radius:6px;cursor:pointer;background:${color};
+                               border:${selected ? '3px solid #fff' : '2px solid transparent'};
+                               box-shadow:${selected ? '0 0 0 2px #333' : '0 1px 3px rgba(0,0,0,0.2)'};
+                               transition:transform 0.1s;"
+                        onmouseover="this.style.transform='scale(1.15)'"
+                        onmouseout="this.style.transform='scale(1)'">
+                   </div>`;
+        }).join('');
+
+        container.innerHTML = `
+            <!-- Preview -->
+            <div style="background:#f8f9fa; border-radius:10px; padding:14px; margin-bottom:16px; text-align:center;">
+                <div style="font-size:0.75rem; color:#888; margin-bottom:8px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;">Preview</div>
+                <div style="display:inline-block; background:${currentColor}; border-radius:6px; padding:10px 20px;
+                            border-left:3px solid rgba(0,0,0,0.25); box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+                    <span style="color:${previewTextColor}; font-weight:700; font-size:0.85rem;">
+                        ${typeNames[typeKey]} — Cliente Ejemplo
+                    </span>
+                </div>
+                <div style="margin-top:8px; font-family:monospace; font-size:0.78rem; color:#888;">${currentColor.toUpperCase()}</div>
+            </div>
+
+            <!-- Paleta -->
+            <div style="margin-bottom:14px;">
+                <div style="font-size:0.8rem; font-weight:600; color:#555; margin-bottom:8px;">Color de fondo</div>
+                <div style="display:grid; grid-template-columns:repeat(8,1fr); gap:6px;">${paletteHtml}</div>
+            </div>
+
+            <!-- Color texto -->
+            <div>
+                <div style="font-size:0.8rem; font-weight:600; color:#555; margin-bottom:8px;">Color de texto</div>
+                <div style="display:flex; gap:8px;">
+                    ${['auto','white','black'].map(mode => {
+                        const active = currentTextMode === mode;
+                        const labels = {auto: `Auto (${autoTextColor==='#fff'?'blanca':'negra'})`, white:'Blanca ☀️', black:'Negra 🌑'};
+                        return `<button onclick="app.updateTextModeAndRefresh('${typeKey}','${mode}')"
+                            style="flex:1; padding:7px 4px; font-size:0.78rem; border-radius:6px; cursor:pointer; font-weight:600;
+                                   border:2px solid ${active ? 'var(--primary)' : '#ddd'};
+                                   background:${active ? 'var(--primary)' : '#fff'};
+                                   color:${active ? '#fff' : '#666'};">
+                            ${labels[mode]}
+                        </button>`;
+                    }).join('')}
+                </div>
+            </div>`;
+    }
+
+    updateColorAndRefresh(typeKey, color) {
+        this.updateColor(typeKey, color);
+        this.renderColorEditor();
+    }
+
+    updateTextModeAndRefresh(typeKey, mode) {
+        this.updateTextMode(typeKey, mode);
+        this.renderColorEditor();
+    }
+
+
     getTextMode(type) {
         const stored = localStorage.getItem('customTextModes');
         if(stored) {
@@ -4751,17 +4975,31 @@ class Scheduler {
 
     // Catálogos
     renderSeriesConfig() {
+        const sel = document.getElementById('seriesTypeSelect');
+        const container = document.getElementById('seriesConfigList');
+        if (!container) return;
+
+        const typeKey = sel ? sel.value : '';
+        if (!typeKey) {
+            container.innerHTML = '<p style="color:#aaa; text-align:center; padding:30px 0; font-size:0.9rem;">Selecciona un tipo de serie arriba para configurar sus colores.</p>';
+            return;
+        }
+
         const types = [
-            {key: 'unico', name: 'Único', icon: '⚪', desc: 'Servicios sin repetición'},
-            {key: 'diario', name: 'Diario', icon: '📅', desc: 'De lunes a viernes'},
-            {key: '2xsemana', name: '2x Semana', icon: '📆', desc: 'Dos veces por semana'},
-            {key: '3xsemana', name: '3x Semana', icon: '📆', desc: 'Tres veces por semana'},
-            {key: 'semanal', name: 'Semanal', icon: '📅', desc: 'Una vez por semana'},
-            {key: 'cada3semanas', name: 'Cada 3 Semanas', icon: '📆', desc: 'Cada tres semanas'},
-            {key: 'quincenal', name: 'Quincenal', icon: '🗓️', desc: 'Cada dos semanas'},
-            {key: 'mensual', name: 'Mensual', icon: '📆', desc: 'Una vez al mes'},
-            {key: 'airbnb', name: 'AirBnB', icon: '🏠', desc: 'Propiedades de alquiler temporal'}
+            {key: 'unico',        name: 'Único',          icon: '⚪', desc: 'Servicios sin repetición'},
+            {key: 'diario',       name: 'Diario',          icon: '📅', desc: 'De lunes a viernes'},
+            {key: '2xsemana',     name: '2x Semana',       icon: '📆', desc: 'Dos veces por semana'},
+            {key: '3xsemana',     name: '3x Semana',       icon: '📆', desc: 'Tres veces por semana'},
+            {key: 'semanal',      name: 'Semanal',         icon: '📅', desc: 'Una vez por semana'},
+            {key: 'cada3semanas', name: 'Cada 3 Semanas',  icon: '📆', desc: 'Cada tres semanas'},
+            {key: 'quincenal',    name: 'Quincenal',       icon: '🗓️', desc: 'Cada dos semanas'},
+            {key: 'mensual',      name: 'Mensual',         icon: '📆', desc: 'Una vez al mes'},
+            {key: 'airbnb',       name: 'AirBnB',          icon: '🏠', desc: 'Propiedades de alquiler temporal'}
         ];
+        const type = types.find(t => t.key === typeKey);
+        if (!type) return;
+        // usar solo el tipo seleccionado
+        const typesFiltered = [type];
         
         const palette = [
             '#e74c3c', '#c0392b', '#d35400', '#e67e22',
@@ -4772,9 +5010,8 @@ class Scheduler {
             '#0984e3', '#6c5ce7', '#95a5a6', '#7f8c8d'
         ];
         
-        let html = '<div style="display:grid; grid-template-columns:1fr 1fr; gap:15px">';
-        
-        types.forEach(type => {
+        let html = '<div>';
+        typesFiltered.forEach(type => {
             const currentColor = this.getColor(type.key);
             const currentTextMode = this.getTextMode(type.key);
             const autoTextColor = getTextColor(currentColor);
@@ -4829,15 +5066,12 @@ class Scheduler {
             `;
         });
         
-        html += '</div>';  // Cerrar grid de 2 columnas
-        
-        html += `
-            <div style="margin-top:20px; padding:15px; background:#f8f9fa; border-radius:8px; text-align:center">
-                <button class="btn" onclick="app.resetColors()" style="background:#95a5a6; color:white">
-                    ↺ Restaurar Colores por Defecto
-                </button>
-            </div>
-        `;
+        html += `<div style="margin-top:14px; text-align:right">
+            <button class="btn" onclick="app.resetColors()" style="background:#95a5a6; color:white; font-size:0.82rem; padding:6px 14px;">
+                ↺ Restaurar color por defecto
+            </button>
+        </div>`;
+        html += '</div>';
         
         document.getElementById('seriesConfigList').innerHTML = html;
     }
@@ -4928,6 +5162,7 @@ class Scheduler {
             const idx = this.clis.findIndex(c => String(c.id) === String(editId));
             if(idx !== -1) {
                 const oldType = this.clis[idx].type;
+                const invoicingType = document.getElementById('cliInvoicingType') ? document.getElementById('cliInvoicingType').value : (this.clis[idx].invoicingType || 'monthly');
                 this.clis[idx] = {
                     id: this.clis[idx].id, // Preservar el ID original (puede ser string)
                     name: name,
@@ -4939,7 +5174,8 @@ class Scheduler {
                     zip: zip,
                     type: type,
                     serviceType: serviceType,
-                    billingPeriod: billingPeriod
+                    billingPeriod: billingPeriod,
+                    invoicingType: invoicingType
                 };
                 if (oldType !== type) {
                     console.log(`Tipo cambiado: ${oldType} → ${type}`);
@@ -4983,6 +5219,7 @@ class Scheduler {
             document.getElementById('ntype').value = 'unico';
             document.getElementById('cliServiceType').value = 'residencial';
             document.getElementById('cliBillingPeriod').value = 'monthly';
+        if (document.getElementById('cliInvoicingType')) document.getElementById('cliInvoicingType').value = 'monthly';
             document.getElementById('editCliId').value = '';
             document.getElementById('regenBlock').style.display = 'none';
             
@@ -5020,7 +5257,8 @@ class Scheduler {
                 zip: zip,
                 type: type,
                 serviceType: serviceType,
-                billingPeriod: billingPeriod
+                billingPeriod: billingPeriod,
+                invoicingType: document.getElementById('cliInvoicingType') ? document.getElementById('cliInvoicingType').value : 'monthly'
             };
             this.clis.push(newProp);
         } else {
@@ -5080,6 +5318,9 @@ class Scheduler {
         document.getElementById('ntype').value = cli.type || 'unico';
         document.getElementById('cliServiceType').value = cli.serviceType || 'residencial';
         document.getElementById('cliBillingPeriod').value = cli.billingPeriod || 'monthly';
+        if (document.getElementById('cliInvoicingType')) {
+            document.getElementById('cliInvoicingType').value = cli.invoicingType || 'monthly';
+        }
         document.getElementById('editCliId').value = cli.id;
         // Mostrar bloque de regeneración
         document.getElementById('regenBlock').style.display = 'block';
@@ -5818,7 +6059,14 @@ class Scheduler {
                 if (s.date !== dateStr) return false;
                 if (s.empId === gName) return true;
                 return this.grupos[gName] && this.grupos[gName].includes(s.empId.toString());
-            }).sort((a,b) => (parseInt(a.priority)||999) - (parseInt(b.priority)||999));
+            }).sort((a,b) => {
+                const aTime = a.timeStart || '';
+                const bTime = b.timeStart || '';
+                if (aTime && bTime) return aTime.localeCompare(bTime);
+                if (aTime) return -1;
+                if (bTime) return 1;
+                return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
+            });
 
             let servicesHtml = '';
             if (dailyServices.length === 0) {
@@ -5828,9 +6076,14 @@ class Scheduler {
                     const client = this.clis.find(c => c.id == s.cliId);
                     if (client) {
                         const showPropId = client.type === 'airbnb' || client.type === 'unico';
-                        const detail = showPropId ? ` <span style="color:#888; font-size:0.75rem;">· ${client.propId}</span>` : '';
+                        const detail = showPropId ? ` · ${client.propId}` : '';
+                        const timeStr = (s.timeStart || s.timeEnd)
+                            ? `<span style="color:#666; font-size:0.75rem; margin-left:5px;">🕐 ${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}</span>`
+                            : '';
                         const prio = s.priority ? `<span style="background:${color}; color:white; border-radius:50%; width:18px; height:18px; display:inline-flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:bold; margin-right:5px;">${s.priority}</span>` : '';
-                        servicesHtml += `<div style="padding:5px 0; border-bottom:1px solid #f0f0f0; display:flex; align-items:center;">${prio}<span style="font-size:0.85rem; color:#333;">${client.name}${detail}</span></div>`;
+                        servicesHtml += `<div style="padding:5px 0; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; justify-content:space-between;">`
+                            + `<div style="display:flex; align-items:center;">${prio}<span style="font-size:0.85rem; color:#333;">${client.name}${client.city ? ' - ' + client.city : ''}${detail}</span></div>`
+                            + `${timeStr}</div>`;
                     }
                 });
             }
@@ -5938,9 +6191,12 @@ class Scheduler {
             });
             
             dailyServices.sort((a, b) => {
-                const prioA = parseInt(a.priority) || 999;
-                const prioB = parseInt(b.priority) || 999;
-                return prioA - prioB;
+                const aTime = a.timeStart || '';
+                const bTime = b.timeStart || '';
+                if (aTime && bTime) return aTime.localeCompare(bTime);
+                if (aTime) return -1;
+                if (bTime) return 1;
+                return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
             });
             
             text += `${dayNames[date.getDay()]} ${date.getDate()}\n`;
@@ -5954,10 +6210,13 @@ class Scheduler {
                         const priority = s.priority ? `${s.priority}. ` : '';
                         const showPropId = (client.type === 'airbnb' || client.type === 'unico');
                         
+                        const timeStr = (s.timeStart || s.timeEnd)
+                            ? ` ${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}`
+                            : '';
                         if (showPropId) {
-                            text += `   ${priority}${client.name}: ${client.propId}\n`;
+                            text += `   ${priority}${client.name}: ${client.propId}${timeStr}\n`;
                         } else {
-                            text += `   ${priority}${client.name}\n`;
+                            text += `   ${priority}${client.name}${client.city ? ' - ' + client.city : ''}${timeStr}\n`;
                         }
                         
                         if (s.name) {
@@ -6011,10 +6270,14 @@ class Scheduler {
         const select = document.getElementById('invoiceClient');
         const currentValue = select.value; // Guardar valor actual si existe
         select.innerHTML = '<option value="">-- Selecciona Cliente --</option>';
-        this.clis.forEach(c => {
+        // Ordenar por nombre para facilitar búsqueda
+        const sortedClis = [...this.clis].sort((a,b) => (a.name||'').localeCompare(b.name||''));
+        sortedClis.forEach(c => {
             const option = document.createElement('option');
             option.value = c.id;
-            option.textContent = c.name;
+            // Si el cliente tiene propId distinto al nombre, mostrarlo
+            const hasProp = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
+            option.textContent = hasProp ? `${c.name} — ${c.propId}` : c.name;
             select.appendChild(option);
         });
         
@@ -7798,29 +8061,81 @@ class Scheduler {
 
                 let updated = 0;
                 dataRows.forEach((row, i) => {
-                    const [name, address, phone, propId, fee, ctype] = row;
+                    // Convertir todo a string seguro antes de procesar
+                    const r = row.map(v => (v !== null && v !== undefined) ? String(v).trim() : '');
+
+                    // Formato plantilla Ana/Brazos:
+                    // Col 0=#, 1=Nombre, 2=Dirección, 3=Ciudad, 4=ZIP, 5=Teléfono, 6=Precio, 7=Tipo(PDF), 8=PropID (cols PDF)
+                    // Col 9=Nombre(app), 10=Dirección, 11=Ciudad, 12=ZIP, 13=Teléfono, 14=Precio, 15=Tipo(app), 16=PropID
+                    // También soporta formato simple: nombre, dirección, teléfono, propId, precio, tipo
+                    let name, address, city, zip, phone, fee, ctype, propId;
+
+                    if (r.length >= 16 && r[9]) {
+                        // Plantilla con columnas verdes (cols app)
+                        name    = r[9];
+                        address = r[10];
+                        city    = r[11];
+                        zip     = r[12];
+                        phone   = r[13];
+                        fee     = r[14];
+                        ctype   = r[15];
+                        propId  = r[16] || '';
+                    } else if (r.length >= 8 && r[1]) {
+                        // Plantilla con solo columnas azules (cols PDF)
+                        name    = r[1];
+                        address = r[2];
+                        city    = r[3];
+                        zip     = r[5];
+                        phone   = r[6];
+                        fee     = r[7];
+                        ctype   = r[8];
+                        propId  = r[9] || '';
+                    } else {
+                        // Formato simple: nombre, dirección, teléfono, propId, precio, tipo
+                        name    = r[0];
+                        address = r[1];
+                        phone   = r[2];
+                        propId  = r[3];
+                        fee     = r[4];
+                        ctype   = r[5];
+                        city    = ''; zip = '';
+                    }
+
                     if (!name) return;
+
+                    // Limpiar precio (quitar $ y comas)
+                    const feeClean = String(fee).replace(/[$,]/g, '').trim();
                     const t = typeMap[(ctype||'').toString().trim().toUpperCase()] || 'semanal';
-                    const bp = ['semanal','2xsemana','3xsemana','diario'].includes(t) ? 'weekly' : (t==='cada3semanas' ? 'monthly' : (t==='quincenal' ? 'biweekly' : 'monthly'));
-                    const exists = this.clis.find(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+                    const bp = ['semanal','2xsemana','3xsemana','diario'].includes(t) ? 'weekly' :
+                               t==='quincenal' ? 'biweekly' : 'monthly';
+
+                    // Duplicado = mismo nombre Y mismo propId
+                    const propIdCheck = (propId || name).trim().toLowerCase();
+                    const exists = this.clis.find(c =>
+                        c.name && c.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+                        (c.propId || c.name).trim().toLowerCase() === propIdCheck
+                    );
                     if (!exists) {
-                        // Cliente nuevo — agregar completo
                         this.clis.push({
                             id: `cli_excel_${i+1}_${Date.now()}`,
-                            name: name.trim(),
-                            address: address ? address.trim() : '',
-                            phone: phone ? phone.toString().trim() : '',
-                            propId: propId ? propId.trim() : name.trim(),
-                            fee: parseFloat(fee) || 0,
-                            price: parseFloat(fee) || 0,
+                            name:    name.trim(),
+                            address: address || '',
+                            city:    city || '',
+                            zip:     zip || '',
+                            tel:     phone ? phone.toString().trim() : '',
+                            phone:   phone ? phone.toString().trim() : '',
+                            propId:  propId ? propId.trim() : name.trim(),
+                            fee:     parseFloat(feeClean) || 0,
+                            price:   parseFloat(feeClean) || 0,
                             type: t, serviceType: 'residencial',
-                            billingPeriod: bp, active: true, notes: ''
+                            billingPeriod: bp,
+                            invoicingType: 'monthly',
+                            active: true, notes: ''
                         });
                         added++;
-                    } else if (fee && (!exists.price || exists.price === 0)) {
-                        // Cliente existente sin precio — actualizar solo el precio
-                        exists.fee = parseFloat(fee) || 0;
-                        exists.price = parseFloat(fee) || 0;
+                    } else if (feeClean && (!exists.price || exists.price === 0)) {
+                        exists.fee   = parseFloat(feeClean) || 0;
+                        exists.price = parseFloat(feeClean) || 0;
                         updated++;
                     }
                 });
