@@ -1824,8 +1824,8 @@ class Scheduler {
                             ev.style.backgroundColor = bgColor;
                             const textModeM = this.getTextMode(typeKeyM);
                             ev.style.color = textModeM === 'auto' ? getTextColor(bgColor) : (textModeM === 'white' ? '#fff' : '#000');
-                            const showPropIdM = (c.type === 'airbnb' || c.type === 'unico');
-                            ev.textContent = prioPrefixM + c.name + (c.city ? ' - ' + c.city : '') + (showPropIdM && c.propId ? ' / ' + c.propId : '');
+                            const showPropIdM = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
+                            ev.textContent = prioPrefixM + c.name + (showPropIdM ? ' - ' + c.propId : '') + (c.city ? ' - ' + c.city : '');
                         }
                         ev.title = `${c.name} — ${s.grupo}`;
                         ev.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
@@ -1846,7 +1846,7 @@ class Scheduler {
                                 ev.style.backgroundColor = bgColorH;
                                 const textModeH = this.getTextMode(typeKeyH);
                                 ev.style.color = textModeH === 'auto' ? getTextColor(bgColorH) : (textModeH === 'white' ? '#fff' : '#000');
-                                const showPropH = (c.type === 'airbnb' || c.type === 'unico'); ev.textContent = (s.priority ? `${s.priority}. ` : '') + c.name + (c.city ? ' - ' + c.city : '') + (showPropH && c.propId ? ' / ' + c.propId : '');
+                                const showPropH = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase(); ev.textContent = (s.priority ? `${s.priority}. ` : '') + c.name + (showPropH ? ' - ' + c.propId : '') + (c.city ? ' - ' + c.city : '');
                                 ev.onclick = (e2) => { e2.stopPropagation(); this.openModal(s); };
                                 cell.insertBefore(ev, more);
                             });
@@ -1976,7 +1976,7 @@ class Scheduler {
             const div = document.createElement('div'); div.className = 'service-event';
             const prioNum = s.priority || '';
             const prioPrefix = prioNum ? `<b>${prioNum}.</b> ` : '';
-            const showPropId = (c.type === 'airbnb' || c.type === 'unico');
+            const showPropId = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
             if (s.cancelled) {
                 div.style.backgroundColor = '#ffffff';
                 div.style.color = '#bbb';
@@ -5576,7 +5576,7 @@ class Scheduler {
         `).join('');
         
         document.getElementById('listC').innerHTML = sortedClis.map(c => {
-            const showPropId = (c.type === 'airbnb' || c.type === 'unico');
+            const showPropId = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
             return `
             <div class="list-item">
                 <span>
@@ -6206,7 +6206,7 @@ class Scheduler {
                 dailyServices.forEach(s => {
                     const client = this.clis.find(c => c.id == s.cliId);
                     if (client) {
-                        const showPropId = client.type === 'airbnb' || client.type === 'unico';
+                        const showPropId = client.propId && client.propId.trim() !== '' && client.propId.trim().toLowerCase() !== client.name.trim().toLowerCase();
                         const detail = showPropId ? ` · ${client.propId}` : '';
                         const timeStr = (s.timeStart || s.timeEnd)
                             ? `<span style="color:#666; font-size:0.75rem; margin-left:5px;">🕐 ${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}</span>`
@@ -6339,7 +6339,7 @@ class Scheduler {
                     const client = this.clis.find(c => c.id == s.cliId);
                     if (client) {
                         const priority = s.priority ? `${s.priority}. ` : '';
-                        const showPropId = (client.type === 'airbnb' || client.type === 'unico');
+                        const showPropId = client.propId && client.propId.trim() !== '' && client.propId.trim().toLowerCase() !== client.name.trim().toLowerCase();
                         
                         const timeStr = (s.timeStart || s.timeEnd)
                             ? ` ${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}`
@@ -8621,18 +8621,10 @@ class Scheduler {
                 document.getElementById('driveSyncBtn').style.background = '#27ae60';
                 await this.driveGetOrCreateFolder();
                 console.log('📁 Folder ID:', this.driveFolderId);
-                // Al conectar: SIEMPRE bajar Drive primero — ignorar localStorage
-                // Esto evita que datos viejos de un dispositivo sobreescriban Drive
-                const savedAt = localStorage.getItem('anaCS_lastSavedAt');
-                localStorage.removeItem('anaCS_lastSavedAt'); // Forzar descarga
+                // Al conectar: usar la misma lógica de timestamps
+                // driveDownloadData() decide si bajar o subir según quién es más reciente
                 this.localDirty = false;
                 await this.driveDownloadData();
-                // Solo subir si Drive estaba vacío (no tenía archivo)
-                if (!localStorage.getItem('anaCS_lastSavedAt')) {
-                    // Drive no tenía datos — subir los locales
-                    if (savedAt) localStorage.setItem('anaCS_lastSavedAt', savedAt);
-                    await this.driveSyncNow();
-                }
                 // Importar empleados de la Nómina — siempre, sin importar timestamps
                 await this.importEmployeesFromNomina();
                 const toast = document.createElement('div');
@@ -8908,17 +8900,31 @@ class Scheduler {
 
             console.log('🕐 Drive time:', data.lastSavedAt, '| Local time:', localSavedAt);
 
-            // Si no hay datos locales, siempre descargar de Drive
-            const localIsEmpty = !localSavedAt || this.emps.length === 0;
+            // Lógica correcta:
+            // 1. Si local está vacío → siempre bajar de Drive
+            // 2. Si local es más reciente que Drive → subir
+            // 3. Si Drive es más reciente que local → bajar
+            // localDirty NO fuerza subida — solo el timestamp decide
+            const localIsEmpty = !localSavedAt || (this.clis.length === 0 && this.servs.length === 0);
 
-            if (!localIsEmpty && (driveTime <= localTime || this.localDirty)) {
-                // Local más reciente o hay cambios sin subir — subir en lugar de descargar
-                console.log('📤 Local más reciente que Drive (o localDirty), subiendo...');
+            if (localIsEmpty) {
+                // Local vacío — siempre bajar de Drive
+                console.log('📥 Local vacío, descargando de Drive...');
+            } else if (localTime > driveTime) {
+                // Local más reciente — subir
+                console.log('📤 Local más reciente que Drive, subiendo...');
                 this.driveSyncNow();
+                return;
+            } else if (driveTime > localTime) {
+                // Drive más reciente — bajar
+                console.log('📥 Drive más reciente que local, descargando...');
+            } else {
+                // Misma fecha — no hacer nada
+                console.log('✅ Local y Drive están sincronizados');
                 return;
             }
 
-            // Drive más reciente o local vacío — descargar
+            // Descargar de Drive
             console.log('📥 Descargando de Drive...');
             // Cargar datos de Drive
             if (data.emps)             { this.emps = data.emps; localStorage.setItem('v35_emps', JSON.stringify(this.emps)); }
