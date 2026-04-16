@@ -124,7 +124,7 @@
 
         /* Modales */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); }
-        .modal-content { background: white; margin: 5% auto; padding: 30px; border-radius: 15px; width: 700px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
+        .modal-content { background: white; margin: 2% auto; padding: 25px; border-radius: 15px; width: 700px; max-width: 96vw; max-height: 92vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
         input, select { padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; width: 100%; }
         
@@ -747,6 +747,7 @@
                 <button class="btn-action btn-dark" onclick="app.exportar()">📥 Exportar</button>
                 <button class="btn-action btn-dark" onclick="app.importar()">📂 Importar</button>
                 <button class="btn-action" id="driveSyncBtn" onclick="app.driveSync()" style="background:#4285f4; color:white;">☁️ <span id="driveSyncLabel">Drive</span></button>
+            <button onclick="app.driveForceDownload()" title="Bajar datos de Drive" style="background:#2980b9; color:white; border:none; padding:6px 10px; border-radius:6px; cursor:pointer; font-size:0.8rem; font-weight:600;">⬇️</button>
             </div>
         </div>
         
@@ -1084,7 +1085,25 @@
                 </div>
             </div>
         </div>
-        <button class="btn" onclick="app.closeCatalog()" style="width:100%; margin-top:20px; background:#2c3e50; color:white">CERRAR</button>
+        <!-- Respaldo Local -->
+        <div style="margin-top:16px; padding:14px; background:#f0f4f8; border-radius:10px; border:1px solid #dee2e6;">
+            <div style="font-size:0.85rem; font-weight:700; color:#2c3e50; margin-bottom:10px;">💾 Respaldo Local</div>
+            <div style="display:flex; gap:8px;">
+                <button class="btn" onclick="app.backupLocal()"
+                    style="flex:1; background:#2980b9; color:white; font-weight:600;">
+                    💾 Respaldar Datos
+                </button>
+                <button class="btn" onclick="app.restoreLocal()"
+                    style="flex:1; background:#8e44ad; color:white; font-weight:600;">
+                    📂 Restaurar Respaldo
+                </button>
+            </div>
+            <div style="font-size:0.75rem; color:#888; margin-top:6px;">
+                Guarda o restaura todos tus datos localmente (clientes, empleados, servicios, grupos).
+            </div>
+        </div>
+
+        <button class="btn" onclick="app.closeCatalog()" style="width:100%; margin-top:16px; background:#2c3e50; color:white">CERRAR</button>
     </div>
 </div>
 
@@ -2461,6 +2480,85 @@ class Scheduler {
     
     closeCustomize() {
         document.getElementById('customizeModal').style.display = 'none';
+    }
+
+    backupLocal() {
+        const fecha = new Date().toISOString().split('T')[0];
+        const data = {
+            exportType: 'anaCS_backup',
+            exportDate: new Date().toISOString(),
+            version: 'V136',
+            emps:              this.emps,
+            clis:              this.clis,
+            servs:             this.servs,
+            grupos:            this.grupos,
+            gastos:            this.gastos || [],
+            gastosCategories:  this.gastosCategories || {},
+            generatedInvoices: this.generatedInvoices || [],
+            pendingInvoices:   this.pendingInvoices || [],
+            nominaTotales:     this.nominaTotales || [],
+            companyConfig:     localStorage.getItem('companyConfig'),
+            companyLogo:       localStorage.getItem('companyLogo'),
+            customColors:      localStorage.getItem('customColors'),
+            customTextModes:   localStorage.getItem('customTextModes'),
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `AnaCS_Backup_${fecha}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        alert(`✅ Respaldo guardado:\nAnaCS_Backup_${fecha}.json\n\n` +
+              `• ${this.clis.length} clientes\n` +
+              `• ${this.emps.length} empleados\n` +
+              `• ${this.servs.length} servicios\n` +
+              `• ${Object.keys(this.grupos).length} grupos`);
+    }
+
+    restoreLocal() {
+        if (!confirm('📂 RESTAURAR RESPALDO\n\nEsto reemplazará TODOS tus datos actuales con los del archivo de respaldo.\n\n¿Continuar?')) return;
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    if (data.exportType !== 'anaCS_backup') {
+                        alert('❌ Archivo no válido — no es un respaldo de AnaCS');
+                        return;
+                    }
+                    if (data.emps)             { this.emps = data.emps; localStorage.setItem('v35_emps', JSON.stringify(this.emps)); }
+                    if (data.clis)             { this.clis = data.clis; localStorage.setItem('v35_clis', JSON.stringify(this.clis)); }
+                    if (data.servs)            { this.servs = data.servs; localStorage.setItem('v35_servs', JSON.stringify(this.servs)); }
+                    if (data.grupos)           { this.grupos = data.grupos; localStorage.setItem('v35_grupos', JSON.stringify(this.grupos)); }
+                    if (data.gastos)           { this.gastos = data.gastos; localStorage.setItem('v35_gastos', JSON.stringify(this.gastos)); }
+                    if (data.gastosCategories) { this.gastosCategories = data.gastosCategories; localStorage.setItem('v35_gastosCategories', JSON.stringify(this.gastosCategories)); }
+                    if (data.generatedInvoices){ this.generatedInvoices = data.generatedInvoices; localStorage.setItem('v35_generatedInvoices', JSON.stringify(this.generatedInvoices)); }
+                    if (data.pendingInvoices)  { this.pendingInvoices = data.pendingInvoices; localStorage.setItem('v35_pendingInvoices', JSON.stringify(this.pendingInvoices)); }
+                    if (data.nominaTotales)    { this.nominaTotales = data.nominaTotales; localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales)); }
+                    if (data.companyConfig)    localStorage.setItem('companyConfig', data.companyConfig);
+                    if (data.companyLogo)      localStorage.setItem('companyLogo', data.companyLogo);
+                    if (data.customColors)     localStorage.setItem('customColors', data.customColors);
+                    if (data.customTextModes)  localStorage.setItem('customTextModes', data.customTextModes);
+                    this.refreshSels();
+                    this.render();
+                    this.closeCatalog();
+                    alert(`✅ Respaldo restaurado correctamente:\n\n` +
+                          `• ${this.clis.length} clientes\n` +
+                          `• ${this.emps.length} empleados\n` +
+                          `• ${this.servs.length} servicios\n` +
+                          `• ${Object.keys(this.grupos).length} grupos\n\n` +
+                          `Fecha del respaldo: ${data.exportDate ? new Date(data.exportDate).toLocaleString() : 'desconocida'}`);
+                } catch(err) {
+                    alert('❌ Error al restaurar: ' + err.message);
+                }
+            };
+            reader.readAsText(e.target.files[0]);
+        };
+        input.click();
     }
 
     clearAllServices() {
@@ -8159,6 +8257,26 @@ class Scheduler {
         input.click();
     }
 
+    async driveForceDownload() {
+        if (!this.driveConnected) {
+            alert('⚠️ Primero conecta Google Drive (botón ☁️)');
+            return;
+        }
+        if (!confirm('⬇️ Bajar datos de Drive\n\nEsto reemplazará tus datos locales con los de Drive.\n¿Continuar?')) return;
+        // Forzar descarga ignorando timestamps
+        const savedAt = localStorage.getItem('anaCS_lastSavedAt');
+        localStorage.removeItem('anaCS_lastSavedAt'); // Forzar descarga
+        this.localDirty = false;
+        await this.driveDownloadData();
+        if (!localStorage.getItem('anaCS_lastSavedAt')) {
+            // Si no se descargó nada, restaurar
+            if (savedAt) localStorage.setItem('anaCS_lastSavedAt', savedAt);
+            alert('⚠️ No se encontraron datos en Drive');
+        } else {
+            alert('✅ Datos actualizados desde Drive');
+        }
+    }
+
     driveSync() {
         if (this.driveConnected) {
             this.driveSyncNow();
@@ -8185,9 +8303,18 @@ class Scheduler {
                 document.getElementById('driveSyncBtn').style.background = '#27ae60';
                 await this.driveGetOrCreateFolder();
                 console.log('📁 Folder ID:', this.driveFolderId);
-                // Al conectar: primero descargar, luego subir
+                // Al conectar: SIEMPRE bajar Drive primero — ignorar localStorage
+                // Esto evita que datos viejos de un dispositivo sobreescriban Drive
+                const savedAt = localStorage.getItem('anaCS_lastSavedAt');
+                localStorage.removeItem('anaCS_lastSavedAt'); // Forzar descarga
+                this.localDirty = false;
                 await this.driveDownloadData();
-                await this.driveSyncNow();
+                // Solo subir si Drive estaba vacío (no tenía archivo)
+                if (!localStorage.getItem('anaCS_lastSavedAt')) {
+                    // Drive no tenía datos — subir los locales
+                    if (savedAt) localStorage.setItem('anaCS_lastSavedAt', savedAt);
+                    await this.driveSyncNow();
+                }
                 // Importar empleados de la Nómina — siempre, sin importar timestamps
                 await this.importEmployeesFromNomina();
                 const toast = document.createElement('div');
