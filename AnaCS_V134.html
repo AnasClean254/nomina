@@ -69,26 +69,82 @@
             padding: 8px 5px; cursor: pointer; font-size: 0.7rem; writing-mode: vertical-rl;
             box-shadow: 2px 0 6px rgba(0,0,0,0.2); transition: 0.2s; }
 
+        /* Barra de grupos horizontal (abajo del calendario) */
+        .grupos-bar {
+            display: flex; flex-wrap: wrap; gap: 8px;
+            padding: 10px 14px; background: #f0f2f5;
+            border-top: 2px solid #ddd;
+            position: sticky; bottom: 0; z-index: 50;
+        }
+        .grupo-bar-chip {
+            display: flex; flex-direction: column; align-items: flex-start;
+            color: white; border-radius: 10px; padding: 6px 12px;
+            cursor: pointer; min-width: 90px;
+            transition: filter 0.15s, transform 0.1s;
+        }
+        .grupo-bar-chip:hover { filter: brightness(0.85); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .grupo-bar-chip .chip-title { font-weight: 800; font-size: 0.85rem; }
+        .grupo-bar-chip .chip-members { font-size: 0.68rem; opacity: 0.85; margin-top: 2px; white-space: nowrap; }
+
+        /* Barra de grupos horizontal (abajo del calendario) */
+        .grupos-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 10px 14px;
+            background: #f0f2f5;
+            border-top: 2px solid #ddd;
+        }
+        .grupo-bar-chip {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            color: white;
+            border-radius: 10px;
+            padding: 6px 12px;
+            cursor: pointer;
+            min-width: 90px;
+            transition: filter 0.15s, transform 0.1s;
+        }
+        .grupo-bar-chip:hover {
+            filter: brightness(1.15);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .grupo-bar-chip .chip-title { font-weight: 800; font-size: 0.85rem; }
+        .grupo-bar-chip .chip-members { font-size: 0.68rem; opacity: 0.85; margin-top: 2px; white-space: nowrap; }
+
         /* Vista MES: cuadrícula real */
+        /* ── VISTA MES CON GRUPOS ── */
         .month-grid-wrapper { width: 100%; }
+        .month-with-groups { display: flex; gap: 0; }
+        /* Columna de grupos compacta — solo header con leyenda */
+        .month-groups-col { width: 60px; min-width: 60px; flex-shrink: 0; border-right: 2px solid #c8cdd5; display: flex; flex-direction: column; }
+        .month-groups-header { background: #eef1f3; border-bottom: 2px solid #ddd; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 4px 2px; gap: 3px; }
+        .month-groups-header-title { font-size: 0.62rem; font-weight: 800; color: var(--primary); letter-spacing: 0.05em; }
+        .month-group-chip { font-size: 0.62rem; font-weight: 700; color: white; padding: 2px 5px; border-radius: 3px; width: 100%; text-align: center; box-sizing: border-box; }
+        .month-groups-spacer { flex: 1; }
+        .month-group-row-wrap { display: flex; gap: 0; border-bottom: 2px solid #c8cdd5; }
+        /* Sin columna lateral por semana */
+        .month-days-area { flex: 1; min-width: 0; }
         .month-grid-header { display: grid; grid-template-columns: repeat(7,1fr); background:#eef1f3; border-bottom: 2px solid #ddd; }
         .month-grid-header-cell { text-align:center; padding: 7px 0; font-weight:700; font-size:0.78rem; color: var(--primary); border-right: 2px solid #c8cdd5; letter-spacing:0.05em; }
         .month-grid-header-cell:last-child { border-right: none; }
-        .month-week-row { display: grid; grid-template-columns: repeat(7,1fr); border-bottom: 2px solid #c8cdd5; min-height: 90px; }
-        .month-day-cell { border-right: 1px solid #c8cdd5; border-bottom: 1px solid #c8cdd5; padding: 4px 5px; position: relative; min-height: 90px; cursor: pointer; transition: background 0.15s; }
+        .month-week-row { display: grid; grid-template-columns: repeat(7,1fr); border-bottom: 2px solid #c8cdd5; min-height: 85px; }
+        .month-day-cell { border-right: 1px solid #c8cdd5; padding: 3px 4px; position: relative; min-height: 85px; cursor: pointer; transition: background 0.15s; overflow: hidden; }
         .month-day-cell:hover { background: #f8f9ff; }
         .month-day-cell:last-child { border-right: none; }
         .month-day-cell.today { background: var(--today-bg) !important; }
         .month-day-cell.other-month { background: #fafafa; opacity: 0.5; pointer-events: none; }
         .month-day-num { font-size: 0.78rem; font-weight: 700; color: #555; margin-bottom: 3px; }
         .month-day-num.today-num { background: var(--primary); color: white; border-radius: 50%; width: 20px; height: 20px; display:flex; align-items:center; justify-content:center; font-size:0.72rem; }
-        .month-event { font-size: 0.68rem; padding: 2px 5px; border-radius: 3px; color: white; font-weight: 600; margin-bottom: 2px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid rgba(0,0,0,0.2); }
+        .month-event { font-size: 0.68rem; padding: 2px 5px; border-radius: 3px; color: white; font-weight: 600; margin-bottom: 2px; cursor: pointer; white-space: normal; overflow: hidden; display: block; border-left: 3px solid rgba(0,0,0,0.2); word-break: break-word; }
         .month-more-btn { font-size: 0.67rem; color: #5c6bc0; font-weight: 600; cursor: pointer; padding: 1px 3px; border-radius: 3px; }
         .month-more-btn:hover { background: #e8eaf6; }
 
         /* Celdas */
         .cells-container { display: grid; background: #fff; }
-        .time-cell { border-right: 1px solid #d0d5dd; border-bottom: 1px solid #d0d5dd; padding: 6px; min-height: 70px; transition: 0.2s; min-width: 0; overflow: hidden; }
+        .time-cell { border-right: 1px solid #c8cdd5; border-bottom: 1px solid #c8cdd5; padding: 3px 4px; min-height: 85px; min-width: 0; overflow: hidden; cursor: pointer; transition: background 0.15s; }
         .time-cell:hover { background-color: #fcfcfc; }
         .time-cell.today { background-color: var(--today-bg) !important; }
 
@@ -109,7 +165,7 @@
             max-width: 100%;
             overflow: hidden;
         }
-        .ev-time { font-size: 0.62rem; font-weight: 600; color: inherit; opacity: 0.85; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 2px; }
+        .ev-time { font-size: 0.62rem; font-weight: 500; color: inherit; opacity: 0.8; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 4px; display: inline; }
         .ev-propid { font-size: 0.62rem; font-weight: 400; opacity: 0.90; padding-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; }
         .ev-prop { 
             font-size: 0.68rem; 
@@ -689,6 +745,21 @@
             font-size: 0.7rem;
         }
 
+                /* Drag & Drop Sidebar - FLOTANTE */
+        .clients-sidebar{position:fixed;top:80px;left:-260px;width:250px;height:calc(100vh - 80px);background:#fff;border-right:2px solid #ddd;display:flex;flex-direction:column;z-index:9999;box-shadow:4px 0 12px rgba(0,0,0,.15);transition:left .3s ease;border-radius:0 8px 8px 0;}
+        .clients-sidebar.open{left:0;}
+        .clients-sidebar-header{background:var(--primary);color:white;padding:10px 12px;font-weight:700;font-size:.85rem;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;cursor:grab;user-select:none;border-radius:0 8px 0 0;}
+        .clients-sidebar-search{padding:8px;border-bottom:1px solid #eee;flex-shrink:0;}
+        .clients-sidebar-search input{width:100%;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:.8rem;box-sizing:border-box;}
+        .clients-sidebar-list{flex:1;overflow-y:auto;padding:4px;}
+        .client-drag-item{padding:6px 10px;border-radius:6px;margin-bottom:3px;cursor:grab;font-size:.78rem;font-weight:600;border-left:3px solid #00b5ad;background:#f8f9fa;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block;}
+        .client-drag-item:hover{background:#e8f4f8;}
+        .toggle-clients-btn{position:fixed;left:12px;bottom:20px;z-index:9998;background:var(--primary);color:white;border:none;border-radius:50px;padding:10px 16px;cursor:pointer;font-size:.8rem;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.25);}
+        .month-day-cell.drag-over,.time-cell.drag-over{background:#e3f2fd!important;outline:2px dashed var(--primary)!important;}
+        #dropModal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:10000;display:none;align-items:center;justify-content:center;}
+        #dropModal.show{display:flex;}
+        .drop-modal-content{background:white;border-radius:14px;padding:22px;width:340px;max-width:95vw;box-shadow:0 20px 50px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto;}
+
 </style>
 </head>
 <body>
@@ -796,14 +867,79 @@
     <div id="mainSchedulerGrid" style="overflow-x:auto"></div>
 </div>
 
+<!-- Sidebar Clientes Flotante -->
+<div class="clients-sidebar" id="clientsSidebar">
+    <div class="clients-sidebar-header" title="Arrastra para mover">
+        <span>📋 Clientes</span>
+        <button onmousedown="event.stopPropagation()" onclick="app.toggleClientsSidebar()" style="background:none;border:none;color:white;cursor:pointer;font-size:1.1rem;line-height:1;">✕</button>
+    </div>
+    <div class="clients-sidebar-search">
+        <input id="clientsSidebarSearch" placeholder="🔍 Buscar cliente..." oninput="app.filterClientsSidebar(this.value)">
+    </div>
+    <div class="clients-sidebar-list" id="clientsSidebarList"></div>
+</div>
+<button class="toggle-clients-btn" onclick="app.toggleClientsSidebar()">📋<br>Clientes</button>
+
+<!-- Mini Modal Drop -->
+<div id="dropModal">
+    <div class="drop-modal-content">
+        <h3 style="margin:0 0 12px;color:var(--primary);font-size:1rem;">📌 Nuevo Servicio</h3>
+        <strong id="dropClientName" style="color:var(--primary);display:block;margin-bottom:3px;font-size:.95rem;"></strong>
+        <span id="dropDateLabel" style="font-size:.82rem;color:#666;display:block;margin-bottom:14px;"></span>
+        <!-- Selector de propiedad en drop modal -->
+        <div id="dropPropWrap" style="display:none;margin-bottom:10px;">
+            <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px;">Propiedad</label>
+            <select id="dropPropId" onchange="app._dropData.cliId=this.value" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:.9rem;"></select>
+        </div>
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px;">Grupo</label>
+        <select id="dropGrupo" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:10px;font-size:.9rem;"></select>
+        <label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px;">Tipo de Serie</label>
+        <select id="dropTipo" onchange="app.toggleDropSerie()" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;margin-bottom:10px;font-size:.9rem;">
+            <option value="unico">⚪ Único</option>
+            <option value="semanal">📅 Semanal</option>
+            <option value="quincenal">📅 Quincenal</option>
+            <option value="mensual">📅 Mensual</option>
+            <option value="cada3semanas">📅 Cada 3 Semanas</option>
+            <option value="2xsemana">📅 2x Semana</option>
+            <option value="3xsemana">📅 3x Semana</option>
+            <option value="diario">📅 Diario</option>
+            <option value="airbnb">🏠 AirBnB</option>
+        </select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;">
+            <div><label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px;">⏰ Llegada</label>
+            <input type="time" id="dropTimeStart" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;"></div>
+            <div><label style="font-size:.8rem;font-weight:600;display:block;margin-bottom:4px;">⏰ Salida</label>
+            <input type="time" id="dropTimeEnd" style="width:100%;padding:7px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;"></div>
+        </div>
+        <div id="dropSerieFields" style="display:none;background:#fff8e1;border-radius:8px;padding:10px;border:1px solid #ffd54f;margin-bottom:10px;">
+            <div style="font-size:.75rem;font-weight:700;color:#f57f17;margin-bottom:8px;">📆 Rango de la Serie</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                <div><label style="font-size:.78rem;display:block;margin-bottom:3px;">Inicio</label>
+                <input type="date" id="dropSerieStart" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;"></div>
+                <div><label style="font-size:.78rem;display:block;margin-bottom:3px;">Fin</label>
+                <input type="date" id="dropSerieEnd" style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px;box-sizing:border-box;"></div>
+            </div>
+        </div>
+        <div style="display:flex;gap:8px;">
+            <button onclick="app.saveDropService()" style="flex:1;background:var(--primary);color:white;border:none;padding:11px;border-radius:8px;cursor:pointer;font-weight:700;font-size:.95rem;">💾 Guardar</button>
+            <button onclick="app.closeDropModal()" style="background:#95a5a6;color:white;border:none;padding:11px 16px;border-radius:8px;cursor:pointer;font-weight:600;">✕</button>
+        </div>
+    </div>
+</div>
+
 <div id="serviceModal" class="modal">
     <div class="modal-content">
         <h2 id="modalTitle" style="margin-top:0">Detalle del Servicio</h2>
         <form onsubmit="app.saveService(event)">
             <div class="form-grid">
                 <div style="grid-column: span 2">
-                    <label>Cliente / Propiedad</label>
-                    <select id="mCli" required onchange="app.toggleRep(); app.suggestGroup();"></select>
+                    <label>Cliente</label>
+                    <select id="mCli" required onchange="app.onCliChange();"></select>
+                    <!-- Selector de propiedad — aparece si el cliente tiene múltiples propiedades -->
+                    <div id="propSelectWrap" style="display:none; margin-top:6px;">
+                        <label style="font-size:0.8rem; color:#555;">Propiedad</label>
+                        <select id="mPropId" onchange="app.onPropChange();" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; margin-top:3px;"></select>
+                    </div>
                     <div id="clientType" style="display:none; margin-top:8px; padding:8px; background:#e8f5e9; border-left:3px solid #4caf50; border-radius:4px">
                         <span style="font-size:0.85rem; color:#2e7d32">
                             <b>Tipo de recurrencia:</b> <span id="clientTypeText" style="font-weight:bold"></span>
@@ -1037,7 +1173,17 @@
                     <button onclick="app.saveCli()" class="btn" style="width:100%; background:var(--success);">💾 GUARDAR CLIENTE</button>
                 </div>
 
-                <div id="listC" style="max-height:450px; overflow-y:auto; margin-top:5px"></div>
+                <!-- Buscador de clientes -->
+                <div style="display:flex; gap:8px; margin-top:10px; margin-bottom:5px;">
+                    <input type="text" id="cliSearchInput" placeholder="🔍 Buscar cliente..." 
+                        oninput="app.renderCat()"
+                        style="flex:1; padding:8px 12px; border:1px solid #ddd; border-radius:6px; font-size:0.9rem;">
+                    <button onclick="app.expandAllClients()" title="Expandir todos"
+                        style="padding:8px 12px; border:1px solid #ddd; border-radius:6px; background:white; cursor:pointer; font-size:0.9rem;">⬇️</button>
+                    <button onclick="app.collapseAllClients()" title="Contraer todos"
+                        style="padding:8px 12px; border:1px solid #ddd; border-radius:6px; background:white; cursor:pointer; font-size:0.9rem;">⬆️</button>
+                </div>
+                <div id="listC" style="max-height:450px; overflow-y:auto;"></div>
             </div>
             
             <div id="secGrupos" style="display:none">
@@ -1435,6 +1581,7 @@ class Scheduler {
         setTimeout(() => this.updateRemindersBadge(), 600);
         // Actualizar badge cada hora
         setInterval(() => this.updateRemindersBadge(), 60 * 60 * 1000);
+        setTimeout(() => this.renderClientsSidebar(), 800);
         // ☁️ Autosincronizar con Drive cada 10 minutos (solo si hay cambios)
         setInterval(() => {
             if (this.driveConnected && this.localDirty) {
@@ -1659,6 +1806,155 @@ class Scheduler {
 
     toggleMembers(g) { this.expandedMembers[g] = !this.expandedMembers[g]; this.save(); this.render(); }
 
+    getGrupoColor(nombreGrupo) {
+        const colors = {'Grupo A':'#2980b9','Grupo B':'#27ae60','Grupo C':'#8e44ad','Grupo D':'#e67e22','Grupo E':'#e74c3c'};
+        return colors[nombreGrupo] || '#7f8c8d';
+    }
+
+    _renderGruposBar(grid) {
+        const bar = document.createElement('div');
+        bar.className = 'grupos-bar';
+        Object.keys(this.grupos).forEach(gName => {
+            const memberIds = (this.grupos[gName] || []).filter(id => id && id !== '');
+            const members = memberIds.map(id => this.emps.find(e => e.id == id)).filter(Boolean);
+            const membersText = members.map(e => e.name.split(' ')[0]).join(' · ') || 'Sin miembros';
+            const grupoLetra = gName.replace(/grupo\s*/i, '').trim();
+            const gColor = this.getGrupoColor(gName);
+            const chip = document.createElement('div');
+            chip.className = 'grupo-bar-chip';
+            chip.style.background = gColor;
+            chip.title = gName + ' — Click para editar';
+            chip.innerHTML = `<span class="chip-title">Grupo ${grupoLetra}</span><span class="chip-members">${membersText}</span>`;
+            chip.onclick = () => this.openGrupoEditModal(gName);
+            bar.appendChild(chip);
+        });
+        grid.appendChild(bar);
+    }
+
+    openGrupoEditModal(nombreGrupo) {
+        const existing = document.getElementById('grupoEditModal');
+        if (existing) existing.remove();
+        const slots = this.grupos[nombreGrupo] || [];
+        const assignedElsewhere = new Set();
+        Object.entries(this.grupos).forEach(([gName, members]) => {
+            if (gName === nombreGrupo) return;
+            members.forEach(id => { if (id) assignedElsewhere.add(String(id)); });
+        });
+        const assignedIds = new Set();
+        Object.values(this.grupos).forEach(ms => ms.forEach(id => { if (id) assignedIds.add(String(id)); }));
+        const unassigned = this.emps.filter(e => !assignedIds.has(String(e.id)));
+        const selects = Array.from({length:5}, (_, i) => {
+            const currentId = String(slots[i] || '');
+            const opts = `<option value="">— Vacante —</option>` +
+                this.emps.filter(e => !assignedElsewhere.has(String(e.id)) || String(e.id) === currentId)
+                    .map(e => `<option value="${e.id}" ${String(e.id)===currentId?'selected':''}>${e.name}</option>`).join('');
+            return `<div style="margin-bottom:8px;"><label style="font-size:0.8rem;color:#666;">Posición ${i+1}:</label><select id="gEditSlot_${i}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">${opts}</select></div>`;
+        }).join('');
+        const unassignedHtml = unassigned.length > 0
+            ? `<div style="background:#fff3cd;border-radius:8px;padding:10px;margin-top:10px;"><div style="font-size:0.8rem;font-weight:700;color:#856404;margin-bottom:4px;">⚠️ Sin grupo:</div>${unassigned.map(e=>`<span style="font-size:0.78rem;color:#856404;">• ${e.name}</span><br>`).join('')}</div>` : '';
+        const gColor = this.getGrupoColor(nombreGrupo);
+        const modal = document.createElement('div');
+        modal.id = 'grupoEditModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+        modal.innerHTML = `<div style="background:white;border-radius:12px;padding:24px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="margin:0;color:${gColor};">👥 ${nombreGrupo}</h3>
+                <button onclick="document.getElementById('grupoEditModal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999;">✕</button>
+            </div>
+            ${selects}${unassignedHtml}
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                <button onclick="document.getElementById('grupoEditModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                <button onclick="app.saveGrupoFromModal('${nombreGrupo}')" style="background:${gColor};color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    }
+
+    saveGrupoFromModal(nombreGrupo) {
+        for (let i = 0; i < 5; i++) {
+            const sel = document.getElementById(`gEditSlot_${i}`);
+            if (sel) this.grupos[nombreGrupo][i] = sel.value;
+        }
+        this.save();
+        document.getElementById('grupoEditModal')?.remove();
+        this.render();
+    }
+
+    getGrupoColor(nombreGrupo) {
+        const colors = { 'Grupo A':'#2980b9','Grupo B':'#27ae60','Grupo C':'#8e44ad','Grupo D':'#e67e22','Grupo E':'#e74c3c' };
+        return colors[nombreGrupo] || '#7f8c8d';
+    }
+
+    _renderGruposBar(grid) {
+        const bar = document.createElement('div');
+        bar.className = 'grupos-bar';
+        Object.keys(this.grupos).forEach(gName => {
+            const memberIds = (this.grupos[gName] || []).filter(id => id && id !== '');
+            const members = memberIds.map(id => this.emps.find(e => e.id == id)).filter(Boolean);
+            const membersText = members.map(e => e.name.split(' ')[0]).join(' · ') || 'Sin miembros';
+            const grupoLetra = gName.replace(/grupo\s*/i, '').trim();
+            const chip = document.createElement('div');
+            chip.className = 'grupo-bar-chip';
+            chip.style.background = this.getGrupoColor(gName);
+            chip.title = `${gName} — Click para editar`;
+            chip.innerHTML = `<span class="chip-title">Grupo ${grupoLetra}</span><span class="chip-members">${membersText}</span>`;
+            chip.onclick = () => this.openGrupoEditModal(gName);
+            bar.appendChild(chip);
+        });
+        grid.appendChild(bar);
+    }
+
+    openGrupoEditModal(nombreGrupo) {
+        const existing = document.getElementById('grupoEditModal');
+        if (existing) existing.remove();
+        const slots = this.grupos[nombreGrupo] || [];
+        const assignedElsewhere = new Set();
+        Object.entries(this.grupos).forEach(([gName, members]) => {
+            if (gName === nombreGrupo) return;
+            members.forEach(id => { if (id) assignedElsewhere.add(String(id)); });
+        });
+        const assignedIds = new Set();
+        Object.values(this.grupos).forEach(ms => ms.forEach(id => { if (id) assignedIds.add(String(id)); }));
+        const unassigned = this.emps.filter(e => !assignedIds.has(String(e.id)));
+        const selects = Array.from({length:5}, (_,i) => {
+            const currentId = String(slots[i] || '');
+            const opts = `<option value="">— Vacante —</option>` +
+                this.emps.filter(e => !assignedElsewhere.has(String(e.id)) || String(e.id) === currentId)
+                .map(e => `<option value="${e.id}" ${String(e.id)===currentId?'selected':''}>${e.name}</option>`).join('');
+            return `<div class="form-group" style="margin-bottom:8px;"><label style="font-size:0.8rem;color:#666;">Posición ${i+1}:</label><select id="gEditSlot_${i}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">${opts}</select></div>`;
+        }).join('');
+        const unassignedHtml = unassigned.length > 0
+            ? `<div style="background:#fff3cd;border-radius:8px;padding:10px;margin-top:10px;"><div style="font-size:0.8rem;font-weight:700;color:#856404;margin-bottom:4px;">⚠️ Sin grupo:</div>${unassigned.map(e=>`<span style="font-size:0.78rem;color:#856404;">• ${e.name}</span><br>`).join('')}</div>` : '';
+        const gColor = this.getGrupoColor(nombreGrupo);
+        const modal = document.createElement('div');
+        modal.id = 'grupoEditModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+        modal.innerHTML = `<div style="background:white;border-radius:12px;padding:24px;max-width:420px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h3 style="margin:0;color:${gColor};">👥 ${nombreGrupo}</h3>
+                <button onclick="document.getElementById('grupoEditModal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999;">✕</button>
+            </div>
+            ${selects}${unassignedHtml}
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                <button onclick="document.getElementById('grupoEditModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                <button onclick="app.saveGrupoFromModal('${nombreGrupo}')" style="background:${gColor};color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    }
+
+    saveGrupoFromModal(nombreGrupo) {
+        for (let i = 0; i < 5; i++) {
+            const sel = document.getElementById(`gEditSlot_${i}`);
+            if (sel) this.grupos[nombreGrupo][i] = sel.value;
+        }
+        this.save();
+        document.getElementById('grupoEditModal')?.remove();
+        this.render();
+    }
+
     render() {
         const todayStr = new Date().toLocaleDateString('en-CA');
         const grid = document.getElementById('mainSchedulerGrid');
@@ -1674,31 +1970,41 @@ class Scheduler {
         } else {
             this.renderWeekDay(todayStr, grid);
         }
+
+        // Barra de grupos horizontal (semana y mes)
+        if (this.view === 'week' || this.view === 'month') {
+            this._renderGruposBar(grid);
+        }
+
         // 🔔 Actualizar badge de recordatorios
         this.updateRemindersBadge();
+        setTimeout(() => this.enableDropOnCells(), 300);
     }
 
     // ── Vista SEMANA / DÍA ──────────────────────────────────────────
     renderWeekDay(todayStr, grid) {
+        // Ocultar botón sidebar (no se usa en semana)
+        const sidebarBtnW = document.getElementById('sidebarToggleBtn');
+        if (sidebarBtnW) sidebarBtnW.style.display = 'none';
+
         const start = this.view === 'day' ? new Date(this.curDate) : this.getMon(this.curDate);
         const daysCount = this.view === 'day' ? 1 : 7;
         const dates = Array.from({length:daysCount}, (_,i) => {
             let d = new Date(start); d.setDate(start.getDate()+i); return d;
         });
 
-        // Header de días
+        // Header de días — sin columna de grupos
         const daysHeader = document.getElementById('daysHeaderInline');
         if(daysHeader) {
+            daysHeader.style.display = '';
+            daysHeader.style.gridTemplateColumns = '1fr'; // Sin columna de sidebar
             const daysHtml = dates.map(d => {
                 const dayName = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'][d.getDay()];
                 const isToday = d.toLocaleDateString('en-CA') === todayStr;
                 return `<div class="day-col-inline" style="${isToday?'background:#fff3cd;font-weight:700;':''}">${dayName}<br>${d.getDate()}</div>`;
             }).join('');
-            const collapsed = this.sidebarCollapsed;
-            const spacerW = collapsed ? 'var(--sidebar-collapsed-width)' : 'var(--emp-col-width)';
-            daysHeader.innerHTML = `<div class="days-spacer" style="width:${spacerW}; display:flex; align-items:center; justify-content:center; font-size:0.85rem; font-weight:800; color:#2c3e50; letter-spacing:2px;">GRUPOS</div><div class="days-grid-container">${daysHtml}</div>`;
-            if (collapsed) daysHeader.classList.add('sidebar-collapsed');
-            else daysHeader.classList.remove('sidebar-collapsed');
+            daysHeader.innerHTML = `<div style="display:grid;grid-template-columns:repeat(${dates.length},1fr);width:100%;">${daysHtml}</div>`;
+            daysHeader.classList.remove('sidebar-collapsed');
         }
 
         const fCli = document.getElementById('searchCli').value;
@@ -1708,19 +2014,27 @@ class Scheduler {
             const groupObj = (this.groups||[]).find(g => g.name === nombreGrupo);
             if(groupObj && !selectedGrps.includes('all') && !selectedGrps.includes(groupObj.id.toString())) return;
 
+            // Fila sin sidebar — solo celdas + marca de agua
             const row = document.createElement('div');
-            row.className = 'group-row' + (this.sidebarCollapsed ? ' sidebar-collapsed' : '');
-            const sidebar = this._buildSidebar(nombreGrupo);
-            row.appendChild(sidebar);
+            row.style.cssText = 'display:grid;grid-template-columns:1fr;position:relative;overflow:hidden;border-bottom:2px solid #ddd;background:white;';
+
+            // Marca de agua con letra del grupo
+            const gwLetra = nombreGrupo.replace(/Grupo /i, '').trim();
+            const gwColor = this.getGrupoColor(nombreGrupo);
+            const watermark = document.createElement('div');
+            watermark.style.cssText = `position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:3rem;font-weight:900;color:${gwColor};opacity:0.18;pointer-events:none;z-index:2;user-select:none;line-height:1;mix-blend-mode:multiply;`;
+            watermark.textContent = gwLetra;
+            row.appendChild(watermark);
 
             const cellsRow = document.createElement('div');
             cellsRow.className = 'cells-container';
-            cellsRow.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
+            cellsRow.style.cssText = `display:grid;grid-template-columns:repeat(${dates.length},1fr);position:relative;z-index:1;`;
 
             dates.forEach(day => {
                 const dStr = day.toLocaleDateString('en-CA');
                 const cell = document.createElement('div');
                 cell.className = `time-cell ${dStr===todayStr?'today':''}`;
+                cell.dataset.date = dStr;
                 cell.onclick = () => this.openModal(null, dStr, nombreGrupo);
                 this._fillCell(cell, dStr, nombreGrupo, fCli);
                 cellsRow.appendChild(cell);
@@ -1728,44 +2042,91 @@ class Scheduler {
             row.appendChild(cellsRow);
             grid.appendChild(row);
         });
-
-
     }
 
-    // ── Vista MES: cuadrícula real Dom→Sáb ──────────────────────────
+    // ── Vista MES: cuadrícula real Lun→Dom con grupos ──────────────────
     renderMonth(todayStr, grid) {
         const daysHeader = document.getElementById('daysHeaderInline');
-        if(daysHeader) daysHeader.innerHTML = ''; // Limpiar header de semana
+        if(daysHeader) { daysHeader.innerHTML = ''; daysHeader.style.display = 'none'; }
+        const sidebarBtn = document.getElementById('sidebarToggleBtn');
+        if (sidebarBtn) sidebarBtn.style.display = 'none';
 
         const yr = this.curDate.getFullYear();
         const mo = this.curDate.getMonth();
         const fCli = document.getElementById('searchCli').value;
         const selectedGrps = this.selectedGroups || ['all'];
 
-        // Wrapper
-        const wrapper = document.createElement('div');
-        wrapper.className = 'month-grid-wrapper';
-
-        // Header Dom→Sáb
-        const dayNames = ['DOM','LUN','MAR','MIÉ','JUE','VIE','SÁB'];
-        const hdr = document.createElement('div'); hdr.className = 'month-grid-header';
-        dayNames.forEach(n => { const c = document.createElement('div'); c.className='month-grid-header-cell'; c.textContent=n; hdr.appendChild(c); });
-        wrapper.appendChild(hdr);
-
-        // Primer día del mes y total de días
-        const firstDay = new Date(yr, mo, 1).getDay(); // 0=Dom
-        const totalDays = new Date(yr, mo+1, 0).getDate();
-
-        // Filtrar grupos activos
         const activeGroups = Object.keys(this.grupos).filter(g => {
             const obj = (this.groups||[]).find(x => x.name === g);
             return !obj || selectedGrps.includes('all') || selectedGrps.includes(obj.id.toString());
         });
 
+        const firstDay = (new Date(yr, mo, 1).getDay() + 6) % 7; // 0=Lun
+        const totalDays = new Date(yr, mo+1, 0).getDate();
+
+        // Colores por grupo
+        // Colores oficiales por grupo (sincronizados con getGrupoColor)
+        const grupoNames = Object.keys(this.grupos);
+        const groupColors = grupoNames.map(g => this.getGrupoColor(g));
+
+        // Wrapper principal
+        const wrapper = document.createElement('div');
+        wrapper.className = 'month-grid-wrapper';
+
+        // Layout: columna grupos + área días
+        const mainRow = document.createElement('div');
+        mainRow.className = 'month-with-groups';
+
+        // ── Columna de grupos — solo header con leyenda de colores ──
+        const groupsCol = document.createElement('div');
+        groupsCol.className = 'month-groups-col';
+
+        // Header con título + chips de colores
+        const grpHeader = document.createElement('div');
+        grpHeader.className = 'month-groups-header';
+        const grpTitle = document.createElement('div');
+        grpTitle.className = 'month-groups-header-title';
+        grpTitle.textContent = 'GRUPO';
+        grpHeader.appendChild(grpTitle);
+        activeGroups.forEach((g, gi) => {
+            const chip = document.createElement('div');
+            chip.className = 'month-group-chip';
+            chip.style.background = groupColors[gi % groupColors.length];
+            chip.textContent = g.replace(/grupo\s*/i,'').trim().substring(0,6);
+            chip.title = g;
+            grpHeader.appendChild(chip);
+        });
+        groupsCol.appendChild(grpHeader);
+        // Espaciador flexible para llenar el resto
+        const grpSpacer = document.createElement('div');
+        grpSpacer.className = 'month-groups-spacer';
+        groupsCol.appendChild(grpSpacer);
+
+        // ── Área de días ──
+        const daysArea = document.createElement('div');
+        daysArea.className = 'month-days-area';
+
+        // Header días LUN-DOM
+        const dayNames = ['LUN','MAR','MIÉ','JUE','VIE','SÁB','DOM'];
+        const hdr = document.createElement('div'); hdr.className = 'month-grid-header';
+        dayNames.forEach(n => {
+            const d = document.createElement('div'); d.className='month-grid-header-cell'; d.textContent=n; hdr.appendChild(d);
+        });
+        daysArea.appendChild(hdr);
+
         // Construir semanas
-        let dayNum = 1 - firstDay; // puede empezar negativo (días del mes anterior)
+        let dayNum = 1 - firstDay;
+        let weekIndex = 0;
         while(dayNum <= totalDays) {
-            const weekRow = document.createElement('div'); weekRow.className = 'month-week-row';
+            // ── Fila de semana ──
+            const weekWrap = document.createElement('div');
+            weekWrap.className = 'month-group-row-wrap';
+
+            // Días de la semana (sin columna lateral por semana)
+            const weekRow = document.createElement('div');
+            weekRow.className = 'month-week-row';
+            weekRow.style.flex = '1';
+
             for(let dow = 0; dow < 7; dow++) {
                 const cell = document.createElement('div');
                 const isCurrentMonth = dayNum >= 1 && dayNum <= totalDays;
@@ -1774,6 +2135,7 @@ class Scheduler {
                 const isTodayCell = dStr === todayStr;
 
                 cell.className = 'month-day-cell' + (isTodayCell ? ' today' : '') + (!isCurrentMonth ? ' other-month' : '');
+                if (isCurrentMonth) cell.dataset.date = dStr;
 
                 if(isCurrentMonth) {
                     // Número del día
@@ -1782,89 +2144,86 @@ class Scheduler {
                     numDiv.textContent = dayNum;
                     cell.appendChild(numDiv);
 
-                    // Recopilar todos los servicios del día de todos los grupos activos (sin duplicar)
-                    const seen = new Set();
-                    let allServs = [];
-                    activeGroups.forEach(g => {
+                    // Recopilar servicios por grupo
+                    activeGroups.forEach((g, gi) => {
                         let daily = this.servs.filter(s => {
                             if(s.date !== dStr) return false;
-                            if(s.empId === g) return true;
-                            return this.grupos[g].includes(s.empId.toString());
+                            if(s.empId === g || s.grupo === g) return true;
+                            return this.grupos[g] && this.grupos[g].includes(s.empId ? s.empId.toString() : '');
                         });
                         if(fCli !== 'all') daily = daily.filter(s => s.cliId == fCli);
-                        daily.forEach(s => { if(!seen.has(s.id)) { seen.add(s.id); allServs.push({...s, grupo: g}); } });
-                    });
 
-                    allServs.sort((a,b) => {
-                        const aTime = a.timeStart || '';
-                        const bTime = b.timeStart || '';
-                        if (aTime && bTime) return aTime.localeCompare(bTime);
-                        if (aTime) return -1;
-                        if (bTime) return 1;
-                        return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
-                    });
+                        daily.sort((a,b) => {
+                            if(a.timeStart && b.timeStart) return a.timeStart.localeCompare(b.timeStart);
+                            return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
+                        });
 
-                    const MAX_VISIBLE = 3;
-                    const visible = allServs.slice(0, MAX_VISIBLE);
-                    const hidden = allServs.slice(MAX_VISIBLE);
+                        daily.slice(0,3).forEach(s => {
+                            const cl = this.clis.find(x => x.id == s.cliId); if(!cl) return;
+                            const ev = document.createElement('div');
+                            ev.className = 'month-event';
+                            const grpColor = groupColors[gi % groupColors.length];
 
-                    visible.forEach(s => {
-                        const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
-                        const ev = document.createElement('div'); ev.className = 'month-event';
-                        const typeKeyM = c.type.toLowerCase().replace(/ /g,'');
-                        const bgColor = this.getColor(typeKeyM); // siempre hex real
-                        const prioPrefixM = s.priority ? `${s.priority}. ` : '';
-                        if (s.cancelled) {
-                            ev.style.backgroundColor = '#ffffff';
-                            ev.style.color = '#aaa';
-                            ev.style.border = '1px solid #ddd';
-                            ev.style.textDecoration = 'line-through';
-                            ev.textContent = '❌ ' + prioPrefixM + c.name;
-                        } else {
-                            ev.style.backgroundColor = bgColor;
-                            const textModeM = this.getTextMode(typeKeyM);
-                            ev.style.color = textModeM === 'auto' ? getTextColor(bgColor) : (textModeM === 'white' ? '#fff' : '#000');
-                            const showPropIdM = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
-                            ev.textContent = prioPrefixM + c.name + (showPropIdM ? ' - ' + c.propId : '') + (c.city ? ' - ' + c.city : '');
+                            if(s.cancelled) {
+                                ev.style.cssText = 'background:#fff;color:#aaa;border:1px solid #ddd;text-decoration:line-through;';
+                                ev.textContent = '❌ ' + cl.name;
+                            } else {
+                                // Color del borde izquierdo = grupo, fondo = tipo recurrencia
+                                const bgColor = this.getColor((cl.type||'semanal').toLowerCase().replace(/ /g,''));
+                                ev.style.backgroundColor = bgColor;
+                                ev.style.borderLeft = '4px solid ' + grpColor;
+                                const textMode = this.getTextMode((cl.type||'semanal').toLowerCase().replace(/ /g,''));
+                                ev.style.color = textMode === 'auto' ? getTextColor(bgColor) : (textMode === 'white' ? '#fff' : '#000');
+                                const hasProp = cl.propId && cl.propId.trim() && cl.propId.toLowerCase() !== cl.name.toLowerCase();
+                                const prio = s.priority ? s.priority + '. ' : '';
+                                // Si tiene propId, mostrarlo primero para que no se corte
+                                let lbl;
+                                if (hasProp) {
+                                    // No repetir ciudad si propId ya es igual a la ciudad
+                                    const cityPart = cl.city && cl.city.trim().toLowerCase() !== cl.propId.trim().toLowerCase()
+                                        ? ' - ' + cl.city : '';
+                                    lbl = prio + cl.name + ' - ' + cl.propId + cityPart;
+                                } else {
+                                    lbl = prio + cl.name + (cl.city ? ' - ' + cl.city : '');
+                                }
+                                const timeStr = s.timeStart
+                                    ? `<div style="font-size:0.6rem;opacity:0.85;margin-top:1px;">⏰ ${this.fmt12(s.timeStart)}${s.timeEnd ? '-'+this.fmt12(s.timeEnd) : ''}</div>`
+                                    : '';
+                                const grupoLetraEv = g ? g.replace(/grupo\s*/i,'').trim() : '';
+                                const grupoCircle = grupoLetraEv
+                                    ? `<span style="display:inline-block;background:${grpColor};color:white;border-radius:50%;width:13px;height:13px;font-size:0.55rem;font-weight:900;text-align:center;line-height:13px;margin-right:3px;vertical-align:middle;flex-shrink:0;">${grupoLetraEv}</span>`
+                                    : '';
+                                ev.innerHTML = `<div style="display:flex;align-items:flex-start;gap:1px;white-space:normal;word-break:break-word;">${grupoCircle}<span>${lbl}</span></div>${timeStr}`;
+                            }
+                            const tT = s.timeStart ? '\n⏰ ' + this.fmt12(s.timeStart) + (s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : '') : '';
+                            ev.title = cl.name + (cl.city ? ' · ' + cl.city : '') + '\n👥 ' + g + tT;
+                            ev.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
+                            cell.appendChild(ev);
+                        });
+
+                        if(daily.length > 3) {
+                            const more = document.createElement('div'); more.className = 'month-more-btn';
+                            more.textContent = '+' + (daily.length-3) + ' más (' + g.replace(/grupo\s*/i,'') + ')';
+                            more.onclick = (e) => { e.stopPropagation(); };
+                            cell.appendChild(more);
                         }
-                        ev.title = `${c.name} — ${s.grupo}`;
-                        ev.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
-                        cell.appendChild(ev);
                     });
-
-                    if(hidden.length > 0) {
-                        const more = document.createElement('div'); more.className = 'month-more-btn';
-                        more.textContent = `+${hidden.length} más`;
-                        more.onclick = (e) => {
-                            e.stopPropagation();
-                            // Mostrar los ocultos inline
-                            hidden.forEach(s => {
-                                const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
-                                const ev = document.createElement('div'); ev.className = 'month-event';
-                                const typeKeyH = c.type.toLowerCase().replace(/ /g,'');
-                                const bgColorH = this.getColor(typeKeyH);
-                                ev.style.backgroundColor = bgColorH;
-                                const textModeH = this.getTextMode(typeKeyH);
-                                ev.style.color = textModeH === 'auto' ? getTextColor(bgColorH) : (textModeH === 'white' ? '#fff' : '#000');
-                                const showPropH = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase(); ev.textContent = (s.priority ? `${s.priority}. ` : '') + c.name + (showPropH ? ' - ' + c.propId : '') + (c.city ? ' - ' + c.city : '');
-                                ev.onclick = (e2) => { e2.stopPropagation(); this.openModal(s); };
-                                cell.insertBefore(ev, more);
-                            });
-                            more.remove();
-                        };
-                        cell.appendChild(more);
-                    }
 
                     cell.onclick = () => this.openModal(null, dStr, activeGroups[0] || Object.keys(this.grupos)[0]);
                 }
                 weekRow.appendChild(cell);
                 dayNum++;
             }
-            wrapper.appendChild(weekRow);
+
+            weekWrap.appendChild(weekRow);
+            daysArea.appendChild(weekWrap);
+            weekIndex++;
         }
+
+        // Sin columna de grupos — el calendario ocupa todo el ancho
+        wrapper.appendChild(daysArea);
         grid.appendChild(wrapper);
     }
-
     // ── Helper: construir sidebar de grupo ──────────────────────────
     _buildSidebar(nombreGrupo) {
         const sidebar = document.createElement('div'); sidebar.className = 'sidebar-group';
@@ -1972,37 +2331,266 @@ class Scheduler {
             return (parseInt(a.priority)||999) - (parseInt(b.priority)||999);
         });
         daily.forEach(s => {
-            const c = this.clis.find(cl => cl.id == s.cliId); if(!c) return;
-            const div = document.createElement('div'); div.className = 'service-event';
+            const c = this.clis.find(cl => cl.id == s.cliId); if(!c) { const d=document.createElement('div'); d.className='month-event'; d.style.cssText='background:#ccc;color:#666;'; d.textContent='⚠️ Cliente no encontrado'; cell.appendChild(d); return; }
+            const div = document.createElement('div'); div.className = 'month-event';
             const prioNum = s.priority || '';
-            const prioPrefix = prioNum ? `<b>${prioNum}.</b> ` : '';
-            const showPropId = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
+            const prio = prioNum ? prioNum + '. ' : '';
+            const showPropId = c.propId && c.propId.trim() && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
             if (s.cancelled) {
-                div.style.backgroundColor = '#ffffff';
-                div.style.color = '#bbb';
-                div.style.border = '1px solid #ddd';
-                div.style.textDecoration = 'line-through';
-                const cancelProp = showPropId && c.propId ? `<div class="ev-propid">${c.propId}</div>` : '';
-                div.innerHTML = `<div class="ev-prop">❌ ${prioPrefix}${c.name}${c.city ? ' - ' + c.city : ''}</div>${cancelProp}`;
+                div.style.cssText = 'background:#fff;color:#aaa;border:1px solid #ddd;text-decoration:line-through;';
+                div.textContent = '❌ ' + (c.name || '?');
             } else {
-                const typeKey4 = c.type.toLowerCase().replace(/ /g,'');
-                const bgColor4 = this.getColor(typeKey4);
-                div.style.backgroundColor = bgColor4;
-                const textMode4 = this.getTextMode(typeKey4);
-                div.style.color = textMode4 === 'auto' ? getTextColor(bgColor4) : (textMode4 === 'white' ? '#fff' : '#000');
-                const propPart = showPropId && c.propId ? ` - ${c.propId}` : '';
-                const mainLine = `${prioPrefix}${c.name}${propPart}${c.city ? ' - ' + c.city : ''}`;
-                const timeLine = (s.timeStart || s.timeEnd)
-                    ? `<div class="ev-time">${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}</div>`
+                const typeKey = (c.type||'semanal').toLowerCase().replace(/ /g,'');
+                const bgColor = this.getColor(typeKey);
+                div.style.backgroundColor = bgColor;
+                div.style.borderLeft = '3px solid rgba(0,0,0,0.25)';
+                const textMode = this.getTextMode(typeKey);
+                div.style.color = textMode === 'auto' ? getTextColor(bgColor) : (textMode === 'white' ? '#fff' : '#000');
+                const cityPart2 = c.city && c.city.trim().toLowerCase() !== c.propId.trim().toLowerCase()
+                    ? ' - ' + c.city : '';
+                const lbl = showPropId
+                    ? prio + c.name + ' - ' + c.propId + cityPart2
+                    : prio + c.name + (c.city ? ' - ' + c.city : '');
+                const timeStr = s.timeStart
+                    ? `<div style="font-size:0.6rem;opacity:0.85;margin-top:1px;">⏰ ${this.fmt12(s.timeStart)}${s.timeEnd ? '-'+this.fmt12(s.timeEnd) : ''}</div>`
                     : '';
-                div.innerHTML = `<div class="ev-prop">${mainLine}</div>${timeLine}`;
+                div.innerHTML = `<div style="white-space:normal;word-break:break-word;">${lbl}</div>${timeStr}`;
             }
+            const tT = s.timeStart ? '\n⏰ ' + this.fmt12(s.timeStart) + (s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : '') : '';
+            div.title = c.name + (c.city ? ' · ' + c.city : '') + tT;
             div.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
             cell.appendChild(div);
         });
     }
 
     // ── Toggle sidebar global ───────────────────────────────────────
+    expandAllClients() {
+        document.querySelectorAll('[id^="expand_"]').forEach(el => el.style.display = 'block');
+    }
+    collapseAllClients() {
+        document.querySelectorAll('[id^="expand_"]').forEach(el => el.style.display = 'none');
+    }
+    filterClientCat(val) { this.renderCat(); }
+    toggleClientsSidebar() {
+        const sb = document.getElementById('clientsSidebar');
+        if (!sb) return;
+        if (sb.classList.contains('open')) {
+            // Cerrar: animar hacia la izquierda y ocultar
+            sb.style.transition = 'left .3s ease';
+            sb.style.left = '-260px';
+            sb._dragReady = false;
+            setTimeout(() => {
+                sb.classList.remove('open');
+                // Resetear todos los estilos inline para el próximo open
+                sb.style.left = '';
+                sb.style.top = '';
+                sb.style.height = '';
+                sb.style.transition = '';
+            }, 310);
+        } else {
+            // Abrir: resetear posición a default antes de abrir
+            sb.style.top = '80px';
+            sb.style.height = 'calc(100vh - 80px)';
+            sb.style.left = '0px';
+            sb.style.transition = 'left .3s ease';
+            sb.classList.add('open');
+            this._makeSidebarDraggable(sb);
+        }
+    }
+
+    _makeSidebarDraggable(sb) {
+        if (sb._dragReady) return; // ya está listo
+        sb._dragReady = true;
+
+        const header = sb.querySelector('.clients-sidebar-header');
+        if (!header) return;
+
+        let isDragging = false, startX, startY, startLeft, startTop;
+
+        header.addEventListener('mousedown', e => {
+            // No iniciar drag si click es en botón o dentro de botón
+            if (e.target.closest('button')) return;
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = sb.getBoundingClientRect();
+            startLeft = rect.left;
+            startTop  = rect.top;
+            sb.style.transition = 'none';
+            header.style.cursor = 'grabbing';
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            let newLeft = startLeft + dx;
+            let newTop  = startTop  + dy;
+            // Limitar dentro de la pantalla
+            newLeft = Math.max(0, Math.min(window.innerWidth  - sb.offsetWidth,  newLeft));
+            newTop  = Math.max(0, Math.min(window.innerHeight - sb.offsetHeight, newTop));
+            sb.style.left   = newLeft + 'px';
+            sb.style.top    = newTop  + 'px';
+            sb.style.height = (window.innerHeight - newTop) + 'px';
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            header.style.cursor = 'grab';
+            sb.style.transition = '';
+        });
+
+        // Touch support (móvil)
+        header.addEventListener('touchstart', e => {
+            if (e.target.tagName === 'BUTTON') return;
+            const t = e.touches[0];
+            isDragging = true;
+            startX = t.clientX; startY = t.clientY;
+            const rect = sb.getBoundingClientRect();
+            startLeft = rect.left; startTop = rect.top;
+            sb.style.transition = 'none';
+        }, {passive:true});
+
+        document.addEventListener('touchmove', e => {
+            if (!isDragging) return;
+            const t = e.touches[0];
+            const dx = t.clientX - startX;
+            const dy = t.clientY - startY;
+            let newLeft = Math.max(0, Math.min(window.innerWidth  - sb.offsetWidth,  startLeft + dx));
+            let newTop  = Math.max(0, Math.min(window.innerHeight - sb.offsetHeight, startTop  + dy));
+            sb.style.left = newLeft + 'px';
+            sb.style.top  = newTop  + 'px';
+            sb.style.height = (window.innerHeight - newTop) + 'px';
+        }, {passive:true});
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+            sb.style.transition = '';
+        });
+    }
+    renderClientsSidebar(filter='') {
+        const list = document.getElementById('clientsSidebarList');
+        if (!list) return;
+        list.innerHTML = '';
+
+        // Mostrar UN solo item por cliente — si tiene múltiples propiedades
+        // se manejará en el mini-modal al hacer drop
+        const sorted = [...this.clis]
+            .filter(c => !filter || c.name.toLowerCase().includes(filter.toLowerCase())
+                || (c.propId||'').toLowerCase().includes(filter.toLowerCase()))
+            .sort((a,b) => a.name.localeCompare(b.name));
+
+        const seenNames = new Set();
+        sorted.forEach(cli => {
+            const key = cli.name.trim().toLowerCase();
+            if (seenNames.has(key)) return; // ya está
+            seenNames.add(key);
+
+            const props = this.clis.filter(c => c.name.trim().toLowerCase() === key);
+            const hasMultiple = props.length > 1;
+
+            const el = document.createElement('div');
+            el.className = 'client-drag-item';
+            el.draggable = true;
+            el.textContent = cli.name + (hasMultiple ? ` (${props.length})` : (cli.city ? ' · ' + cli.city : ''));
+            el.title = cli.name + (cli.city ? ' · ' + cli.city : '') + (hasMultiple ? `
+${props.length} propiedades` : '');
+            el.style.borderLeftColor = this.getColor(cli.type || 'semanal');
+            el.addEventListener('dragstart', e => e.dataTransfer.setData('cliId', String(cli.id)));
+            list.appendChild(el);
+        });
+    }
+    filterClientsSidebar(v) {
+        const list = document.getElementById('clientsSidebarList');
+        if (list) list.innerHTML = '';
+        this.renderClientsSidebar(v);
+    }
+    enableDropOnCells() {
+        document.querySelectorAll('.month-day-cell[data-date],.time-cell[data-date]').forEach(cell => {
+            if (cell._drop) return; cell._drop = true;
+            cell.addEventListener('dragover', e => { e.preventDefault(); cell.classList.add('drag-over'); });
+            cell.addEventListener('dragleave', () => cell.classList.remove('drag-over'));
+            cell.addEventListener('drop', e => {
+                e.preventDefault(); cell.classList.remove('drag-over');
+                const id = e.dataTransfer.getData('cliId');
+                if (id && cell.dataset.date) this.openDropModal(id, cell.dataset.date);
+            });
+        });
+    }
+    openDropModal(cliId, date) {
+        const cli = this.clis.find(c => String(c.id) === String(cliId));
+        if (!cli) return;
+        const hasProp = cli.propId && cli.propId.trim() && cli.propId.toLowerCase() !== cli.name.toLowerCase();
+        document.getElementById('dropClientName').textContent = cli.name + (hasProp ? ' — ' + cli.propId : '');
+        const [y,m,d] = date.split('-');
+        const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'], meses=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const dObj = new Date(+y,+m-1,+d);
+        document.getElementById('dropDateLabel').textContent = `📅 ${dias[dObj.getDay()]} ${+d} de ${meses[+m-1]} ${y}`;
+        const gs = document.getElementById('dropGrupo'); gs.innerHTML = '';
+        Object.keys(this.grupos).forEach(g => { const o=document.createElement('option'); o.value=g; o.textContent=g; gs.appendChild(o); });
+        // Inicializar _dropData PRIMERO
+        this._dropData = {cliId, date};
+
+        // Si el cliente tiene múltiples propiedades, mostrar selector
+        const _dropProps = this.clis.filter(c => c.name.trim().toLowerCase() === cli.name.trim().toLowerCase());
+        const _dropPropWrap = document.getElementById('dropPropWrap');
+        const _dropPropSel = document.getElementById('dropPropId');
+        if (_dropProps.length > 1 && _dropPropWrap && _dropPropSel) {
+            _dropPropSel.innerHTML = _dropProps.map(p => {
+                const hp = p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase();
+                return `<option value="${p.id}">${hp ? p.propId : p.name}${p.city ? ' · ' + p.city : ''}</option>`;
+            }).join('');
+            _dropPropWrap.style.display = 'block';
+            this._dropData.cliId = _dropProps[0].id; // ahora sí existe _dropData
+        } else if (_dropPropWrap) {
+            _dropPropWrap.style.display = 'none';
+        }
+        if (cli.type) document.getElementById('dropTipo').value = cli.type;
+        document.getElementById('dropSerieStart').value = date;
+        const ed = new Date(dObj); ed.setFullYear(ed.getFullYear()+1);
+        document.getElementById('dropSerieEnd').value = ed.toISOString().split('T')[0];
+        document.getElementById('dropTimeStart').value = '';
+        document.getElementById('dropTimeEnd').value = '';
+        this.toggleDropSerie();
+        document.getElementById('dropModal').classList.add('show');
+    }
+    toggleDropSerie() {
+        const t = document.getElementById('dropTipo')?.value;
+        const f = document.getElementById('dropSerieFields');
+        if (f) f.style.display = (t==='unico'||t==='airbnb') ? 'none' : 'block';
+    }
+    closeDropModal() { document.getElementById('dropModal').classList.remove('show'); this._dropData=null; }
+    saveDropService() {
+        if (!this._dropData) return;
+        const {cliId,date} = this._dropData;
+        const cli = this.clis.find(c => String(c.id)===String(cliId));
+        if (!cli) return;
+        const tipo=document.getElementById('dropTipo').value, grupo=document.getElementById('dropGrupo').value;
+        const ts=document.getElementById('dropTimeStart').value, te=document.getElementById('dropTimeEnd').value;
+        if (tipo==='unico'||tipo==='airbnb') {
+            this.servs.push({id:Date.now()+Math.random(),cliId:cli.id,empId:grupo,grupo,date,type:tipo,timeStart:ts,timeEnd:te,priority:0,status:'pending'});
+        } else {
+            let cur=new Date(document.getElementById('dropSerieStart').value+'T12:00:00');
+            const end=new Date(document.getElementById('dropSerieEnd').value+'T12:00:00');
+            let n=0;
+            while(cur<=end&&n<500){
+                this.servs.push({id:Date.now()+n+Math.random(),cliId:cli.id,empId:grupo,grupo,date:cur.toLocaleDateString('en-CA'),type:tipo,timeStart:ts,timeEnd:te,priority:0,status:'pending'});
+                n++;
+                if(tipo==='diario')cur.setDate(cur.getDate()+1);
+                else if(tipo==='semanal')cur.setDate(cur.getDate()+7);
+                else if(tipo==='quincenal')cur.setDate(cur.getDate()+14);
+                else if(tipo==='cada3semanas')cur.setDate(cur.getDate()+21);
+                else if(tipo==='mensual')cur.setMonth(cur.getMonth()+1);
+                else if(tipo==='2xsemana'){const dw=cur.getDay();cur.setDate(cur.getDate()+(dw===2?2:dw===5?4:1));}
+                else if(tipo==='3xsemana'){const dw=cur.getDay();cur.setDate(cur.getDate()+(dw===1?2:dw===3?2:dw===5?3:1));}
+                else cur.setDate(cur.getDate()+7);
+            }
+            alert('✅ '+n+' servicios creados para '+cli.name);
+        }
+        this.closeDropModal(); this.save(); this.render();
+    }
     toggleSidebar() {
         this.sidebarCollapsed = !this.sidebarCollapsed;
         const btn = document.getElementById('sidebarToggleBtn');
@@ -2037,7 +2625,29 @@ class Scheduler {
         
         if(s) { 
             // EDITAR servicio existente
-            document.getElementById('mCli').value = s.cliId; 
+            // Buscar el cliente del servicio
+            const _editCli = this.clis.find(c => String(c.id) === String(s.cliId));
+            if (_editCli) {
+                // Buscar el representante de este nombre en mCli
+                const _editProps = this.clis.filter(c => c.name.trim().toLowerCase() === _editCli.name.trim().toLowerCase());
+                const _wrap = document.getElementById('propSelectWrap');
+                const _propSel = document.getElementById('mPropId');
+                // Poner en mCli el id del representante (primer cliente con ese nombre)
+                document.getElementById('mCli').value = _editProps[0].id;
+                if (_editProps.length > 1 && _wrap && _propSel) {
+                    // Poblar selector de propiedad y seleccionar la correcta
+                    _propSel.innerHTML = _editProps.map(p => {
+                        const hp = p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase();
+                        const propLabel = hp ? (p.propId.length > 28 ? p.address||p.propId.substring(0,25)+'…' : p.propId) : (p.address||p.name);
+                        return `<option value="${p.id}" ${String(p.id)===String(s.cliId)?'selected':''}>${propLabel}${p.city ? ' · ' + p.city : ''}</option>`;
+                    }).join('');
+                    _wrap.style.display = 'block';
+                } else if (_wrap) {
+                    _wrap.style.display = 'none';
+                }
+            } else {
+                document.getElementById('mCli').value = s.cliId;
+            }
             document.getElementById('mEmp').value = s.empId; 
             document.getElementById('mDate').value = s.date;
             const suggBadgeE = document.getElementById('groupSuggestion');
@@ -2051,7 +2661,10 @@ class Scheduler {
 
         } else {
             // NUEVO servicio - Limpiar TODOS los campos
-            document.getElementById('mCli').value = ''; 
+            document.getElementById('mCli').value = '';
+            // Ocultar selector de propiedad para nuevo servicio
+            const _nWrap = document.getElementById('propSelectWrap');
+            if (_nWrap) _nWrap.style.display = 'none';
             document.getElementById('mEmp').value = g || ''; 
             document.getElementById('mDate').value = d || new Date().toLocaleDateString('en-CA');
             const suggBadge = document.getElementById('groupSuggestion');
@@ -3703,7 +4316,8 @@ class Scheduler {
                     th { background: #8e44ad; color: white; }
                     .totales { margin-top: 30px; border-top: 2px solid #2c3e50; padding-top: 20px; }
                     .linea-total { display: flex; justify-content: space-between; padding: 8px 0; font-size: 16px; font-weight: bold; }
-                </style>
+
+        </style>
             </head>
             <body>
                 <h1>${titulo}</h1>
@@ -5065,6 +5679,51 @@ class Scheduler {
                 </div>`;
         }).join('');
     }
+    onCliChange() {
+        // Al cambiar cliente, verificar si tiene múltiples propiedades
+        const cliId = document.getElementById('mCli').value;
+        const cli = this.clis.find(c => String(c.id) === String(cliId));
+        if (!cli) return;
+
+        // Buscar TODAS las propiedades de este cliente por nombre
+        const props = this.clis.filter(c => c.name.trim().toLowerCase() === cli.name.trim().toLowerCase());
+        const wrap = document.getElementById('propSelectWrap');
+        const propSel = document.getElementById('mPropId');
+
+        if (props.length > 1) {
+            // Mostrar selector de propiedad
+            propSel.innerHTML = props.map(p => {
+                const hasProp = p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase();
+                // Si propId es una dirección larga, mostrar solo ciudad o dirección corta
+                let label;
+                if (!hasProp) {
+                    label = p.name + (p.city ? ' · ' + p.city : '');
+                } else if (p.propId.length > 30) {
+                    // propId es una dirección — mostrar dirección corta + ciudad
+                    label = p.propId.substring(0,25) + '… ' + (p.city ? p.city : '');
+                } else {
+                    label = p.propId + (p.city ? ' · ' + p.city : '');
+                }
+                return `<option value="${p.id}">${label}</option>`;
+            }).join('');
+            wrap.style.display = 'block';
+            // Actualizar mCli con el id de la primera propiedad
+            document.getElementById('mCli').value = props[0].id;
+        } else {
+            wrap.style.display = 'none';
+        }
+        this.toggleRep();
+        this.suggestGroup();
+    }
+
+    onPropChange() {
+        // Al cambiar propiedad, actualizar mCli con el id correcto
+        const propId = document.getElementById('mPropId').value;
+        document.getElementById('mCli').value = propId;
+        this.toggleRep();
+        this.suggestGroup();
+    }
+
     toggleRep() { 
         const isRep = document.getElementById('mRep').value==='yes';
         document.getElementById('untilContainer').style.display = isRep ? 'block' : 'none';
@@ -5350,11 +6009,8 @@ class Scheduler {
             document.getElementById('editCliId').value = '';
             document.getElementById('regenBlock').style.display = 'none';
             
-            // Restaurar botón
-            const btn = document.querySelector('button[onclick="app.saveCli()"]');
-            btn.textContent = '💾 GUARDAR CLIENTE';
-            btn.style.background = 'var(--success)';
-            
+            // Restaurar botón y cerrar formulario
+            this.cancelCliForm();
             this.save();
             this.renderCat();
             this.refreshSels();
@@ -5408,6 +6064,7 @@ class Scheduler {
         }
         
         this.save(); this.renderCat(); this.refreshSels(); this.render(); this.cancelCliForm();
+        setTimeout(() => this.renderClientsSidebar(), 200);
     }
 
     editCli(id) {
@@ -5575,41 +6232,112 @@ class Scheduler {
             </div>
         `).join('');
         
-        document.getElementById('listC').innerHTML = sortedClis.map(c => {
-            const showPropId = c.propId && c.propId.trim() !== '' && c.propId.trim().toLowerCase() !== c.name.trim().toLowerCase();
+        // Agrupar clientes por nombre
+        const clientGroups2 = {};
+        sortedClis.forEach(cl => {
+            if (!clientGroups2[cl.name]) clientGroups2[cl.name] = [];
+            clientGroups2[cl.name].push(cl);
+        });
+
+        // Buscador en Base de Datos
+        const searchEl = document.getElementById('cliSearchInput');
+        const searchVal = searchEl ? searchEl.value.trim().toLowerCase() : '';
+
+        const filteredGroups = Object.entries(clientGroups2).filter(([name, props]) => {
+            if (!searchVal) return true;
+            if (name.toLowerCase().includes(searchVal)) return true;
+            return props.some(p =>
+                (p.propId||'').toLowerCase().includes(searchVal) ||
+                (p.city||'').toLowerCase().includes(searchVal) ||
+                (p.address||'').toLowerCase().includes(searchVal)
+            );
+        });
+
+        document.getElementById('listC').innerHTML = filteredGroups.map(([name, props]) => {
+            const first = props[0];
+            const hasMultiple = props.length > 1;
+            // Contraído por defecto — expandir al hacer click
+            const expandId = 'expand_' + name.replace(/\s+/g,'_');
+            const propsHTML = hasMultiple ? props.map(p => {
+                const hasProp = p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase();
+                const propLabel = hasProp
+                    ? (p.propId.length > 28 ? p.address || p.propId.substring(0,25)+'…' : p.propId)
+                    : p.address || p.name;
+                return `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px 4px 24px; border-left:3px solid #00b5ad; margin:3px 0; background:#f8fffe; border-radius:0 4px 4px 0;">
+                    <span style="font-size:0.85rem;">
+                        <b style="color:#00b5ad;">${propLabel}</b>
+                        <small style="color:#888;"> · ${p.city||''} · $${p.price||p.fee||0} · ${p.type||''}</small>
+                    </span>
+                    <div>
+                        <button onclick="app.editCli('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:1rem;" title="Editar">✏️</button>
+                        <button onclick="app.delCli('${p.id}')" style="background:none;border:none;cursor:pointer;font-size:1rem;" title="Eliminar">❌</button>
+                    </div>
+                </div>`;
+            }).join('') : '';
+
             return `
-            <div class="list-item">
-                <span>
-                    <b>${c.name}</b>${showPropId ? ' - ' + c.propId : ''}<br>
-                    <small style="color:#666">${c.tel || 'Sin tel'} | ${c.address || 'Sin dirección'} | ${c.type}</small>
-                </span>
-                <div>
-                    <button onclick="app.editCli('${c.id}')" style="background:none; border:none; cursor:pointer; font-size:1.2rem" title="Editar">✏️</button>
-                    <button onclick="app.delCli('${c.id}')" style="background:none; border:none; cursor:pointer; font-size:1.2rem" title="Eliminar">❌</button>
+            <div class="list-item" style="flex-direction:column; align-items:stretch; padding:8px 10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <span style="cursor:${hasMultiple?'pointer':'default'}" onclick="${hasMultiple?`document.getElementById('${expandId}').style.display=document.getElementById('${expandId}').style.display==='none'?'block':'none'`:''}" >
+                        <b>${name}</b>${hasMultiple ? ` <span style="background:#00b5ad;color:white;font-size:0.65rem;padding:1px 6px;border-radius:10px;margin-left:4px;">${props.length} ▼</span>` : ''}
+                        <br><small style="color:#666">${first.tel||'Sin tel'} · ${first.address||'Sin dirección'} · ${first.type||''}</small>
+                    </span>
+                    ${!hasMultiple ? `<div>
+                        <button onclick="app.editCli('${first.id}')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;" title="Editar">✏️</button>
+                        <button onclick="app.delCli('${first.id}')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;" title="Eliminar">❌</button>
+                    </div>` : `<div>
+                        <button onclick="app.editCli('${first.id}')" style="background:none;border:none;cursor:pointer;font-size:1.2rem;" title="Editar">✏️</button>
+                    </div>`}
                 </div>
-            </div>
-        `;
+                <div id="${expandId}" style="display:none;">${propsHTML}</div>
+            </div>`;
         }).join('');
     }
 
     refreshSels() {
-        // populateGroupFilter solo se llama al inicio (en constructor/init)
-        // para no regenerar el dropdown mientras el usuario filtra grupos
-        
-        // ✅ Ordenar clientes alfabéticamente
+        // Ordenar clientes alfabéticamente
         const sortedClis = [...this.clis].sort((a, b) => {
             const nameA = (a.name || '').toLowerCase();
             const nameB = (b.name || '').toLowerCase();
-            if(nameA === nameB) {
-                return (a.propId || '').localeCompare(b.propId || '');
-            }
+            if(nameA === nameB) return (a.propId || '').localeCompare(b.propId || '');
             return nameA.localeCompare(nameB);
         });
-        
-        const cO = sortedClis.map(c => `<option value="${c.id}">${c.name} - ${c.propId}</option>`).join('');
-        document.getElementById('mCli').innerHTML = cO;
-        document.getElementById('searchCli').innerHTML = '<option value="all">TODOS LOS CLIENTES</option>' + cO;
-        document.getElementById('finCli').innerHTML = '<option value="all">TODOS LOS CLIENTES</option>' + cO;
+
+        // ── Construir opciones para mCli (modal servicio) ──
+        // Mostrar UN solo nombre por cliente — el 2do dropdown maneja las propiedades
+        // Una opción por nombre de cliente — onCliChange maneja propiedades múltiples
+        const nameGroups = {};
+        sortedClis.forEach(cl => {
+            const key = cl.name.trim().toLowerCase();
+            if (!nameGroups[key]) nameGroups[key] = cl; // guardar el primero
+        });
+        let mCliHTML = '';
+        Object.values(nameGroups).forEach(cl => {
+            mCliHTML += `<option value="${cl.id}">${cl.name}${cl.city ? ' · ' + cl.city : ''}</option>`;
+        });
+
+                // Opciones para searchCli y finCli — con optgroup para múltiples propiedades
+        let filterHTML = '<option value="all">TODOS LOS CLIENTES</option>';
+        const uniqueNames = [...new Set(sortedClis.map(c => c.name))];
+        uniqueNames.forEach(name => {
+            const props = sortedClis.filter(c => c.name === name);
+            if (props.length > 1) {
+                filterHTML += `<optgroup label="${name}">`;
+                props.forEach(p => {
+                    const hasProp = p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase();
+                    filterHTML += `<option value="${p.id}">${hasProp ? p.propId : p.name}${p.city ? ' · ' + p.city : ''}</option>`;
+                });
+                filterHTML += `</optgroup>`;
+            } else {
+                const p = props[0];
+                filterHTML += `<option value="${p.id}">${p.name}${p.city ? ' · ' + p.city : ''}</option>`;
+            }
+        });
+
+        document.getElementById('mCli').innerHTML = mCliHTML;
+        document.getElementById('searchCli').innerHTML = filterHTML;
+        document.getElementById('finCli').innerHTML = filterHTML;
     }
 
     refreshFinance() {
@@ -8485,7 +9213,8 @@ class Scheduler {
                         phone   = r[13];
                         fee     = r[14];
                         ctype   = r[15];
-                        propId  = r[16] || '';
+                        propId  = r[16] || '';  // col Q = ID Propiedad
+                        // col R(17) = Términos de Pago (se lee abajo)
                     } else if (r.length >= 8 && r[1]) {
                         // Plantilla con solo columnas azules (cols PDF)
                         name    = r[1];
@@ -8515,11 +9244,13 @@ class Scheduler {
                     const bp = ['semanal','2xsemana','3xsemana','diario'].includes(t) ? 'weekly' :
                                t==='quincenal' ? 'biweekly' : 'monthly';
 
-                    // Duplicado = mismo nombre Y mismo propId
-                    const propIdCheck = (propId || name).trim().toLowerCase();
+                    // Duplicado = mismo nombre + dirección + ciudad
+                    // Estable aunque se reordene el Excel
+                    const feeNum = parseFloat(String(fee).replace(/[$,]/g,'')) || 0;
                     const exists = this.clis.find(c =>
                         c.name && c.name.trim().toLowerCase() === name.trim().toLowerCase() &&
-                        (c.propId || c.name).trim().toLowerCase() === propIdCheck
+                        (c.address||'').trim().toLowerCase() === (address||'').trim().toLowerCase() &&
+                        (c.city||'').trim().toLowerCase() === (city||'').trim().toLowerCase()
                     );
                     // Leer términos de pago del Excel (col 17 en plantilla completa)
                     const termsRaw = r.length >= 17 ? r[17] : '';
@@ -8528,14 +9259,16 @@ class Scheduler {
 
                     if (!exists) {
                         this.clis.push({
-                            id: `cli_excel_${i+1}_${Date.now()}`,
+                            id: `cli_excel_${Date.now()}_${Math.random().toString(36).substr(2,6)}`,
                             name:    name.trim(),
                             address: address || '',
                             city:    city || '',
                             zip:     zip || '',
                             tel:     phone ? phone.toString().trim() : '',
                             phone:   phone ? phone.toString().trim() : '',
-                            propId:  propId ? propId.trim() : name.trim(),
+                            propId:  (propId && propId.trim() && propId.trim().toLowerCase() !== name.trim().toLowerCase())
+                                        ? propId.trim()
+                                        : (address ? address.trim() : (name.trim() + '_' + (i+1))),
                             fee:     parseFloat(feeClean) || 0,
                             price:   parseFloat(feeClean) || 0,
                             type: t, serviceType: 'residencial',
@@ -8546,8 +9279,22 @@ class Scheduler {
                         });
                         added++;
                     } else {
-                        // Actualizar campos en cliente existente
+                        // Actualizar cliente existente con datos del Excel
                         let changed = false;
+                        exists.name    = name.trim();
+                        exists.address = address || exists.address;
+                        exists.city    = city || exists.city;
+                        exists.zip     = zip || exists.zip;
+                        exists.tel     = (phone ? phone.toString().trim() : '') || exists.tel;
+                        exists.propId  = (propId && propId.trim() && propId.trim().toLowerCase() !== name.trim().toLowerCase())
+                                            ? propId.trim()
+                                            : (address ? address.trim() : exists.propId);
+                        if (feeClean) {
+                            exists.fee = parseFloat(feeClean) || 0;
+                            exists.price = parseFloat(feeClean) || 0;
+                        }
+                        if (ctype) exists.type = t;
+                        changed = true;
                         if (feeClean && (!exists.price || exists.price === 0)) {
                             exists.fee = parseFloat(feeClean) || 0;
                             exists.price = parseFloat(feeClean) || 0;

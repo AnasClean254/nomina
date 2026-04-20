@@ -399,6 +399,7 @@
                 <button class="tab" onclick="app.switchTab('payroll')">💵 Nómina</button>
                 <button class="tab" onclick="app.switchTab('timecards')">📋 Time Cards</button>
                 <button class="tab" onclick="app.switchTab('checks')">🧾 Cheques</button>
+                <button class="tab" onclick="app.switchTab('expenses')">💸 Gastos</button>
                 <button class="tab" onclick="app.switchTab('history')">📊 Historial</button>
             </div>
             <div style="display:flex; gap:8px; margin-left:auto; flex-wrap:wrap;">
@@ -1095,6 +1096,97 @@
         </div>
         
         <!-- TAB HISTORIAL -->
+        <!-- ══ TAB: GASTOS CON CHEQUE ══ -->
+        <div class="tab-content" id="tabExpenses">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+                <h2 style="color:#1565c0; margin:0;">💸 Gastos con Cheque</h2>
+                <button class="btn btn-success" onclick="app.openExpenseModal()">➕ Nuevo Gasto</button>
+            </div>
+
+            <!-- Filtros -->
+            <div style="background:#f8f9fa; border-radius:10px; padding:15px; margin-bottom:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                <div>
+                    <label style="font-size:0.85rem; color:#666;">Desde:</label>
+                    <input type="date" id="expFilterStart" style="padding:6px; border:1px solid #ddd; border-radius:6px;">
+                </div>
+                <div>
+                    <label style="font-size:0.85rem; color:#666;">Hasta:</label>
+                    <input type="date" id="expFilterEnd" style="padding:6px; border:1px solid #ddd; border-radius:6px;">
+                </div>
+                <div>
+                    <label style="font-size:0.85rem; color:#666;">Categoría:</label>
+                    <select id="expFilterCat" style="padding:6px; border:1px solid #ddd; border-radius:6px;">
+                        <option value="all">Todas</option>
+                        <option value="supplies">Suministros</option>
+                        <option value="equipment">Equipo</option>
+                        <option value="vehicle">Vehículo</option>
+                        <option value="utilities">Servicios</option>
+                        <option value="other">Otro</option>
+                    </select>
+                </div>
+                <button class="btn btn-primary" onclick="app.renderExpenses()" style="padding:8px 16px;">🔍 Filtrar</button>
+                <button class="btn" onclick="app.exportExpensesCSV()" style="padding:8px 16px; background:#27ae60; color:white;">📥 Exportar CSV</button>
+            </div>
+
+            <!-- Totales -->
+            <div id="expTotals" style="display:flex; gap:15px; margin-bottom:20px; flex-wrap:wrap;"></div>
+
+            <!-- Lista de gastos -->
+            <div id="expensesList"></div>
+        </div>
+
+        <!-- Modal nuevo gasto -->
+        <div class="modal" id="expenseModal">
+            <div class="modal-content" style="max-width:500px;">
+                <div class="modal-header">
+                    <h2 id="expenseModalTitle">➕ Nuevo Gasto</h2>
+                    <button class="modal-close" onclick="app.closeExpenseModal()">✕</button>
+                </div>
+                <input type="hidden" id="expId">
+                <div class="form-group">
+                    <label>🏢 Vendor / Pagado a:</label>
+                    <input type="text" id="expVendor" placeholder="Ej: Home Depot, Walmart..." list="vendorList" autocomplete="off"
+                        style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; font-size:1rem;">
+                    <datalist id="vendorList"></datalist>
+                </div>
+                <div class="form-group">
+                    <label>📋 Descripción / Memo:</label>
+                    <input type="text" id="expDesc" placeholder="Ej: Compra de suministros de limpieza">
+                </div>
+                <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                        <label>💵 Monto ($):</label>
+                        <input type="number" id="expAmount" step="0.01" placeholder="0.00">
+                    </div>
+                    <div>
+                        <label>📅 Fecha:</label>
+                        <input type="date" id="expDate">
+                    </div>
+                </div>
+                <div class="form-group" style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                        <label>🧾 # Cheque:</label>
+                        <input type="text" id="expCheckNum" placeholder="1001">
+                    </div>
+                    <div>
+                        <label>🏷️ Categoría:</label>
+                        <select id="expCategory" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px;">
+                            <option value="supplies">🧴 Suministros</option>
+                            <option value="equipment">🔧 Equipo</option>
+                            <option value="vehicle">🚗 Vehículo</option>
+                            <option value="utilities">💡 Servicios</option>
+                            <option value="other">📦 Otro</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>📝 Notas (opcional):</label>
+                    <textarea id="expNotes" rows="2" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; font-family:inherit; resize:vertical;" placeholder="Detalles adicionales..."></textarea>
+                </div>
+                <button class="btn btn-success" onclick="app.saveExpense()" style="width:100%; margin-top:10px;">💾 Guardar Gasto</button>
+            </div>
+        </div>
+
         <div class="tab-content" id="tabHistory">
             <div class="card">
                 <h2>📊 Historial</h2>
@@ -1211,8 +1303,20 @@
                 <input type="text" id="empPin" maxlength="4" placeholder="1234">
             </div>
             <div class="form-group">
+                <label>💰 Tipo de Pago:</label>
+                <select id="empPayType" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; font-size:1rem;" onchange="app.togglePayTypeFields()">
+                    <option value="hourly">⏱️ Por Hora</option>
+                    <option value="flat">📋 Por Trabajo/Proyecto</option>
+                </select>
+            </div>
+            <div class="form-group" id="empRateGroup">
                 <label>Tarifa por hora ($):</label>
                 <input type="number" id="empRate" step="0.01" placeholder="15.00">
+            </div>
+            <div class="form-group" id="empFlatRateGroup" style="display:none;">
+                <label>Monto fijo por trabajo ($):</label>
+                <input type="number" id="empFlatRate" step="0.01" placeholder="150.00">
+                <small style="color:#7f8c8d; margin-top:5px;">Se multiplica por el número de trabajos/días registrados</small>
             </div>
             <div class="form-group">
                 <label>Deducción individual (%):</label>
@@ -1282,6 +1386,8 @@
             attendances: [],
             payrollRecords: [],
             checks: [], // Cheques generados (separado de payrollRecords)
+            expenses: [], // Gastos con cheque
+            vendors: [],  // Catálogo de vendors
             savedPayrollPeriods: [],
             CLIENT_ID: '701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com',
             // ID único de este dispositivo — se genera automáticamente la primera vez
@@ -2065,7 +2171,7 @@
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
                 // Marcar el tab activo por nombre, no por event.target
-                const tabNames = ['employees','attendances','payroll','timecards','checks','history'];
+                const tabNames = ['employees','attendances','payroll','timecards','checks','expenses','history'];
                 document.querySelectorAll('.tab').forEach((t, i) => {
                     if (tabNames[i] === tab) t.classList.add('active');
                 });
@@ -2074,6 +2180,7 @@
                 if (tab === 'attendances') this.refreshAttendances();
                 if (tab === 'timecards') this.refreshTimeCards();
                 if (tab === 'checks') this.refreshChecks();
+                if (tab === 'expenses') this.renderExpenses();
                 if (tab === 'history') { this.refreshHistory(); this.renderSavedPayrollList(); }
             },
             
@@ -2139,11 +2246,22 @@
                 document.getElementById('empZip').value = emp.zip || '';
                 document.getElementById('empPin').value = emp.pin;
                 document.getElementById('empRate').value = emp.rate;
+                document.getElementById('empPayType').value = emp.payType || 'hourly';
+                document.getElementById('empFlatRate').value = emp.flatRate || '';
+                app.togglePayTypeFields();
                 document.getElementById('empDeduction').value = emp.deduction || 0;
                 document.getElementById('empPayMethod').value = emp.payMethod || 'check';
                 document.getElementById('employeeModal').classList.add('active');
             },
             
+            togglePayTypeFields() {
+                const type = document.getElementById('empPayType')?.value || 'hourly';
+                const rateGroup = document.getElementById('empRateGroup');
+                const flatGroup = document.getElementById('empFlatRateGroup');
+                if (rateGroup) rateGroup.style.display = type === 'hourly' ? 'block' : 'none';
+                if (flatGroup) flatGroup.style.display = type === 'flat'   ? 'block' : 'none';
+            },
+
             closeEmployeeModal() {
                 document.getElementById('employeeModal').classList.remove('active');
                 document.getElementById('empId').value = '';
@@ -2183,6 +2301,9 @@
                     return;
                 }
                 
+                const payType   = document.getElementById('empPayType').value;
+                const flatRate  = parseFloat(document.getElementById('empFlatRate').value) || 0;
+
                 if (empId) {
                     // EDITAR empleado existente
                     const emp = this.employees.find(e => e.id === empId);
@@ -2194,6 +2315,8 @@
                         emp.zip = zip;
                         emp.pin = pin;
                         emp.rate = rate;
+                        emp.payType  = payType;
+                        emp.flatRate = flatRate;
                         emp.deduction = parseFloat(document.getElementById('empDeduction').value) || 0;
                         emp.payMethod = document.getElementById('empPayMethod').value || 'check';
                         
@@ -2214,6 +2337,8 @@
                         address,
                         pin,
                         rate,
+                        payType,
+                        flatRate,
                         deduction: parseFloat(document.getElementById('empDeduction').value) || 0,
                         payMethod: document.getElementById('empPayMethod').value || 'check'
                     });
@@ -3236,12 +3361,32 @@
                 }
                 
                 // Filtrar asistencias por rango de fechas
-                // IMPORTANTE: incluir registros sin hours para capturar tardanzas
-                // aunque no tengan checkOut completo
                 const periodAttendances = this.attendances.filter(a => {
                     const date = new Date(a.date + 'T00:00:00');
                     return date >= startDate && date <= endDate && a.checkIn;
                 });
+
+                // ── ADVERTENCIA: jornadas sin cerrar ──
+                const openShifts = periodAttendances.filter(a => !a.checkOut);
+                if (openShifts.length > 0) {
+                    const names = [...new Set(openShifts.map(a => a.employeeName))].join(', ');
+                    const dates = openShifts.map(a => a.date).join(', ');
+                    const proceed = confirm(
+                        `⚠️ JORNADAS SIN CERRAR (${openShifts.length})
+
+` +
+                        `Empleado(s): ${names}
+` +
+                        `Fecha(s): ${dates}
+
+` +
+                        `Estos registros no tienen hora de salida y NO serán incluidos en el cálculo.
+
+` +
+                        `¿Deseas continuar de todas formas?`
+                    );
+                    if (!proceed) return;
+                }
                 
                 // Mostrar período seleccionado
                 const formatDate = (d) => {
@@ -3261,6 +3406,8 @@
                             employeeId: att.employeeId,
                             employeeName: att.employeeName,
                             rate: emp ? emp.rate : 0,
+                            flatRate: emp ? (emp.flatRate || 0) : 0,
+                            payType: emp ? (emp.payType || 'hourly') : 'hourly',
                             empDeduction: emp ? (emp.deduction || 0) : 0,
                             regularHours: 0,
                             overtimeHours: 0,
@@ -3269,6 +3416,7 @@
                             lunchDeductions: 0,
                             lateMinutes: 0,
                             latePenalty: 0,
+                            flatWorks: 0,    // contador de trabajos para flat
                             regularPay: 0,
                             overtimePay: 0,
                             grossPay: 0,
@@ -3278,6 +3426,13 @@
                     }
                     
                     const p = payroll[att.employeeId];
+
+                    // ── PAGO POR PROYECTO: contar trabajos, omitir cálculo de horas ──
+                    if (p.payType === 'flat') {
+                        if (att.checkOut) p.flatWorks++; // solo contar jornadas cerradas
+                        return;
+                    }
+
                     // Proteger contra hours null/undefined (ej: sin checkOut aún)
                     let dailyHours = att.hours ? Math.round(att.hours * 100) / 100 : 0;
                     
@@ -3327,21 +3482,22 @@
                 
                 // Calcular pagos y deducciones
                 Object.values(payroll).forEach(p => {
-                    // Pago normal
-                    p.regularPay = p.regularHours * p.rate;
-                    
-                    // Pago horas extras (1.5x)
-                    p.overtimePay = p.overtimeHours * p.rate * 1.5;
-                    
-                    // Pago bruto (antes de cualquier descuento)
-                    p.grossPay = p.regularPay + p.overtimePay;
-                    
-                    // Tardanza (descuento separado, no afecta grossPay)
-                    if (p.lateMinutes > 0) {
-                        p.latePenalty = (p.lateMinutes / 60) * p.rate;
+                    if (p.payType === 'flat') {
+                        // Pago por proyecto: monto fijo × número de trabajos
+                        p.grossPay  = p.flatRate * p.flatWorks;
+                        p.regularPay = p.grossPay;
+                    } else {
+                        // Pago por hora
+                        p.regularPay = p.regularHours * p.rate;
+                        p.overtimePay = p.overtimeHours * p.rate * 1.5;
+                        p.grossPay = p.regularPay + p.overtimePay;
+                        // Tardanza solo aplica a empleados por hora
+                        if (p.lateMinutes > 0) {
+                            p.latePenalty = (p.lateMinutes / 60) * p.rate;
+                        }
                     }
                     
-                    // Deducción individual (sobre grossPay original)
+                    // Deducción individual (sobre grossPay)
                     if (p.empDeduction > 0) {
                         p.deductions = (p.grossPay * p.empDeduction) / 100;
                     }
@@ -3516,7 +3672,7 @@
                 // Botón Confirmar Nómina
                 html += `
                     <div style="margin-top:20px; text-align:center;">
-                        <button class="btn btn-success" style="font-size:1.1rem; padding:14px 35px;" onclick="app.openCheckAssignment()">
+                        <button class="btn btn-success" style="font-size:1.1rem; padding:14px 35px;" onclick="app.currentPayrollPeriodId=null; app.openCheckAssignment();">
                             ✅ Confirmar Nómina → Asignar Cheques
                         </button>
                     </div>
@@ -3767,6 +3923,8 @@
                 // Check if card has extra lines (late/deduction) to adjust sizing
                 const hasLate = this.workConfig.enableLateDeduction && periodAtt.some(a => {
                     if (!a.checkIn) return false;
+                    const attDayHL = new Date(a.date + 'T12:00:00').getDay();
+                    if (attDayHL === 0 || attDayHL === 6) return false;
                     const [sH, sM] = this.workConfig.startTime.split(':').map(Number);
                     const [cH, cM] = a.checkIn.split(':').map(Number);
                     return (cH * 60 + cM) - (sH * 60 + sM) - this.workConfig.lateTolerance > 0;
@@ -3891,6 +4049,8 @@
                 if (this.workConfig.enableLateDeduction) {
                     periodAtt.forEach(att => {
                         if (att.checkIn) {
+                            const attDayTC = new Date(att.date + 'T12:00:00').getDay();
+                            if (attDayTC === 0 || attDayTC === 6) return;
                             const [sH, sM] = this.workConfig.startTime.split(':').map(Number);
                             const [cH, cM] = att.checkIn.split(':').map(Number);
                             const retrasoTC = (cH * 60 + cM) - (sH * 60 + sM);
@@ -4101,9 +4261,10 @@
                         </div>
                         ${checkSection}
                         ${digitalSection}
-                        <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:8px;">
-                            <button onclick="document.getElementById('checkAssignModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
-                            <button onclick="app.confirmAndPrintChecks()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar Todo</button>
+                        <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;flex-wrap:wrap;">
+                            <button onclick="document.getElementById('checkAssignModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                            <button onclick="app.confirmAndPrintChecks(false,false,false)" style="background:#2980b9;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar — Imprimir Después</button>
+                            <button onclick="app.confirmAndPrintChecks()" style="background:#27ae60;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">✅ Guardar e Imprimir Ahora</button>
                         </div>
                     </div>`;
 
@@ -4136,7 +4297,7 @@
                 }
             },
 
-            confirmAndPrintChecks(onlyChecks = false, onlyDigital = false) {
+            confirmAndPrintChecks(onlyChecks = false, onlyDigital = false, showPreview = true) {
                 const payroll = this.currentPayrollCalc;
                 if (!payroll || payroll.length === 0) return;
 
@@ -4216,7 +4377,17 @@
                 this.save();
                 document.getElementById('checkAssignModal').remove();
 
-                if (!onlyDigital && toPrintChecks.length > 0) this.previewChecks(toPrintChecks, cfg, bgImage);
+                if (showPreview && !onlyDigital && toPrintChecks.length > 0) this.previewChecks(toPrintChecks, cfg, bgImage);
+
+                // Marcar el período actual como impreso o pendiente
+                if (this.currentPayrollPeriodId) {
+                    const p = this.savedPayrollPeriods.find(p => p.id === this.currentPayrollPeriodId);
+                    if (p) {
+                        p.checksStatus = showPreview ? 'printed' : 'pending';
+                        p.updatedAt = new Date().toISOString();
+                        this.saveData();
+                    }
+                }
                 if (!onlyChecks && toPrintDigital.length > 0) this.previewDigitalStubs(toPrintDigital);
                 if (toPrintChecks.length === 0 && toPrintDigital.length === 0) {
                     alert('Registros guardados. No se seleccionó ninguno para imprimir.');
@@ -4360,7 +4531,7 @@
                         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
                             '<h3 style="margin:0;color:#1565c0;">🔍 Preview — ' + checks.length + ' cheque(s)</h3>' +
                             '<div style="display:flex;gap:10px;">' +
-                                '<button onclick="app._doPrintChecks()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1rem;">🖨️ Imprimir</button>' +
+                                '<button onclick="app._doPrintChecks(); if(app.currentPayrollPeriodId){app.markChecksAsPrinted(app.currentPayrollPeriodId);}" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1rem;">🖨️ Imprimir</button>' +
                                 '<button onclick="document.getElementById(&quot;checkPreviewAllModal&quot;).remove()" style="background:#e74c3c;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">✕</button>' +
                             '</div>' +
                         '</div>' +
@@ -5001,14 +5172,17 @@
                 const endDate = new Date(endStr + 'T23:59:59');
                 const fmt = (d) => `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
                 const label = `${fmt(startDate)} — ${fmt(endDate)}`;
-                this.savedPayrollPeriods.push({ updatedAt: new Date().toISOString(),
+                const newPeriod = { updatedAt: new Date().toISOString(),
                     id: 'np_' + Date.now(),
                     start: startStr,
                     end: endStr,
                     label,
                     savedAt: new Date().toISOString(),
+                    checksStatus: 'pending', // 'pending' | 'printed' | 'digital'
                     payroll: JSON.parse(JSON.stringify(this.currentPayrollCalc || []))
-                });
+                };
+                this.savedPayrollPeriods.push(newPeriod);
+                this.currentPayrollPeriodId = newPeriod.id; // Guardar referencia para marcar al imprimir
                 this.saveData();
                 alert('✅ Nómina guardada en historial');
             },
@@ -5018,6 +5192,33 @@
                 this.savedPayrollPeriods = this.savedPayrollPeriods.filter(p => p.id !== id);
                 this.saveData();
                 this.renderSavedPayrollList();
+            },
+
+            printChecksFromHistory(id) {
+                const period = this.savedPayrollPeriods.find(p => p.id === id);
+                if (!period) return;
+                if (!period.payroll || period.payroll.length === 0) {
+                    alert('Este período no tiene datos de nómina guardados.');
+                    return;
+                }
+
+                // Cargar el payroll del período en currentPayrollCalc
+                this.currentPayrollCalc = JSON.parse(JSON.stringify(period.payroll));
+                this.currentPayrollPeriodId = id;
+                this.currentPayrollPeriod = period.label;
+
+                // Abrir modal de asignación de cheques
+                this.openCheckAssignment();
+            },
+
+            markChecksAsPrinted(id) {
+                const p = this.savedPayrollPeriods.find(p => p.id === id);
+                if (p) {
+                    p.checksStatus = 'printed';
+                    p.updatedAt = new Date().toISOString();
+                    this.saveData();
+                    this.renderSavedPayrollList();
+                }
             },
 
             renderSavedPayrollList() {
@@ -5034,12 +5235,28 @@
                 let html = '<div style="display:flex; flex-direction:column; gap:10px;">';
                 sorted.forEach(p => {
                     const savedDate = new Date(p.savedAt).toLocaleDateString('en-US');
-                    html += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f8f9fa; padding:14px 18px; border-radius:8px; border-left:4px solid #27ae60;">
+                    // Badge de estado de cheques
+                    const status = p.checksStatus || 'pending';
+                    const statusBadge = status === 'printed'
+                        ? '<span style="background:#27ae60;color:white;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;">✅ Cheques Impresos</span>'
+                        : status === 'digital'
+                        ? '<span style="background:#2980b9;color:white;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;">📱 Pago Digital</span>'
+                        : '<span style="background:#e67e22;color:white;padding:2px 10px;border-radius:10px;font-size:0.75rem;font-weight:bold;">⏳ Cheques Pendientes</span>';
+
+                    const printBtn = status === 'pending'
+                        ? `<button class="btn btn-sm" onclick="app.printChecksFromHistory('${p.id}')" style="background:#e67e22;color:white;">🖨️ Imprimir Cheques</button>`
+                        : `<button class="btn btn-sm" onclick="app.printChecksFromHistory('${p.id}')" style="background:#95a5a6;color:white;">🖨️ Reimprimir</button>`;
+
+                    html += `<div style="display:flex; justify-content:space-between; align-items:center; background:#f8f9fa; padding:14px 18px; border-radius:8px; border-left:4px solid ${status==='pending'?'#e67e22':status==='printed'?'#27ae60':'#2980b9'};">
                         <div>
-                            <strong style="font-size:1.05rem;">📅 ${p.label}</strong>
+                            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                                <strong style="font-size:1.05rem;">📅 ${p.label}</strong>
+                                ${statusBadge}
+                            </div>
                             <div style="font-size:0.85rem; color:#888; margin-top:3px;">Guardada el ${savedDate}</div>
                         </div>
-                        <div style="display:flex; gap:8px;">
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                            ${printBtn}
                             <button class="btn btn-primary btn-sm" onclick="app.viewSavedPayroll('${p.id}')">👁️ Ver</button>
                             <button class="btn btn-success btn-sm" onclick="app.exportSavedPayrollCSV('${p.id}')">📥 CSV</button>
                             <button class="btn btn-sm" onclick="app.deletePayrollPeriod('${p.id}')" style="background:#e74c3c; color:white;">🗑️</button>
@@ -5082,12 +5299,15 @@
                         p.lunchDeductions = Math.round((p.lunchDeductions + this.workConfig.lunchDuration) * 100) / 100;
                     }
                     if (this.workConfig.enableLateDeduction && att.checkIn) {
-                        const [sH, sM] = this.workConfig.startTime.split(':').map(Number);
-                        const [cH, cM] = att.checkIn.split(':').map(Number);
-                        const diff = (cH*60+cM)-(sH*60+sM)-this.workConfig.lateTolerance;
-                        const retraso2 = (cH * 60 + cM) - (sH * 60 + sM);
-                        const tol2 = this.workConfig.lateTolerance || 0;
-                        if (retraso2 > tol2) p.lateMinutes += Math.min(retraso2, this.workConfig.lateDeductionMax || 30);
+                        const attDay2 = new Date(att.date + 'T12:00:00').getDay();
+                        const isWeekend2 = attDay2 === 0 || attDay2 === 6;
+                        if (!isWeekend2) {
+                            const [sH, sM] = this.workConfig.startTime.split(':').map(Number);
+                            const [cH, cM] = att.checkIn.split(':').map(Number);
+                            const retraso2 = (cH * 60 + cM) - (sH * 60 + sM);
+                            const tol2 = this.workConfig.lateTolerance || 0;
+                            if (retraso2 > tol2) p.lateMinutes += Math.min(retraso2, this.workConfig.lateDeductionMax || 30);
+                        }
                     }
                     if (this.workConfig.enableOvertime && dh > this.workConfig.overtimeThreshold) {
                         p.regularHours = Math.round((p.regularHours + this.workConfig.overtimeThreshold) * 100) / 100;
@@ -5189,7 +5409,7 @@
                     const p = payroll[att.employeeId];
                     let dh = Math.round(att.hours * 100) / 100;
                     if (this.workConfig.enableLunchBreak && dh >= this.workConfig.lunchThreshold) { dh = Math.round((dh - this.workConfig.lunchDuration)*100)/100; p.lunchDeductions += this.workConfig.lunchDuration; }
-                    if (this.workConfig.enableLateDeduction && att.checkIn) { const [sH,sM]=this.workConfig.startTime.split(':').map(Number); const [cH,cM]=att.checkIn.split(':').map(Number); const retraso3=(cH*60+cM)-(sH*60+sM); const tol3=this.workConfig.lateTolerance||0; if(retraso3>tol3) p.lateMinutes+=Math.min(retraso3,this.workConfig.lateDeductionMax||30); }
+                    if (this.workConfig.enableLateDeduction && att.checkIn) { const attDay3=new Date(att.date+'T12:00:00').getDay(); if(attDay3!==0 && attDay3!==6) { const [sH,sM]=this.workConfig.startTime.split(':').map(Number); const [cH,cM]=att.checkIn.split(':').map(Number); const retraso3=(cH*60+cM)-(sH*60+sM); const tol3=this.workConfig.lateTolerance||0; if(retraso3>tol3) p.lateMinutes+=Math.min(retraso3,this.workConfig.lateDeductionMax||30); } }
                     if (this.workConfig.enableOvertime && dh > this.workConfig.overtimeThreshold) { p.regularHours+=this.workConfig.overtimeThreshold; p.overtimeHours+=(dh-this.workConfig.overtimeThreshold); } else { p.regularHours+=dh; }
                     p.totalHours = Math.round((p.totalHours + dh)*100)/100;
                 });
@@ -5402,7 +5622,8 @@
                         payrollRecords: this.payrollRecords,
                         savedPayrollPeriods: this.savedPayrollPeriods,
                         adminPin: this.adminPin,
-                        workConfig: this.workConfig
+                        workConfig: this.workConfig,
+                        expenses: this.expenses || []
                     };
                     await this.driveUploadFile('anas_nomina_sync.json', JSON.stringify(data, null, 2));
 
@@ -5468,7 +5689,8 @@
                     exportType:   'nomina_totales',
                     exportDate:   new Date().toISOString(),
                     source:       "Ana's Cleaning Nomina",
-                    periodos:     periodos
+                    periodos:     periodos,
+                    expenses:     this.expenses || []
                 };
                 await this.driveUploadFile('anas_nomina_totales.json', JSON.stringify(totalesData, null, 2));
             },
@@ -5549,11 +5771,24 @@
                         });
                     }
 
+                    // Merge expenses (gastos con cheque) — por id, gana el más reciente
+                    if (data.expenses) {
+                        data.expenses.forEach(remote => {
+                            const idx = this.expenses.findIndex(e => e.id === remote.id);
+                            if (idx < 0) {
+                                this.expenses.push(remote); // Gasto nuevo
+                            }
+                            // Si ya existe, conservar local (no hay updatedAt en expenses)
+                        });
+                    }
+
                     // Guardar en localStorage (sin tocar workConfig)
                     localStorage.setItem('anas_employees', JSON.stringify(this.employees));
                     localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
                     localStorage.setItem('anas_payroll', JSON.stringify(this.payrollRecords));
-                localStorage.setItem('anas_checks', JSON.stringify(this.checks || []));
+                localStorage.setItem('anas_checks',   JSON.stringify(this.checks   || []));
+                localStorage.setItem('anas_expenses', JSON.stringify(this.expenses || []));
+                localStorage.setItem('anas_vendors',  JSON.stringify(this.vendors  || []));
                     localStorage.setItem('anas_payroll_periods', JSON.stringify(this.savedPayrollPeriods));
                     localStorage.setItem('anas_lastSyncAt', new Date().toISOString());
 
@@ -5871,7 +6106,9 @@
                 this.employees = JSON.parse(localStorage.getItem('anas_employees') || '[]');
                 this.attendances = JSON.parse(localStorage.getItem('anas_attendances') || '[]');
                 this.payrollRecords = JSON.parse(localStorage.getItem('anas_payroll') || '[]');
-                this.checks = JSON.parse(localStorage.getItem('anas_checks') || '[]');
+                this.checks   = JSON.parse(localStorage.getItem('anas_checks')   || '[]');
+                this.expenses = JSON.parse(localStorage.getItem('anas_expenses') || '[]');
+                this.vendors  = JSON.parse(localStorage.getItem('anas_vendors')  || '[]');
                 this.savedPayrollPeriods = JSON.parse(localStorage.getItem('anas_payroll_periods') || '[]');
                 this.adminPin = localStorage.getItem('anas_adminPin') || '0000';
                 
@@ -5918,6 +6155,322 @@
                 
                 this.checkConfig = JSON.parse(localStorage.getItem('anas_checkConfig') || JSON.stringify(defaultCheckConfig));
             }
+        ,
+
+            // ══════════════════════════════════════════
+            // GASTOS CON CHEQUE
+            // ══════════════════════════════════════════
+
+            openExpenseModal(id) {
+                document.getElementById('expId').value = '';
+                document.getElementById('expVendor').value = '';
+                document.getElementById('expDesc').value = '';
+                document.getElementById('expAmount').value = '';
+                document.getElementById('expDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('expCheckNum').value = '';
+                document.getElementById('expCategory').value = 'supplies';
+                document.getElementById('expNotes').value = '';
+                document.getElementById('expenseModalTitle').textContent = '➕ Nuevo Gasto';
+
+                // Llenar datalist de vendors
+                const dl = document.getElementById('vendorList');
+                if (dl) {
+                    dl.innerHTML = (this.vendors || []).map(v =>
+                        `<option value="${v}">`
+                    ).join('');
+                }
+
+                if (id) {
+                    const exp = this.expenses.find(e => e.id === id);
+                    if (exp) {
+                        document.getElementById('expId').value = exp.id;
+                        document.getElementById('expVendor').value = exp.vendor || '';
+                        document.getElementById('expDesc').value = exp.desc;
+                        document.getElementById('expAmount').value = exp.amount;
+                        document.getElementById('expDate').value = exp.date;
+                        document.getElementById('expCheckNum').value = exp.checkNum || '';
+                        document.getElementById('expCategory').value = exp.category || 'other';
+                        document.getElementById('expNotes').value = exp.notes || '';
+                        document.getElementById('expenseModalTitle').textContent = '✏️ Editar Gasto';
+                    }
+                }
+                document.getElementById('expenseModal').classList.add('active');
+            },
+
+            closeExpenseModal() {
+                document.getElementById('expenseModal').classList.remove('active');
+            },
+
+            printExpenseCheck(id) {
+                const exp = this.expenses.find(e => e.id === id);
+                if (!exp) return;
+
+                // Si no tiene número de cheque, mostrar mini modal para asignarlo
+                if (!exp.checkNum) {
+                    // Sugerir el siguiente número disponible
+                    const usedNums = [
+                        ...this.checks.map(c => parseInt(c.checkNumber)).filter(n => !isNaN(n)),
+                        ...this.expenses.filter(e => e.checkNum).map(e => parseInt(e.checkNum)).filter(n => !isNaN(n))
+                    ];
+                    const nextNum = usedNums.length > 0 ? Math.max(...usedNums) + 1 : 1001;
+
+                    const existing = document.getElementById('expCheckNumModal');
+                    if (existing) existing.remove();
+                    const mini = document.createElement('div');
+                    mini.id = 'expCheckNumModal';
+                    mini.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;';
+                    mini.innerHTML = `
+                        <div style="background:white;border-radius:12px;padding:24px;max-width:380px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+                            <h3 style="margin:0 0 8px 0;color:#1565c0;">🧾 Asignar # de Cheque</h3>
+                            <p style="color:#555;font-size:0.9rem;margin:0 0 16px 0;">
+                                <strong>${exp.vendor || exp.desc}</strong><br>
+                                Monto: <strong>$${this.formatMoney(exp.amount)}</strong>
+                            </p>
+                            <div style="display:flex;gap:10px;align-items:center;margin-bottom:16px;">
+                                <label style="font-weight:600;white-space:nowrap;"># Cheque:</label>
+                                <input type="number" id="expCheckNumInput" value="${nextNum}"
+                                    style="flex:1;padding:10px;border:2px solid #1565c0;border-radius:8px;font-size:1.1rem;text-align:center;">
+                            </div>
+                            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                                <button onclick="document.getElementById('expCheckNumModal').remove()"
+                                    style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                                <button onclick="
+                                    const num = document.getElementById('expCheckNumInput').value.trim();
+                                    if (!num) { alert('Ingresa un número de cheque'); return; }
+                                    const idx = app.expenses.findIndex(e => e.id === '${id}');
+                                    if (idx !== -1) { app.expenses[idx].checkNum = num; app.save(); }
+                                    document.getElementById('expCheckNumModal').remove();
+                                    app.printExpenseCheck('${id}');
+                                " style="background:#1565c0;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">
+                                    ✅ Asignar e Imprimir
+                                </button>
+                            </div>
+                        </div>`;
+                    document.body.appendChild(mini);
+                    mini.addEventListener('click', e => { if (e.target === mini) mini.remove(); });
+                    setTimeout(() => document.getElementById('expCheckNumInput')?.select(), 100);
+                    return;
+                }
+
+                const cfg      = this.checkConfig;
+                const bgImage  = localStorage.getItem('anas_checkBgImage') || '';
+                const sigUrl   = this.getSignatureDataUrl ? this.getSignatureDataUrl() : '';
+                const safeBg   = bgImage ? bgImage.replace(/"/g, "'") : '';
+
+                const d = new Date(exp.date + 'T12:00:00');
+                const dateUSA = (d.getMonth()+1).toString().padStart(2,'0') + '/' +
+                                d.getDate().toString().padStart(2,'0') + '/' + d.getFullYear();
+                const amountWords = this.numberToWords(exp.amount.toFixed(2));
+                const W = 680;
+                const H = Math.round(W / (8.5 / 11));
+                const Hs = Math.round(W / (8.5 / 3.667));
+                const PPI = W / 8.5;
+                const px = inch => Math.round(inch * PPI);
+
+                const sheetHtml =
+                    `<div style="position:relative;width:${W}px;height:${H}px;` +
+                    (bgImage ? `background-image:url(${safeBg});background-size:100% 100%;background-repeat:no-repeat;` : 'background:#f9f9f9;') +
+                    `font-family:Courier New,monospace;overflow:hidden;border:1px solid #ccc;">` +
+                    // Número de cheque
+                    `<div style="position:absolute;top:${px(cfg.number_top||0.3)}px;right:${px(cfg.number_right||0.5)}px;font-size:9pt;">${exp.checkNum}</div>` +
+                    // Fecha
+                    `<div style="position:absolute;top:${px(cfg.date_top||0.8)}px;right:${px(cfg.date_right||0.5)}px;font-size:9pt;">${dateUSA}</div>` +
+                    // Payee (vendor)
+                    `<div style="position:absolute;top:${px(cfg.payee_top||1.2)}px;left:${px(cfg.payee_left||1.2)}px;font-size:10pt;font-weight:bold;">${exp.vendor||exp.desc}</div>` +
+                    // Monto numérico
+                    `<div style="position:absolute;top:${px(cfg.amount_top||1.2)}px;right:${px(cfg.amount_right||0.5)}px;font-size:12pt;font-weight:bold;">$${this.formatMoney(exp.amount)}</div>` +
+                    // Monto en letras
+                    `<div style="position:absolute;top:${px(cfg.words_top||1.6)}px;left:${px(cfg.words_left||0.5)}px;font-size:8.5pt;">${amountWords}</div>` +
+                    // Memo (descripción del gasto)
+                    (exp.desc ? `<div style="position:absolute;top:${px(cfg.memo_top||2.9)}px;left:${px(cfg.memo_left||0.5)}px;font-size:8.5pt;">${exp.desc}</div>` : '') +
+                    // Firma
+                    (sigUrl ? `<img src="${sigUrl}" style="position:absolute;top:${px(cfg.signature_top||2.6)}px;right:${px(cfg.signature_right||1.5)}px;width:${px(cfg.signature_width||1.5)}px;pointer-events:none;">` : '') +
+                    `</div>`;
+
+                // Mostrar en modal de preview
+                const existing = document.getElementById('expCheckPreviewModal');
+                if (existing) existing.remove();
+
+                const modal = document.createElement('div');
+                modal.id = 'expCheckPreviewModal';
+                modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:20px;box-sizing:border-box;overflow-y:auto;';
+                modal.innerHTML =
+                    `<div style="background:#f0f0f0;border-radius:12px;padding:20px;max-width:740px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.5);">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                            <h3 style="margin:0;color:#1565c0;">🖨️ Cheque de Gasto — #${exp.checkNum}</h3>
+                            <div style="display:flex;gap:10px;">
+                                <button onclick="app._printExpenseCheckNow('${id}')" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;font-size:1rem;">🖨️ Imprimir</button>
+                                <button onclick="document.getElementById('expCheckPreviewModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;">✕</button>
+                            </div>
+                        </div>
+                        <div style="font-size:0.85rem;color:#555;margin-bottom:10px;">
+                            <strong>${exp.vendor||exp.desc}</strong> · $${this.formatMoney(exp.amount)} · ${dateUSA}
+                        </div>
+                        ${sheetHtml}
+                    </div>`;
+
+                document.body.appendChild(modal);
+                modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+            },
+
+            _printExpenseCheckNow(id) {
+                const exp = this.expenses.find(e => e.id === id);
+                if (!exp) return;
+
+                const cfg    = this.checkConfig;
+                const bgImage = localStorage.getItem('anas_checkBgImage') || '';
+                const sigUrl  = this.getSignatureDataUrl ? this.getSignatureDataUrl() : '';
+
+                const d = new Date(exp.date + 'T12:00:00');
+                const dateUSA = (d.getMonth()+1).toString().padStart(2,'0') + '/' +
+                                d.getDate().toString().padStart(2,'0') + '/' + d.getFullYear();
+                const amountWords = this.numberToWords(exp.amount.toFixed(2));
+
+                const win = window.open('', '_blank');
+                win.document.write(`<!DOCTYPE html><html><head><title>Cheque #${exp.checkNum}</title>
+                <style>
+                    @page { size: letter; margin: 0; }
+                    * { box-sizing: border-box; }
+                    body { margin: 0; padding: 0; }
+                    .sheet { position:relative; width:8.5in; height:11in; font-family:'Courier New',monospace; overflow:hidden; }
+                    .cf-number   { position:absolute; top:${cfg.number_top||0.3}in; right:${cfg.number_right||0.5}in; font-size:9pt; }
+                    .cf-date     { position:absolute; top:${cfg.date_top||0.8}in; right:${cfg.date_right||0.5}in; font-size:9pt; }
+                    .cf-payee    { position:absolute; top:${cfg.payee_top||1.2}in; left:${cfg.payee_left||1.2}in; font-size:10pt; font-weight:bold; }
+                    .cf-amount   { position:absolute; top:${cfg.amount_top||1.2}in; right:${cfg.amount_right||0.5}in; font-size:12pt; font-weight:bold; }
+                    .cf-words    { position:absolute; top:${cfg.words_top||1.6}in; left:${cfg.words_left||0.5}in; font-size:8.5pt; }
+                    .cf-memo     { position:absolute; top:${cfg.memo_top||2.9}in; left:${cfg.memo_left||0.5}in; font-size:9pt; }
+                    .cf-signature{ position:absolute; top:${cfg.signature_top||2.6}in; right:${cfg.signature_right||1.5}in; width:${cfg.signature_width||1.5}in; }
+                </style></head><body>
+                <div class="sheet" ${bgImage ? `style="background-image:url(${bgImage});background-size:100% 100%;background-repeat:no-repeat;"` : ''}>
+                    <div class="cf-number">${exp.checkNum}</div>
+                    <div class="cf-date">${dateUSA}</div>
+                    <div class="cf-payee">${exp.vendor||exp.desc}</div>
+                    <div class="cf-amount">$${this.formatMoney(exp.amount)}</div>
+                    <div class="cf-words">${amountWords}</div>
+                    ${exp.desc ? `<div class="cf-memo">${exp.desc}</div>` : ''}
+                    ${sigUrl ? `<img src="${sigUrl}" class="cf-signature">` : ''}
+                </div>
+                <script>window.onload=()=>{window.print();}<\/script>
+                </body></html>`);
+                win.document.close();
+            },
+
+            saveExpense() {
+                const id       = document.getElementById('expId').value;
+                const vendor   = document.getElementById('expVendor').value.trim();
+                const desc     = document.getElementById('expDesc').value.trim();
+                const amount   = parseFloat(document.getElementById('expAmount').value);
+                const date     = document.getElementById('expDate').value;
+                const checkNum = document.getElementById('expCheckNum').value.trim();
+                const category = document.getElementById('expCategory').value;
+                const notes    = document.getElementById('expNotes').value.trim();
+
+                if (!vendor || isNaN(amount) || !date) {
+                    alert('Por favor completa el vendor, monto y fecha.');
+                    return;
+                }
+
+                // Guardar vendor en catálogo si es nuevo
+                if (vendor && !this.vendors.includes(vendor)) {
+                    this.vendors.push(vendor);
+                    this.vendors.sort();
+                }
+
+                const expObj = { id: id || 'exp' + Date.now(), vendor, desc, amount, date, checkNum, category, notes };
+                if (id) {
+                    const idx = this.expenses.findIndex(e => e.id === id);
+                    if (idx !== -1) this.expenses[idx] = expObj;
+                } else {
+                    this.expenses.push(expObj);
+                }
+                this.save();
+                this.closeExpenseModal();
+                this.renderExpenses();
+            },
+
+            deleteExpense(id) {
+                if (!confirm('¿Eliminar este gasto?')) return;
+                this.expenses = this.expenses.filter(e => e.id !== id);
+                this.save();
+                this.renderExpenses();
+            },
+
+            renderExpenses() {
+                const start = document.getElementById('expFilterStart')?.value || '';
+                const end   = document.getElementById('expFilterEnd')?.value || '';
+                const cat   = document.getElementById('expFilterCat')?.value || 'all';
+                const catLabels = { supplies:'Suministros', equipment:'Equipo', vehicle:'Vehículo', utilities:'Servicios', other:'Otro' };
+                const catColors = { supplies:'#3498db', equipment:'#e67e22', vehicle:'#27ae60', utilities:'#9b59b6', other:'#95a5a6' };
+
+                let filtered = [...this.expenses];
+                if (start) filtered = filtered.filter(e => e.date >= start);
+                if (end)   filtered = filtered.filter(e => e.date <= end);
+                if (cat !== 'all') filtered = filtered.filter(e => e.category === cat);
+                filtered.sort((a, b) => b.date.localeCompare(a.date));
+
+                const total = filtered.reduce((s, e) => s + e.amount, 0);
+                const bycat = {};
+                filtered.forEach(e => { bycat[e.category] = (bycat[e.category] || 0) + e.amount; });
+
+                document.getElementById('expTotals').innerHTML =
+                    `<div style="background:#e8f5e9;border-radius:8px;padding:10px 18px;font-size:1.1rem;font-weight:bold;color:#27ae60;">💰 Total: $${this.formatMoney(total)}</div>` +
+                    Object.entries(bycat).map(([k,v]) =>
+                        `<div style="background:white;border-left:4px solid ${catColors[k]||'#ccc'};border-radius:6px;padding:8px 14px;font-size:0.85rem;">
+                            <div style="color:${catColors[k]||'#999'};font-weight:600;">${catLabels[k]||k}</div>
+                            <div style="font-size:1rem;font-weight:bold;">$${this.formatMoney(v)}</div>
+                        </div>`
+                    ).join('');
+
+                const list = document.getElementById('expensesList');
+                if (filtered.length === 0) {
+                    list.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:1rem;">No hay gastos registrados</div>';
+                    return;
+                }
+                list.innerHTML =
+                    '<table style="width:100%;border-collapse:collapse;">' +
+                    '<thead><tr style="background:#34495e;color:white;">' +
+                    '<th style="padding:10px;text-align:left;">Fecha</th>' +
+                    '<th style="padding:10px;text-align:left;">Vendor / Descripción</th>' +
+                    '<th style="padding:10px;text-align:center;"># Cheque</th>' +
+                    '<th style="padding:10px;text-align:center;">Categoría</th>' +
+                    '<th style="padding:10px;text-align:right;">Monto</th>' +
+                    '<th style="padding:10px;text-align:center;">Acciones</th>' +
+                    '</tr></thead><tbody>' +
+                    filtered.map((e, idx) => {
+                        const d = new Date(e.date + 'T12:00:00');
+                        const ds = (d.getMonth()+1).toString().padStart(2,'0') + '/' + d.getDate().toString().padStart(2,'0') + '/' + d.getFullYear();
+                        return `<tr style="background:${idx%2===0?'#fff':'#f9f9f9'};border-bottom:1px solid #eee;">
+                            <td style="padding:10px;">${ds}</td>
+                            <td style="padding:10px;">
+                                <strong>${e.vendor||'—'}</strong>
+                                ${e.desc?`<br><small style="color:#555;">${e.desc}</small>`:''}
+                                ${e.notes?`<br><small style="color:#888;">${e.notes}</small>`:''}
+                            </td>
+                            <td style="padding:10px;text-align:center;">${e.checkNum?`<span style="background:#e3f2fd;color:#1565c0;padding:2px 8px;border-radius:10px;font-weight:bold;">#${e.checkNum}</span>`:'—'}</td>
+                            <td style="padding:10px;text-align:center;"><span style="background:${catColors[e.category]||'#ccc'};color:white;padding:2px 10px;border-radius:10px;font-size:0.8rem;">${catLabels[e.category]||e.category}</span></td>
+                            <td style="padding:10px;text-align:right;font-weight:bold;color:#e74c3c;">$${this.formatMoney(e.amount)}</td>
+                            <td style="padding:10px;text-align:center;">
+                                <button onclick="app.printExpenseCheck('${e.id}')" style="background:none;border:none;cursor:pointer;font-size:1.1rem;" title="Imprimir Cheque">🖨️</button>
+                                <button onclick="app.openExpenseModal('${e.id}')" style="background:none;border:none;cursor:pointer;font-size:1.1rem;" title="Editar">✏️</button>
+                                <button onclick="app.deleteExpense('${e.id}')" style="background:none;border:none;cursor:pointer;font-size:1.1rem;" title="Eliminar">🗑️</button>
+                            </td>
+                        </tr>`;
+                    }).join('') +
+                    '</tbody></table>';
+            },
+
+            exportExpensesCSV() {
+                let csv = 'Fecha,Descripción,# Cheque,Categoría,Monto,Notas\n';
+                [...this.expenses].sort((a,b)=>b.date.localeCompare(a.date)).forEach(e => {
+                    csv += `${e.date},"${e.desc}",${e.checkNum||''},"${e.category}",$${e.amount},"${e.notes||''}"\n`;
+                });
+                const blob = new Blob([csv], {type:'text/csv'});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url; a.download = 'gastos_' + new Date().toISOString().split('T')[0] + '.csv';
+                a.click(); URL.revokeObjectURL(url);
+            }
+
         };
         
         app.init();
