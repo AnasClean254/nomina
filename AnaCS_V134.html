@@ -154,7 +154,7 @@
         /* Modales */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); pointer-events: all; }
         .modal.show { display: flex !important; align-items: center; justify-content: center; }
-        .modal-content { background: white; margin: auto; padding: 30px; border-radius: 15px; width: 700px; max-width: 96vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
+        .modal-content { background: white; margin: 5% auto; padding: 30px; border-radius: 15px; width: 700px; box-shadow: 0 25px 50px rgba(0,0,0,0.3); }
         .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
         input, select { padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; width: 100%; }
         
@@ -1103,7 +1103,7 @@
 </div>
 
 <div id="catalogModal" class="modal" onclick="event.stopPropagation()" style="z-index:9000;">
-    <div class="modal-content" style="width:900px; max-width:96vw; max-height:90vh; overflow-y:auto; display:flex; flex-direction:column;">
+    <div class="modal-content" style="width:900px">
         <div style="position: relative;">
             <button onclick="app.closeCatalog()" style="position: absolute; top: 0; right: 0; background: #e74c3c; color: white; border: none; width: 30px; height: 30px; border-radius: 50%; font-size: 1.1rem; font-weight: bold; cursor: pointer; line-height: 1; z-index: 10;">✕</button>
             <h2 style="margin-top:0; padding-right: 40px;">⚙ Base de Datos</h2>
@@ -1127,23 +1127,22 @@
                 <div id="listE" style="max-height:450px; overflow-y:auto"></div>
             </div>
             <div id="secCli" style="display:none">
-
-                <!-- Botones de importar/exportar -->
                 <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
                     <button onclick="app.importClientsFromExcel()" class="btn" style="background:#27ae60;color:white;flex:1;">📊 Importar Excel</button>
                     <button onclick="app.exportClientsToExcel()" class="btn" style="background:#1a6b9a;color:white;flex:1;">📥 Exportar Excel</button>
+                </div>
+                <input type="text" id="cliCatalogSearch" placeholder="🔍 Buscar cliente..." autocomplete="off"
+                    oninput="app.filterCat(this.value)"
+                    style="width:100%;padding:8px;border:2px solid #ddd;border-radius:8px;font-size:0.9rem;margin-bottom:8px;box-sizing:border-box;">
+                <div style="margin-bottom:15px; display:flex; gap:8px;">
                     <button onclick="app.importClientsCSV()" class="btn" style="background:#1A4FCC; color:white; flex:1">📥 Importar CSV</button>
                     <button onclick="app.exportClientsCSV()" class="btn" style="background:#9b59b6; color:white; flex:1">📤 Exportar CSV</button>
                     <button onclick="app.downloadClientTemplate()" class="btn" style="background:#27ae60; color:white; flex:1">📋 Plantilla</button>
+                    <button onclick="app.toggleCliForm()" id="btnToggleCliForm" class="btn" style="background:#e67e22; color:white; flex:1">➕ Nuevo Cliente</button>
                 </div>
 
-                <!-- Panel Nuevo/Editar Cliente (colapsable) -->
-                <div style="border:2px solid #e67e22; border-radius:10px; margin-bottom:12px; overflow:hidden;">
-                    <div onclick="app.toggleCliForm()" style="background:#e67e22; color:white; padding:9px 14px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none;">
-                        <strong id="btnToggleCliForm">➕ Nuevo / Editar Cliente</strong>
-                        <span id="cliFormArrow" style="font-size:0.85rem;">▶ Abrir</span>
-                    </div>
-                    <div id="cliFormContainer" style="display:none; background:#f8f9fa; padding:15px;">
+                <!-- Formulario retráctil -->
+                <div id="cliFormContainer" style="display:none; background:#f8f9fa; border-radius:10px; padding:15px; margin-bottom:15px; border:2px solid #e67e22;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <strong id="cliFormTitle" style="color:#e67e22;">➕ Nuevo Cliente</strong>
                         <button onclick="app.cancelCliForm()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; color:#999;">✕</button>
@@ -1208,19 +1207,9 @@
                     <button onclick="app.saveCli()" class="btn" style="width:100%; background:var(--success);">💾 GUARDAR CLIENTE</button>
                 </div>
 
-                <!-- Lista de Clientes (colapsable) -->
-                <div style="border:2px solid #2c3e50; border-radius:10px; overflow:hidden;">
-                    <div onclick="app.toggleCliList()" style="background:#2c3e50; color:white; padding:9px 14px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; user-select:none;">
-                        <strong>📋 Lista de Clientes</strong>
-                        <span id="cliListArrow" style="font-size:0.85rem;">▶ Abrir</span>
-                    </div>
-                    <div id="cliListContainer" style="display:none; padding:10px;">
-                        <input type="text" id="cliCatalogSearch" placeholder="🔍 Buscar cliente..." autocomplete="off"
-                            oninput="app.filterCat(this.value)"
-                            style="width:100%;padding:8px;border:2px solid #ddd;border-radius:8px;font-size:0.9rem;margin-bottom:8px;box-sizing:border-box;">
-                        <div id="listC" style="max-height:380px; overflow-y:auto; margin-top:5px"></div>
-                    </div>
-                </div>
+                <button onclick="document.getElementById('listC').style.display = document.getElementById('listC').style.display==='none' ? 'block' : 'none'; this.textContent = document.getElementById('listC').style.display==='none' ? '📋 Ver Lista de Clientes' : '📋 Ocultar Lista';" 
+                    class="btn" style="background:#2c3e50; color:white; width:100%; margin-top:5px;">📋 Ver Lista de Clientes</button>
+                <div id="listC" style="max-height:450px; overflow-y:auto; margin-top:5px; display:none"></div>
             </div>
             
             <div id="secGrupos" style="display:none">
@@ -6377,11 +6366,12 @@ class Scheduler {
     }
     toggleCliForm() {
         const form = document.getElementById('cliFormContainer');
-        const arrow = document.getElementById('cliFormArrow');
+        const btn = document.getElementById('btnToggleCliForm');
         if (form.style.display === 'none') {
+            // Abrir para nuevo cliente
             form.style.display = 'block';
-            if(arrow) arrow.textContent = '▼ Cerrar';
             document.getElementById('cliFormTitle').textContent = '➕ Nuevo Cliente';
+            btn.textContent = '✕ Cerrar';
             document.getElementById('editCliId').value = '';
             document.getElementById('nc').value = '';
             document.getElementById('np').value = '';
@@ -6393,22 +6383,9 @@ class Scheduler {
             document.getElementById('ntype').value = 'semanal';
             document.getElementById('cliServiceType').value = 'residencial';
             document.getElementById('cliBillingPeriod').value = 'weekly';
-            setTimeout(() => document.getElementById('nc').focus(), 50);
+            document.getElementById('nc').focus();
         } else {
             this.cancelCliForm();
-        }
-    }
-
-    toggleCliList() {
-        const panel = document.getElementById('cliListContainer');
-        const arrow = document.getElementById('cliListArrow');
-        if (panel.style.display === 'none') {
-            panel.style.display = 'block';
-            if(arrow) arrow.textContent = '▼ Cerrar';
-            this.renderCat();
-        } else {
-            panel.style.display = 'none';
-            if(arrow) arrow.textContent = '▶ Abrir';
         }
     }
 
@@ -6464,9 +6441,6 @@ class Scheduler {
 
     cancelCliForm() {
         document.getElementById('cliFormContainer').style.display = 'none';
-        const arrow = document.getElementById('cliFormArrow');
-        if(arrow) arrow.textContent = '▶ Abrir';
-        document.getElementById('btnToggleCliForm').textContent = '➕ Nuevo / Editar Cliente';
         document.getElementById('btnToggleCliForm').textContent = '➕ Nuevo Cliente';
         // Limpiar todos los campos
         ['nc','np','pc','tc','dc','dci','dzip'].forEach(id => {
@@ -6661,25 +6635,14 @@ class Scheduler {
         console.log('nc antes del timeout:', document.getElementById('nc').value);
         // Asegurar que la sección de clientes esté visible
         this.showSec('secCli');
-        // Abrir panel de lista si estaba cerrado (el botón editar viene de ahí)
-        const listPanel = document.getElementById('cliListContainer');
-        const listArrow = document.getElementById('cliListArrow');
-        if(listPanel && listPanel.style.display === 'none') {
-            listPanel.style.display = 'block';
-            if(listArrow) listArrow.textContent = '▼ Cerrar';
-        }
+        // Ocultar lista al editar
+        document.getElementById('listC').style.display = 'none';
         const form = document.getElementById('cliFormContainer');
         form.style.display = 'block';
         document.getElementById('cliFormTitle').textContent = '✏️ Editar Cliente';
         document.getElementById('btnToggleCliForm').textContent = '✕ Cerrar';
-        // Abrir el panel form si estaba cerrado
-        const arrow = document.getElementById('cliFormArrow');
-        if(arrow) arrow.textContent = '▼ Cerrar';
-        setTimeout(() => {
-            form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            const mc = document.querySelector('#catalogModal .modal-content');
-            if(mc) mc.scrollTop = 0;
-        }, 50);
+        // Scroll al formulario
+        setTimeout(() => form.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
         
         // ✅ Si el cliente no tiene propId, usar el nombre
         if(!cli.propId || cli.propId === '') {            cli.propId = cli.name || 'PROP-' + cli.id;

@@ -234,7 +234,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
     </div>
 
     <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.7;max-width:300px">
-      Lee <strong style="color:var(--text)">anaCS_sync.json</strong> desde Drive.<br>Solo lectura — no modifica nada.
+      Lee <strong style="color:var(--text)">brazosCS_sync.json</strong> desde Drive.<br>Solo lectura — no modifica nada.
     </div>
   </div>
 </div>
@@ -363,7 +363,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 <script>
 const CLIENT_ID='701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com';
 const SCOPES='https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
-const FOLDER='AnasCleaningApp', FILE='anaCS_sync.json', RFILE='quiktrack_reports.json';
+const FOLDER='AnasCleaningApp', FILE='anaCS_sync.json', RFILE='quiktrack_bra_reports.json';
 const RPTS_KEY='qt_ana_reports';
 const SESS='ac_ana_sess', TKEY='anas_drive_token', TEXP='anas_drive_token_expiry';
 const DAYS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
@@ -651,8 +651,8 @@ async function saveSyncToDrive(){
   if(!S.driveToken || !S.folderId) { toast('⚠️ Conecta Drive primero'); return false; }
   try {
     // Buscar el archivo en Drive
-    const sr = await dGet(`https://www.googleapis.com/drive/v3/files?q=name='anaCS_sync.json'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id)`);
-    if(!sr.files||!sr.files.length){ toast('⚠️ No se encontró anaCS_sync.json'); return false; }
+    const sr = await dGet(`https://www.googleapis.com/drive/v3/files?q=name='brazosCS_sync.json'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id)`);
+    if(!sr.files||!sr.files.length){ toast('⚠️ No se encontró brazosCS_sync.json'); return false; }
     const fileId = sr.files[0].id;
     // Construir el JSON actualizado
     const data = {
@@ -666,7 +666,7 @@ async function saveSyncToDrive(){
     };
     const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
     const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify({name:'anaCS_sync.json'})], {type:'application/json'}));
+    form.append('metadata', new Blob([JSON.stringify({name:'brazosCS_sync.json'})], {type:'application/json'}));
     form.append('file', blob);
     const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
       {method:'PATCH', headers:{Authorization:`Bearer ${S.driveToken}`}, body:form});
