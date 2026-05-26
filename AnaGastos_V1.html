@@ -6,6 +6,7 @@
 <title>AnaGastos · Ana's Cleaning</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
 :root {
     --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60;
@@ -657,6 +658,22 @@ async function fileToDataURL(file) {
     });
 }
 
+async function pdfPageToBase64(pdfData, pageNum) {
+    // Configurar worker de PDF.js
+    if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+    const page = await pdf.getPage(pageNum);
+    const viewport = page.getViewport({ scale: 1.5 });
+    const canvas = document.createElement('canvas');
+    canvas.width  = viewport.width;
+    canvas.height = viewport.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    const dataURL = canvas.toDataURL('image/jpeg', 0.85);
+    return { dataURL, base64: dataURL.split(',')[1], numPages: pdf.numPages };
+}
+
 async function previewArchivos(event) {
     const files = Array.from(event.target.files);
     event.target.value = '';
@@ -669,10 +686,39 @@ async function previewArchivos(event) {
 
     for (const file of files) {
         const ext = file.name.split('.').pop().toLowerCase();
-        const b64 = await fileToBase64(file);
-        const isPdf = ext === 'pdf';
-        const dataURL = !isPdf ? await fileToDataURL(file) : null;
-        previewTasks.push({ name: file.name, base64: b64, dataURL, type: isPdf ? 'pdf' : 'image', mime: getMime(file.name) });
+        if (ext === 'pdf') {
+            // Convertir cada página del PDF a imagen
+            const arrayBuffer = await file.arrayBuffer();
+            const pdfData = new Uint8Array(arrayBuffer);
+            // Obtener número de páginas
+            if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
+                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+            }
+            const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
+            const numPages = pdf.numPages;
+            grid.innerHTML = `<p style="color:var(--muted);text-align:center;padding:20px;grid-column:span 3;">Procesando ${numPages} páginas...</p>`;
+
+            for (let p = 1; p <= numPages; p++) {
+                const page = await pdf.getPage(p);
+                const viewport = page.getViewport({ scale: 1.5 });
+                const canvas = document.createElement('canvas');
+                canvas.width  = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                const dataURL = canvas.toDataURL('image/jpeg', 0.85);
+                previewTasks.push({
+                    name: `${file.name} — Página ${p}`,
+                    base64: dataURL.split(',')[1],
+                    dataURL,
+                    type: 'image',
+                    mime: 'image/jpeg'
+                });
+            }
+        } else {
+            const dataURL = await fileToDataURL(file);
+            const base64  = await fileToBase64(file);
+            previewTasks.push({ name: file.name, base64, dataURL, type: 'image', mime: getMime(file.name) });
+        }
     }
 
     grid.innerHTML = '';
@@ -681,12 +727,8 @@ async function previewArchivos(event) {
         card.className = 'preview-card selected';
         card.id = `pcard_${idx}`;
         card.onclick = () => toggleCard(idx);
-
-        const previewHTML = task.type === 'image'
-            ? `<img class="preview-img" src="${task.dataURL}">`
-            : `<div class="preview-pdf"><div style="font-size:2.5rem;">📄</div><div style="font-size:0.75rem;color:var(--muted);">PDF</div></div>`;
-
-        card.innerHTML = `${previewHTML}
+        card.innerHTML = `
+            <img class="preview-img" src="${task.dataURL}">
             <div class="preview-footer">
                 <input type="checkbox" id="pchk_${idx}" checked style="width:16px;height:16px;">
                 <span class="preview-name">${task.name}</span>
@@ -745,9 +787,11 @@ Responde SOLO con un array JSON valido, sin markdown, sin bloques de codigo, sin
 Formato exacto por cada recibo: {"fecha":"YYYY-MM-DD","monto":numero,"categoria":"una de: ${catList}","subcategoria":"subcategoria apropiada","concepto":"descripcion breve del negocio o gasto","notas":""}
 Si no puedes leer algun campo usa null. Hoy: ${localDate()}`;
 
-    const content = task.type === 'pdf'
-        ? [{ type:'document', source:{ type:'base64', media_type:'application/pdf', data:task.base64 } }, { type:'text', text:prompt }]
-        : [{ type:'image',    source:{ type:'base64', media_type:task.mime,           data:task.base64 } }, { type:'text', text:prompt }];
+    // Ahora todo llega como imagen (PDFs ya fueron divididos por página)
+    const content = [
+        { type:'image', source:{ type:'base64', media_type: task.mime || 'image/jpeg', data:task.base64 } },
+        { type:'text',  text: prompt }
+    ];
 
     const res = await fetch('https://ana-gastos-proxy.ranulfocast.workers.dev', {
         method: 'POST',
