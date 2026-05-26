@@ -6,7 +6,7 @@
 <title>AnaGastos · Ana's Cleaning</title>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs" type="module" id="pdfjs-script"></script>
 <style>
 :root {
     --primary: #2c3e50; --accent: #e74c3c; --success: #27ae60;
@@ -691,9 +691,8 @@ async function previewArchivos(event) {
             const arrayBuffer = await file.arrayBuffer();
             const pdfData = new Uint8Array(arrayBuffer);
             // Obtener número de páginas
-            if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-            }
+                    const pdfjsLib = await import('https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.min.mjs');
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
             const pdf = await pdfjsLib.getDocument({ data: pdfData }).promise;
             const numPages = pdf.numPages;
             grid.innerHTML = `<p style="color:var(--muted);text-align:center;padding:20px;grid-column:span 3;">Procesando ${numPages} páginas...</p>`;
