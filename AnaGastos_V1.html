@@ -648,6 +648,14 @@ async function fileToBase64(file) {
         r.readAsDataURL(file);
     });
 }
+async function fileToDataURL(file) {
+    return new Promise((res,rej) => {
+        const r = new FileReader();
+        r.onload = e => res(e.target.result);
+        r.onerror = rej;
+        r.readAsDataURL(file);
+    });
+}
 
 async function previewArchivos(event) {
     const files = Array.from(event.target.files);
@@ -662,7 +670,9 @@ async function previewArchivos(event) {
     for (const file of files) {
         const ext = file.name.split('.').pop().toLowerCase();
         const b64 = await fileToBase64(file);
-        previewTasks.push({ name: file.name, base64: b64, type: ext === 'pdf' ? 'pdf' : 'image', mime: getMime(file.name) });
+        const isPdf = ext === 'pdf';
+        const dataURL = !isPdf ? await fileToDataURL(file) : null;
+        previewTasks.push({ name: file.name, base64: b64, dataURL, type: isPdf ? 'pdf' : 'image', mime: getMime(file.name) });
     }
 
     grid.innerHTML = '';
@@ -673,7 +683,7 @@ async function previewArchivos(event) {
         card.onclick = () => toggleCard(idx);
 
         const previewHTML = task.type === 'image'
-            ? `<img class="preview-img" src="data:${task.mime};base64,${task.base64}">`
+            ? `<img class="preview-img" src="${task.dataURL}">`
             : `<div class="preview-pdf"><div style="font-size:2.5rem;">📄</div><div style="font-size:0.75rem;color:var(--muted);">PDF</div></div>`;
 
         card.innerHTML = `${previewHTML}
@@ -729,10 +739,11 @@ async function extractFromFile(task) {
     if (!apiKey) throw new Error('No hay API Key configurada');
 
     const catList = Object.keys(cats).join(', ');
-    const prompt = `Extrae la informacion de recibos/facturas de este archivo.
-Responde SOLO con un array JSON, sin markdown ni texto adicional.
-Formato por recibo: {"fecha":"YYYY-MM-DD","monto":numero,"categoria":"una de: ${catList}","subcategoria":"subcategoria apropiada","concepto":"descripcion breve","notas":""}
-Si hay multiples recibos o paginas devuelve un elemento por recibo. Hoy: ${localDate()}`;
+    const prompt = `Extrae la informacion de TODOS los recibos o facturas de este archivo.
+IMPORTANTE: Si el archivo tiene multiples paginas, cada pagina es un recibo diferente - devuelve UN elemento por pagina/recibo.
+Responde SOLO con un array JSON valido, sin markdown, sin bloques de codigo, sin texto adicional.
+Formato exacto por cada recibo: {"fecha":"YYYY-MM-DD","monto":numero,"categoria":"una de: ${catList}","subcategoria":"subcategoria apropiada","concepto":"descripcion breve del negocio o gasto","notas":""}
+Si no puedes leer algun campo usa null. Hoy: ${localDate()}`;
 
     const content = task.type === 'pdf'
         ? [{ type:'document', source:{ type:'base64', media_type:'application/pdf', data:task.base64 } }, { type:'text', text:prompt }]
