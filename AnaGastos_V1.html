@@ -147,7 +147,16 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="form-group"><label>Monto * ($)</label><input type="number" id="gastoMonto" placeholder="0.00" step="0.01" min="0"></div>
             <div class="form-group"><label>Categoría *</label><select id="gastoCategoria" onchange="updateSubcategorias()"><option value="">-- Selecciona --</option></select></div>
             <div class="form-group"><label>Subcategoría</label><select id="gastoSubcategoria"><option value="">-- Sin subcategoría --</option></select></div>
-            <div class="form-group full"><label>Concepto</label><input type="text" id="gastoConcepto" placeholder="Ej: Compra de gasolina"></div>
+            <div class="form-group full"><label>Vendor / Negocio</label><input type="text" id="gastoVendor" placeholder="Ej: Circle K, Walmart, Shell..."></div>
+            <div class="form-group full"><label>Concepto / Descripción</label><input type="text" id="gastoConcepto" placeholder="Ej: Compra de gasolina, productos de limpieza..."></div>
+            <div class="form-group"><label>Tipo de Pago</label>
+                <select id="gastoTipoPago">
+                    <option value="Cash">💵 Cash</option>
+                    <option value="Debito">💳 Débito</option>
+                    <option value="Credito">💳 Crédito</option>
+                    <option value="Otro">Otro</option>
+                </select>
+            </div>
             <div class="form-group full"><label>Notas (opcional)</label><textarea id="gastoNotas" rows="2"></textarea></div>
             <div class="form-group full"><label>Foto del recibo (opcional)</label><input type="file" id="gastoFoto" accept="image/*"></div>
         </div>
@@ -170,7 +179,7 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th>Fecha</th><th>Categoría</th><th>Subcategoría</th><th>Concepto</th><th>Monto</th><th></th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Vendor</th><th>Categoría</th><th>Concepto</th><th>Pago</th><th>Monto</th><th></th></tr></thead>
                 <tbody id="gastosBody"></tbody>
             </table>
         </div>
@@ -290,7 +299,7 @@ function localDate() {
     const d = new Date();
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
-function fmt(f) { const [y,m,d]=f.split('-'); return `${m}/${d}/${y}`; }
+function fmt(f) { const [y,m,d]=f.split('-'); return `${m}/${d}/${y.slice(2)}`; }
 function fmtMoney(n) { return '$'+n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
 function toast(msg,dur=2800) {
     const el=document.getElementById('toast');
@@ -459,11 +468,13 @@ function saveGasto() {
     const monto=parseFloat(document.getElementById('gastoMonto').value);
     const categoria=document.getElementById('gastoCategoria').value;
     const subcat=document.getElementById('gastoSubcategoria').value;
+    const vendor=document.getElementById('gastoVendor').value.trim();
     const concepto=document.getElementById('gastoConcepto').value.trim();
+    const tipoPago=document.getElementById('gastoTipoPago').value;
     const notas=document.getElementById('gastoNotas').value.trim();
     const fotoInput=document.getElementById('gastoFoto');
     if(!fecha||!monto||monto<=0||!categoria){alert('Por favor completa Fecha, Monto y Categoría');return;}
-    const gasto={id:Date.now(),fecha,monto,categoria,subcategoria:subcat||'N/A',concepto:concepto||'Sin descripción',notas,foto:null};
+    const gasto={id:Date.now(),fecha,monto,categoria,subcategoria:subcat||'N/A',vendor:vendor||'',concepto:concepto||'Sin descripción',tipoPago,notas,foto:null};
     const doSave=(g)=>{gastos.push(g);saveLocal();clearForm();toast('✅ Gasto guardado');switchTab('lista');if(driveToken&&folderId)saveToDrive();};
     if(fotoInput.files&&fotoInput.files[0]){
         const reader=new FileReader();
@@ -478,6 +489,8 @@ function clearForm() {
     document.getElementById('gastoSubcategoria').innerHTML='<option value="">-- Sin subcategoría --</option>';
     document.getElementById('gastoConcepto').value='';
     document.getElementById('gastoNotas').value='';
+    document.getElementById('gastoVendor').value='';
+    document.getElementById('gastoTipoPago').value='Cash';
     document.getElementById('gastoFoto').value='';
 }
 
@@ -506,8 +519,10 @@ function refreshLista() {
     let html='',total=0;
     filtered.forEach(g=>{
         total+=g.monto;
-        html+=`<tr><td>${fmt(g.fecha)}</td><td><span class="badge">${g.categoria}</span></td>
-        <td style="color:var(--muted);font-size:0.85rem;">${g.subcategoria}</td><td>${g.concepto}</td>
+        const pagoIcon = g.tipoPago==='Cash'?'💵':g.tipoPago==='Credito'?'💳 Cred':g.tipoPago==='Debito'?'💳 Deb':g.tipoPago||'—';
+        html+=`<tr><td>${fmt(g.fecha)}</td><td style="font-weight:600;">${g.vendor||'—'}</td>
+        <td><span class="badge">${g.categoria}</span></td><td style="color:var(--muted);font-size:0.85rem;">${g.concepto}</td>
+        <td style="font-size:0.82rem;">${pagoIcon}</td>
         <td><b>${fmtMoney(g.monto)}</b></td>
         <td><button class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;" onclick="deleteGasto(${g.id})">🗑️</button></td></tr>`;
     });
@@ -525,7 +540,7 @@ function exportCSV() {
     const end=document.getElementById('filterEnd').value;
     let filtered=gastos.filter(g=>{if(start&&g.fecha<start)return false;if(end&&g.fecha>end)return false;return true;}).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     let csv='Fecha,Categoría,Subcategoría,Concepto,Monto,Notas\n',total=0;
-    filtered.forEach(g=>{total+=g.monto;csv+=`${fmt(g.fecha)},"${g.categoria}","${g.subcategoria}","${g.concepto}",${g.monto},"${g.notas||''}"\n`;});
+    filtered.forEach(g=>{total+=g.monto;csv+=`${fmt(g.fecha)},"${g.vendor||''}", "${g.categoria}","${g.subcategoria}","${g.concepto}",${g.monto},"${g.notas||''}"\n`;});
     csv+=`\n,,,TOTAL,${total.toFixed(2)}\n`;
     const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`AnaGastos_${localDate()}.csv`;a.click();
 }
@@ -782,11 +797,19 @@ async function extractFromFile(task) {
     if (!apiKey) throw new Error('No hay API Key configurada');
 
     const catList = Object.keys(cats).join(', ');
-    const prompt = `Extrae la informacion de TODOS los recibos o facturas de este archivo.
-IMPORTANTE: Si el archivo tiene multiples paginas, cada pagina es un recibo diferente - devuelve UN elemento por pagina/recibo.
+    const prompt = `Analiza esta imagen y extrae la informacion de TODOS los recibos o facturas que aparezcan.
+IMPORTANTE: Puede haber multiples recibos en una sola imagen - identifica cada uno por separado y devuelve UN elemento por recibo.
 Responde SOLO con un array JSON valido, sin markdown, sin bloques de codigo, sin texto adicional.
-Formato exacto por cada recibo: {"fecha":"YYYY-MM-DD","monto":numero,"categoria":"una de: ${catList}","subcategoria":"subcategoria apropiada","concepto":"descripcion breve del negocio o gasto","notas":""}
-Si no puedes leer algun campo usa null. Hoy: ${localDate()}`;
+Formato exacto por cada recibo:
+{"fecha":"YYYY-MM-DD","monto":numero,"categoria":"una de: ${catList}","subcategoria":"subcategoria apropiada","vendor":"nombre exacto del negocio (Circle K, Walmart, etc)","concepto":"descripcion del gasto (gasolina, materiales, etc)","tipoPago":"Cash|Credito|Debito|Otro","notas":""}
+REGLAS:
+- Busca bien TODOS los recibos en la imagen, aunque esten en columnas o filas
+- fecha: cualquier formato (MM/DD/YY, MM/DD/YYYY, May 20 2026, etc). Hoy es ${localDate()}
+- monto: el TOTAL final de cada recibo (TOTAL, GRAND TOTAL, AMOUNT DUE, BALANCE)
+- tipoPago: si dice CREDIT/AMEX/VISA/MASTERCARD = Credito, si dice DEBIT = Debito, si dice CASH = Cash
+- concepto: nombre del negocio (Circle K, Walmart, Shell, etc)
+- Si un recibo esta borroso extrae lo que puedas, usa null solo si es completamente ilegible
+- NUNCA devuelvas array vacio`;
 
     // Ahora todo llega como imagen (PDFs ya fueron divididos por página)
     const content = [
@@ -845,8 +868,17 @@ function renderScanResults() {
                     <select id="rc_${idx}" onchange="updateRSubcat(${idx})"><option value="">-- Selecciona --</option>${catOpts}</select></div>
                 <div class="result-field"><label>Subcategoría</label>
                     <select id="rs_${idx}"><option value="">-- Sin subcategoría --</option>${subOpts}</select></div>
-                <div class="result-field full"><label>Concepto</label><input type="text" id="rco_${idx}" value="${item.concepto||''}"></div>
-                <div class="result-field full"><label>Notas</label><input type="text" id="rn_${idx}" value="${item.notas||''}"></div>
+                <div class="result-field full"><label>Vendor / Negocio</label><input type="text" id="rv_${idx}" value="${item.vendor||item.concepto||''}"></div>
+                <div class="result-field full"><label>Concepto / Descripción</label><input type="text" id="rco_${idx}" value="${item.concepto||''}"></div>
+                <div class="result-field"><label>Tipo de Pago</label>
+                    <select id="rtp_${idx}">
+                        <option value="Cash" ${item.tipoPago==='Cash'?'selected':''}>💵 Cash</option>
+                        <option value="Debito" ${item.tipoPago==='Debito'?'selected':''}>💳 Débito</option>
+                        <option value="Credito" ${item.tipoPago==='Credito'?'selected':''}>💳 Crédito</option>
+                        <option value="Otro" ${(!item.tipoPago||item.tipoPago==='Otro')?'selected':''}>Otro</option>
+                    </select>
+                </div>
+                <div class="result-field"><label>Notas</label><input type="text" id="rn_${idx}" value="${item.notas||''}"></div>
             </div>
         </div>`;
     }).join('');
@@ -868,10 +900,12 @@ function importarSeleccionados() {
         const monto  = parseFloat(document.getElementById(`rm_${idx}`).value);
         const cat    = document.getElementById(`rc_${idx}`).value;
         const sub    = document.getElementById(`rs_${idx}`).value;
+        const vendor = document.getElementById(`rv_${idx}`).value.trim();
         const conc   = document.getElementById(`rco_${idx}`).value.trim();
+        const tp     = document.getElementById(`rtp_${idx}`).value;
         const notas  = document.getElementById(`rn_${idx}`).value.trim();
         if (!fecha||!monto||monto<=0||!cat) return;
-        gastos.push({ id:Date.now()+idx, fecha, monto, categoria:cat, subcategoria:sub||'N/A', concepto:conc||'Sin descripción', notas, foto:null });
+        gastos.push({ id:Date.now()+idx, fecha, monto, categoria:cat, subcategoria:sub||'N/A', vendor:vendor||'', concepto:conc||'Sin descripción', tipoPago:tp, notas, foto:null });
         added++;
     });
     if (!added) { toast('⚠ Selecciona al menos un recibo válido'); return; }
