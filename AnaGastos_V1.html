@@ -727,7 +727,9 @@ async function previewArchivos(event) {
         card.id = `pcard_${idx}`;
         card.onclick = () => toggleCard(idx);
         card.innerHTML = `
-            <img class="preview-img" src="${task.dataURL}">
+            <img class="preview-img" src="${task.dataURL}" 
+                onclick="event.stopPropagation();zoomImg('${task.dataURL}')" 
+                style="cursor:zoom-in;" title="Clic para ampliar">
             <div class="preview-footer">
                 <input type="checkbox" id="pchk_${idx}" checked style="width:16px;height:16px;">
                 <span class="preview-name">${task.name}</span>
@@ -878,6 +880,13 @@ function importarSeleccionados() {
     switchTab('lista');
     toast(`✅ ${added} recibo${added>1?'s':''} importado${added>1?'s':''}`);
     if (driveToken&&folderId) saveToDrive();
+}
+function zoomImg(src) {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:99999;display:flex;align-items:center;justify-content:center;cursor:zoom-out;';
+    ov.innerHTML = `<img src="${src}" style="max-width:92vw;max-height:92vh;border-radius:8px;box-shadow:0 0 40px rgba(0,0,0,0.8);">`;
+    ov.onclick = () => ov.remove();
+    document.body.appendChild(ov);
 }
 </script>
 </body>
