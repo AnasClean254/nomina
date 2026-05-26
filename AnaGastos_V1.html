@@ -147,7 +147,14 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="form-group"><label>Monto * ($)</label><input type="number" id="gastoMonto" placeholder="0.00" step="0.01" min="0"></div>
             <div class="form-group"><label>Categoría *</label><select id="gastoCategoria" onchange="updateSubcategorias()"><option value="">-- Selecciona --</option></select></div>
             <div class="form-group"><label>Subcategoría</label><select id="gastoSubcategoria"><option value="">-- Sin subcategoría --</option></select></div>
-            <div class="form-group full"><label>Vendor / Negocio</label><input type="text" id="gastoVendor" placeholder="Ej: Circle K, Walmart, Shell..."></div>
+            <div class="form-group full"><label>Vendor / Negocio</label>
+                <div style="display:flex;gap:8px;">
+                    <select id="gastoVendor" style="flex:1;" onchange="checkNewVendor()">
+                        <option value="">-- Selecciona o agrega --</option>
+                    </select>
+                    <button type="button" onclick="addVendorQuick()" class="btn btn-blue" style="padding:10px 14px;white-space:nowrap;">+ Nuevo</button>
+                </div>
+            </div>
             <div class="form-group full"><label>Concepto / Descripción</label><input type="text" id="gastoConcepto" placeholder="Ej: Compra de gasolina, productos de limpieza..."></div>
             <div class="form-group"><label>Tipo de Pago</label>
                 <select id="gastoTipoPago">
@@ -197,6 +204,11 @@ tbody tr:last-child td { border-bottom: none; }
         </div>
         <div id="categoriasContainer"></div>
         <button class="btn btn-blue btn-full" onclick="addCategoria()">➕ Agregar Nueva Categoría</button>
+    </div>
+    <div class="card">
+        <div class="card-title">🏪 Vendors / Negocios</div>
+        <div id="vendorsContainer" style="margin-bottom:12px;"></div>
+        <button class="btn btn-blue btn-full" onclick="addVendorQuick()">➕ Agregar Vendor</button>
     </div>
 </div>
 
@@ -281,12 +293,18 @@ let cats   = JSON.parse(localStorage.getItem(CKEY) || 'null') || {
     "Gastos Varios":       ["General"],
     "Nómina":              ["Pago empleados"]
 };
+const VKEY = 'anas_gastos_vendors';
+let vendors = JSON.parse(localStorage.getItem(VKEY) || 'null') || [
+    "Circle K","7-Eleven","CEFCO","Shell","Exxon","Valero",
+    "Walmart","Sam's Club","Costco","Home Depot","Walgreens","CVS"
+];
 
 // ── INIT ──────────────────────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('gastoFecha').value = localDate();
     setFilter('month');
     loadCatDropdowns();
+    loadVendorDropdowns();
     renderCategorias();
     const tok = localStorage.getItem(TKEY);
     const exp = parseInt(localStorage.getItem(TEXP) || '0');
@@ -313,6 +331,7 @@ function sdot(state,msg) {
 function saveLocal() {
     localStorage.setItem(LKEY,JSON.stringify(gastos));
     localStorage.setItem(CKEY,JSON.stringify(cats));
+    localStorage.setItem(VKEY,JSON.stringify(vendors));
 }
 
 // ── DRIVE ─────────────────────────────────────────────────────────────
@@ -357,6 +376,7 @@ async function loadFromDrive() {
             gastos.forEach(g=>{if(!driveIds.has(g.id))merged.push(g);});
             gastos=merged;
             if(data.cats)cats=data.cats;
+            if(data.vendors)vendors=data.vendors;
             saveLocal(); loadCatDropdowns(); renderCategorias(); refreshLista();
         }
         sdot('ok','Actualizado '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
@@ -366,7 +386,7 @@ async function saveToDrive() {
     if(!driveToken||!folderId)return;
     sdot('spin','Guardando…');
     try {
-        const blob=new Blob([JSON.stringify({gastos,cats,savedAt:new Date().toISOString()})],{type:'application/json'});
+        const blob=new Blob([JSON.stringify({gastos,cats,vendors,savedAt:new Date().toISOString()})],{type:'application/json'});
         const form=new FormData();
         let url,method;
         if(fileId){
@@ -399,7 +419,7 @@ function switchTab(tab) {
         document.getElementById('panel'+t.charAt(0).toUpperCase()+t.slice(1)).classList.toggle('active',t===tab);
     });
     if(tab==='lista')refreshLista();
-    if(tab==='categorias')renderCategorias();
+    if(tab==='categorias'){renderCategorias();renderVendors();}
     if(tab==='config')loadApiKeyDisplay();
 }
 
@@ -440,6 +460,52 @@ function renderCategorias() {
     });
     document.getElementById('categoriasContainer').innerHTML=html;
 }
+// ── VENDORS ──────────────────────────────────────────────────────────
+function loadVendorDropdowns() {
+    const sels = ['gastoVendor'];
+    vendors.sort((a,b) => a.localeCompare(b));
+    sels.forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const prev = sel.value;
+        sel.innerHTML = '<option value="">-- Selecciona o agrega --</option>';
+        vendors.forEach(v => sel.innerHTML += `<option value="${v}">${v}</option>`);
+        if (prev) sel.value = prev;
+    });
+}
+function checkNewVendor() {
+    // Si seleccionó algo válido, no hacer nada
+}
+function addVendorQuick() {
+    const n = prompt('Nombre del nuevo Vendor/Negocio:');
+    if (!n || !n.trim()) return;
+    if (vendors.includes(n.trim())) { 
+        document.getElementById('gastoVendor').value = n.trim();
+        return; 
+    }
+    vendors.push(n.trim());
+    saveLocal();
+    loadVendorDropdowns();
+    document.getElementById('gastoVendor').value = n.trim();
+    renderVendors();
+    toast(`✅ "${n.trim()}" agregado`);
+}
+function renderVendors() {
+    const container = document.getElementById('vendorsContainer');
+    if (!container) return;
+    vendors.sort((a,b) => a.localeCompare(b));
+    container.innerHTML = vendors.map(v => `
+        <div class="subcat-item">
+            <span>🏪 ${v}</span>
+            <button class="btn" style="background:#95a5a6;color:white;padding:4px 10px;font-size:0.78rem;" onclick="deleteVendor('${v.replace(/'/g,"\'")}')">✕</button>
+        </div>`).join('');
+}
+function deleteVendor(v) {
+    if (!confirm(`¿Eliminar "${v}" de la lista?`)) return;
+    vendors = vendors.filter(x => x !== v);
+    saveLocal(); renderVendors(); loadVendorDropdowns();
+}
+
 function addCategoria() {
     const n=prompt('Nombre de la nueva categoría:');
     if(!n||!n.trim())return;
