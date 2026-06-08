@@ -5385,8 +5385,8 @@ class Scheduler {
         btn.disabled = true;
         try {
             // Leer token compartido por la App de Nómina
-            const token = localStorage.getItem('ana_drive_token');
-            const expiry = localStorage.getItem('ana_drive_token_expiry');
+            const token = localStorage.getItem('anas_drive_token');
+            const expiry = localStorage.getItem('anas_drive_token_expiry');
             
             if (!token || !expiry || Date.now() > parseInt(expiry)) {
                 throw new Error('Token no disponible. Abre la App de Nómina y conecta Google Drive primero.');
