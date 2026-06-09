@@ -10896,12 +10896,12 @@ class Scheduler {
     printProductionPDF() {
         if (!this._lastProdRender) { alert('Genera el reporte primero.'); return; }
         const {groupRows, dates, grandHrs, grandCost, grandSvcs, grandBilled, dailyTotals, view} = this._lastProdRender;
-        const fmt=n=>n.toFixed(2);
+        const fmt=n=>n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');
         const fmtT=t=>{if(!t)return'';const[h24,m]=t.split(':').map(Number),ap=h24>=12?'PM':'AM',h=h24%12||12;return h+':'+(m+'').padStart(2,'0')+' '+ap;};
         const fmtH=h=>h>=1?`${Math.floor(h)}h ${Math.round((h%1)*60)}min`:`${Math.round(h*60)}min`;
         const fmtDate=d=>{const[y,mo,da]=d.split('-');return `${da}/${mo}/${y}`;};
-        const grandNet=grandBilled-grandCost;
         const periodo=dates.length===1?fmtDate(dates[0]):`${fmtDate(dates[0])} – ${fmtDate(dates[dates.length-1])}`;
+        const netLabel = dates.length===1 ? 'Ingresos Netos del Día' : 'Ingresos Netos del Período';
         const dayNames=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
 
         let weeklyTableHTML='';
@@ -10934,45 +10934,81 @@ class Scheduler {
         Object.keys(groupRows).sort().forEach(grp=>{
             const row=groupRows[grp];
             const grpId = grp.replace(/\s+/g,'_');
+            const activeMembers = row.members.filter(e=>e);
             const empCountInp = document.getElementById('prodEmpCount_' + grpId);
-            const empCount = empCountInp ? (parseInt(empCountInp.value) || 1) : 1;
-            const adjCost = parseFloat(document.getElementById('prodMOCost_' + grpId)?.textContent?.replace(/[$,]/g,'') || row.totalCost);
-            const adjHrs = row.totalHrs * empCount;
+            const empCount = empCountInp ? (parseInt(empCountInp.value)||1) : (activeMembers.length||1);
+            // Leer valores ya calculados del DOM
+            const totalMOEl = document.getElementById('prodMOTotal_' + grpId);
+            const adjCost = totalMOEl ? parseFloat(totalMOEl.dataset.totalCost||0) : row.totalCost;
             const transitCostEl = document.getElementById('prodTransitCost_' + grpId);
-            const transitCost = transitCostEl ? parseFloat(transitCostEl.textContent.replace(/[$,—]/g,'') || 0) : 0;
+            const transitCost = transitCostEl ? parseFloat(transitCostEl.textContent.replace(/[$,—]/g,'')||0) : 0;
+            const baseCost = adjCost - transitCost;
             const adjNet = row.totalBilled - adjCost;
+            const ratePerHr = row.totalHrs > 0 ? baseCost / (row.totalHrs * empCount) : 0;
             pdfGrandCost += adjCost;
             pdfGrandBilled += row.totalBilled;
-            groupsHTML+=`<div style="margin-bottom:18px;border:1px solid #ccc;border-radius:6px;overflow:hidden;page-break-inside:avoid">
-              <div style="background:#0e7490;color:white;padding:8px 12px">
-                <strong>👥 ${grp} (${empCount} empleados)</strong> — ${row.doneCount} servicios · ${fmtH(adjHrs)}${row.transitHrs > 0 ? ' + 🚗 ' + fmtH(row.transitHrs * empCount) + ' traslado' : ''} · Facturado: $${fmt(row.totalBilled)} · Costo MO: $${fmt(adjCost)} · <strong>Neto: $${fmt(adjNet)}</strong>
-              </div>`;
-            groupsHTML+=`<table style="width:100%;border-collapse:collapse;font-size:10px">
-              <thead><tr style="background:#f5f5f5">
-                <th style="padding:5px 8px;text-align:left">Fecha</th><th style="padding:5px 8px;text-align:left">Cliente</th>
-                <th style="padding:5px 8px;text-align:center">Llegada</th><th style="padding:5px 8px;text-align:center">Salida</th>
-                <th style="padding:5px 8px;text-align:center">Horas</th><th style="padding:5px 8px;text-align:right">Facturado</th>
-                <th style="padding:5px 8px;text-align:right">Costo MO</th><th style="padding:5px 8px;text-align:center">Estado</th>
-              </tr></thead><tbody>
-              ${row.services.map((s,i)=>`<tr style="border-top:1px solid #f0f0f0;background:${i%2===0?'#fff':'#fafafa'}">
-                <td style="padding:5px 8px;color:#666">${fmtDate(s.date)}</td>
-                <td style="padding:5px 8px"><strong>${s.clientName}</strong><br><span style="color:#999;font-size:9px">${s.address}</span></td>
-                <td style="padding:5px 8px;text-align:center">${s.checkin?fmtT(s.checkin):'—'}</td>
-                <td style="padding:5px 8px;text-align:center">${s.checkout?fmtT(s.checkout):'—'}</td>
-                <td style="padding:5px 8px;text-align:center;font-weight:600;color:#2980b9">${s.hrs>0?fmtH(s.hrs):'—'}</td>
-                <td style="padding:5px 8px;text-align:right;color:#9a7d0a">${s.price>0?'$'+fmt(s.price):'—'}</td>
-                <td style="padding:5px 8px;text-align:right;color:#0e7490">${s.cost>0?'$'+fmt(s.cost):'—'}</td>
-                <td style="padding:5px 8px;text-align:center;font-size:9px">${s.status==='done'?'✅ Terminado':s.status==='active'?'⏳ Activo':'🔜 Pendiente'}</td>
-              </tr>`).join('')}
-              </tbody>
-              ${row.transitHrs > 0 ? `<tfoot><tr style="background:#fffde7;border-top:2px solid #f57f17;">
-                <td colspan="4" style="padding:5px 8px;color:#f57f17;font-style:italic;">🚗 Traslado entre servicios (${empCount} empleados)</td>
-                <td style="padding:5px 8px;text-align:center;color:#f57f17;font-weight:600">${fmtH(row.transitHrs * empCount)}</td>
-                <td style="padding:5px 8px;text-align:right;color:#f57f17">—</td>
-                <td style="padding:5px 8px;text-align:right;color:#f57f17;font-weight:600">${transitCost > 0 ? '$' + fmt(transitCost) : '—'}</td>
-                <td></td>
-              </tr></tfoot>` : ''}
-              </table></div>`;
+
+            // ── Recuadro azul igual que pantalla ──
+            groupsHTML+=`<div style="margin-bottom:18px;border:2px solid #0e7490;border-radius:10px;overflow:hidden;page-break-inside:avoid">
+              <div style="background:#0e7490;color:white;padding:12px 16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                  <strong style="font-size:1rem;">👥 ${grp} (${activeMembers.length} empleados)</strong>
+                  <strong style="font-size:0.85rem;">${row.doneCount} servicios completados</strong>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;margin-bottom:10px;">
+                  <div><div style="font-size:0.65rem;font-weight:700;opacity:0.8;text-transform:uppercase;margin-bottom:2px">⏱ Trabajo en Campo</div><div style="font-size:0.95rem;font-weight:700;">${fmtH(row.totalHrs)}</div></div>
+                  <div><div style="font-size:0.65rem;font-weight:700;opacity:0.8;text-transform:uppercase;margin-bottom:2px">🚗 Traslado</div><div style="font-size:0.95rem;font-weight:700;">${row.transitHrs > 0 ? fmtH(row.transitHrs) : '—'}</div></div>
+                  <div><div style="font-size:0.65rem;font-weight:700;opacity:0.8;text-transform:uppercase;margin-bottom:2px">💰 Facturado</div><div style="font-size:0.95rem;font-weight:700;">$${fmt(row.totalBilled)}</div></div>
+                  <div><div style="font-size:0.65rem;font-weight:700;opacity:0.8;text-transform:uppercase;margin-bottom:2px">👷 Costo MO</div><div style="font-size:0.95rem;font-weight:700;">$${fmt(adjCost)}</div></div>
+                </div>
+                <div style="border-top:1px solid rgba(255,255,255,0.3);padding-top:8px;text-align:center;font-size:1rem;font-weight:700;">
+                  ${netLabel}: $${fmt(adjNet)}
+                </div>
+              </div>
+              <!-- Recuadro MO desglosado -->
+              <div style="margin:12px 16px;border:2px solid #0e7490;border-radius:8px;overflow:hidden;">
+                <div style="background:#0e7490;padding:8px 14px;font-size:0.8rem;font-weight:700;color:white;display:flex;justify-content:space-between;">
+                  <span>👷 Mano de Obra</span><span>Empleados que trabajaron: ${empCount}</span>
+                </div>
+                <div style="background:#e0f7fa;padding:8px 14px;font-size:0.8rem;color:#0e7490;font-weight:600;border-bottom:1px solid #b2dfdb;">
+                  ${activeMembers.map(e=>{const r=getRateForEmp(e);return e.name+' ($'+r.toFixed(2)+'/hr)';}).join(' · ')}
+                  <span style="float:right;color:#555;">Tarifa prom: <strong>$${fmt(ratePerHr)}/hr</strong></span>
+                </div>
+                <div style="padding:10px 14px;background:#fff;">
+                  <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+                    <span style="font-size:0.85rem;color:#444;">⏱ Trabajo en campo &nbsp;<strong style="color:#2980b9">${fmtH(row.totalHrs)} (${(row.totalHrs).toFixed(2)} hrs)</strong></span>
+                    <strong style="color:#0e7490;">$${fmt(baseCost)}</strong>
+                  </div>
+                  ${transitCost > 0 ? `<div style="display:flex;justify-content:space-between;margin-bottom:6px;padding:5px 8px;background:#fffde7;border-radius:4px;border-left:3px solid #f57f17;">
+                    <span style="font-size:0.85rem;color:#f57f17;">🚗 Traslado entre servicios &nbsp;<strong>${fmtH(row.transitHrs)}</strong></span>
+                    <strong style="color:#f57f17;">$${fmt(transitCost)}</strong>
+                  </div>` : ''}
+                  <div style="display:flex;justify-content:space-between;padding-top:8px;border-top:2px solid #0e7490;">
+                    <strong style="color:#0e7490;">💰 Total Costo MO</strong>
+                    <strong style="font-size:1.1rem;color:#0e7490;">$${fmt(adjCost)}</strong>
+                  </div>
+                </div>
+              </div>
+              <!-- Tabla de servicios -->
+              <table style="width:100%;border-collapse:collapse;font-size:10px;margin:0 0 12px;">
+                <thead><tr style="background:#f5f5f5">
+                  <th style="padding:5px 8px;text-align:left">Fecha</th><th style="padding:5px 8px;text-align:left">Cliente</th>
+                  <th style="padding:5px 8px;text-align:center">Llegada</th><th style="padding:5px 8px;text-align:center">Salida</th>
+                  <th style="padding:5px 8px;text-align:center">Horas</th><th style="padding:5px 8px;text-align:right">Facturado</th>
+                  <th style="padding:5px 8px;text-align:right">Costo MO</th><th style="padding:5px 8px;text-align:center">Estado</th>
+                </tr></thead><tbody>
+                ${row.services.map((s,i)=>`<tr style="border-top:1px solid #f0f0f0;background:${i%2===0?'#fff':'#fafafa'}">
+                  <td style="padding:5px 8px;color:#666">${fmtDate(s.date)}</td>
+                  <td style="padding:5px 8px"><strong>${s.clientName}</strong><br><span style="color:#999;font-size:9px">${s.address}</span></td>
+                  <td style="padding:5px 8px;text-align:center">${s.checkin?fmtT(s.checkin):'—'}</td>
+                  <td style="padding:5px 8px;text-align:center">${s.checkout?fmtT(s.checkout):'—'}</td>
+                  <td style="padding:5px 8px;text-align:center;font-weight:600;color:#2980b9">${s.hrs>0?fmtH(s.hrs):'—'}</td>
+                  <td style="padding:5px 8px;text-align:right;color:#9a7d0a">${s.price>0?'$'+fmt(s.price):'—'}</td>
+                  <td style="padding:5px 8px;text-align:right;color:#0e7490">${s.cost>0?'$'+fmt(s.cost):'—'}</td>
+                  <td style="padding:5px 8px;text-align:center;font-size:9px">${s.status==='done'?'✅ Terminado':s.status==='active'?'⏳ Activo':'🔜 Pendiente'}</td>
+                </tr>`).join('')}
+                </tbody></table>
+            </div>`;
         });
 
         const pdfGrandNet = pdfGrandBilled - pdfGrandCost;
@@ -10981,13 +11017,7 @@ class Scheduler {
         <style>body{font-family:Arial,sans-serif;margin:30px;color:#333}h1{color:#0e7490;margin-bottom:4px}@media print{.no-print{display:none}}</style></head><body>
         <div class="no-print" style="margin-bottom:16px"><button onclick="window.print()" style="background:#0e7490;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:1rem">🖨️ Imprimir</button></div>
         <h1>📊 Reporte de Producción — Ana's Cleaning</h1>
-        <p style="color:#666;margin:0 0 16px">Período: ${periodo} &nbsp;·&nbsp; Generado: ${new Date().toLocaleString('es-MX')}</p>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px">
-          <div style="background:#e8f8f5;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#27ae60;font-weight:700;text-transform:uppercase">Servicios</div><div style="font-size:1.5rem;font-weight:700">${grandSvcs}</div></div>
-          <div style="background:#eaf4fb;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#2980b9;font-weight:700;text-transform:uppercase">Horas</div><div style="font-size:1.5rem;font-weight:700">${fmtH(grandHrs)}</div></div>
-          <div style="background:#fef9e7;border-radius:8px;padding:10px;text-align:center"><div style="font-size:10px;color:#d4a017;font-weight:700;text-transform:uppercase">Facturado</div><div style="font-size:1.5rem;font-weight:700">$${fmt(pdfGrandBilled)}</div></div>
-          <div style="background:${pdfGrandNet>=0?'#e8f8f5':'#fdf2f8'};border-radius:8px;padding:10px;text-align:center;border:2px solid ${pdfGrandNet>=0?'#27ae60':'#e74c3c'}"><div style="font-size:10px;color:${pdfGrandNet>=0?'#27ae60':'#e74c3c'};font-weight:700;text-transform:uppercase">Ganancia Neta</div><div style="font-size:1.5rem;font-weight:700;color:${pdfGrandNet>=0?'#1e8449':'#922b21'}">${pdfGrandNet>=0?'+':''}$${fmt(pdfGrandNet)}</div></div>
-        </div>
+        <p style="color:#666;margin:0 0 20px">Período: ${periodo} &nbsp;·&nbsp; Generado: ${new Date().toLocaleString('es-MX')}</p>
         ${weeklyTableHTML}${groupsHTML}
         </body></html>`);
         win.document.close();
