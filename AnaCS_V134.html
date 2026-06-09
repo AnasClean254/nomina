@@ -5492,6 +5492,7 @@ class Scheduler {
         
         this.refreshGastos();
         document.getElementById('gastosModal').style.display = 'block';
+        this.loadVendors();
     }
     
     closeGastos() {
@@ -5568,6 +5569,8 @@ class Scheduler {
         const monto = parseFloat(document.getElementById('gastoMonto').value);
         const categoria = document.getElementById('gastoCategoria').value;
         const subcategoria = document.getElementById('gastoSubcategoria').value;
+        const vendor = document.getElementById('gastoVendor')?.value || '';
+        const tipoPago = document.getElementById('gastoTipoPago')?.value || 'Cash';
         const concepto = document.getElementById('gastoConcepto').value;
         const notas = document.getElementById('gastoNotas').value;
         const fotoInput = document.getElementById('gastoFoto');
@@ -5583,6 +5586,8 @@ class Scheduler {
             monto,
             categoria,
             subcategoria: subcategoria || 'N/A',
+            vendor: vendor || '',
+            tipoPago: tipoPago || 'Cash',
             concepto: concepto || 'Sin descripción',
             notas,
             foto: null
@@ -5685,7 +5690,9 @@ class Scheduler {
                 <td>${fechaFormateada}</td>
                 <td><span style="background: #e74c3c; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.7rem;">${g.categoria}</span></td>
                 <td>${g.subcategoria}</td>
+                <td>${g.vendor || ''}</td>
                 <td>${g.concepto}</td>
+                <td><small style="color:#666;">${g.tipoPago || ''}</small></td>
                 <td><b>$${g.monto.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</b></td>
                 <td>
                     ${g.foto ? `<button onclick="app.viewGastoFoto(${g.id})" style="background: #1A4FCC; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">📷 Ver</button>` : ''}
@@ -5729,6 +5736,107 @@ class Scheduler {
         document.body.appendChild(modal);
     }
     
+    addVendorQuick() {
+        const n = prompt('Nombre del nuevo Vendor/Negocio:');
+        if (!n || !n.trim()) return;
+        let vendors = JSON.parse(localStorage.getItem('ana_gastos_vendors') || '[]');
+        if (!vendors.includes(n.trim())) {
+            vendors.push(n.trim());
+            localStorage.setItem('ana_gastos_vendors', JSON.stringify(vendors));
+        }
+        const sel = document.getElementById('gastoVendor');
+        if (sel) {
+            const opt = document.createElement('option');
+            opt.value = n.trim(); opt.textContent = n.trim();
+            sel.appendChild(opt);
+            sel.value = n.trim();
+        }
+    }
+
+    loadVendors() {
+        const vendors = JSON.parse(localStorage.getItem('ana_gastos_vendors') || '[]');
+        const sel = document.getElementById('gastoVendor');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">-- Selecciona o agrega --</option>';
+        vendors.forEach(v => {
+            const opt = document.createElement('option');
+            opt.value = v; opt.textContent = v;
+            sel.appendChild(opt);
+        });
+    }
+
+    importarGastosExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        event.target.value = '';
+        const ext = file.name.split('.').pop().toLowerCase();
+        if (ext === 'csv') {
+            const r = new FileReader();
+            r.onload = e => this._processGastosRows(e.target.result.split('\n').map(row => row.split(',').map(c => c.replace(/^"|"$/g,'').trim())));
+            r.readAsText(file);
+        } else {
+            if (typeof XLSX === 'undefined') {
+                const s = document.createElement('script');
+                s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+                s.onload = () => this._readGastosXLSX(file);
+                document.head.appendChild(s);
+            } else this._readGastosXLSX(file);
+        }
+    }
+
+    _readGastosXLSX(file) {
+        const r = new FileReader();
+        r.onload = e => {
+            const wb = XLSX.read(e.target.result, {type:'binary', cellDates:true});
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            this._processGastosRows(XLSX.utils.sheet_to_json(ws, {header:1, defval:''}));
+        };
+        r.readAsBinaryString(file);
+    }
+
+    _processGastosRows(rows) {
+        let headerRow = -1;
+        for (let i = 0; i < Math.min(rows.length, 10); i++) {
+            if (rows[i].some(c => String(c).toLowerCase().includes('fecha'))) { headerRow = i; break; }
+        }
+        if (headerRow === -1) { alert('⚠ No encontré encabezados (Fecha)'); return; }
+        const hdr = rows[headerRow].map(h => String(h).toLowerCase().trim());
+        const iF = hdr.findIndex(h => h.includes('fecha'));
+        const iM = hdr.findIndex(h => h.includes('monto') || h.includes('total') || h.includes('amount'));
+        const iC = hdr.findIndex(h => h.includes('categ'));
+        const iS = hdr.findIndex(h => h.includes('subcat') || h.includes('sub'));
+        const iV = hdr.findIndex(h => h.includes('vendor') || h.includes('negocio'));
+        const iCo = hdr.findIndex(h => h.includes('concepto') || h.includes('descripcion') || h.includes('descripción'));
+        const iT = hdr.findIndex(h => h.includes('tipo') || h.includes('pago'));
+        const iN = hdr.findIndex(h => h.includes('nota'));
+        let imported = 0;
+        for (let i = headerRow + 1; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || row.every(c => !c)) continue;
+            const fecha = row[iF] ? String(row[iF]).substring(0, 10) : '';
+            const monto = iM >= 0 ? parseFloat(row[iM]) : 0;
+            if (!fecha || !monto) continue;
+            const gasto = {
+                id: Date.now() + i,
+                fecha,
+                monto,
+                categoria: iC >= 0 ? String(row[iC]) : 'Importado',
+                subcategoria: iS >= 0 ? String(row[iS]) : '',
+                vendor: iV >= 0 ? String(row[iV]) : '',
+                tipoPago: iT >= 0 ? String(row[iT]) : 'Cash',
+                concepto: iCo >= 0 ? String(row[iCo]) : '',
+                notas: iN >= 0 ? String(row[iN]) : '',
+                foto: null
+            };
+            if (!this.gastos) this.gastos = [];
+            this.gastos.push(gasto);
+            imported++;
+        }
+        this.save();
+        this.renderGastos();
+        alert(`✅ ${imported} gastos importados correctamente`);
+    }
+
     exportGastosExcel() {
         const start = document.getElementById('gastoFilterStart').value;
         const end = document.getElementById('gastoFilterEnd').value;
@@ -12425,6 +12533,10 @@ document.addEventListener('click', function(e) {
             <button id="tabGastosCategorias" onclick="app.switchGastosTab('categorias')" style="flex: 1; padding: 12px; border: none; background: #bdc3c7; color: white; cursor: pointer; font-weight: bold; border-radius: 4px 4px 0 0;">
                 🏷️ Categorías
             </button>
+            <button onclick="document.getElementById('gastoImportExcelFile').click()" style="flex: 1; padding: 12px; border: none; background: #27ae60; color: white; cursor: pointer; font-weight: bold; border-radius: 4px 4px 0 0;">
+                📊 Importar Excel
+            </button>
+            <input type="file" id="gastoImportExcelFile" accept=".xlsx,.xls,.csv" style="display:none;" onchange="app.importarGastosExcel(event)">
         </div>
         
         <!-- TAB REGISTRAR GASTO -->
@@ -12453,6 +12565,26 @@ document.addEventListener('click', function(e) {
                         <option value="">-- Selecciona categoría primero --</option>
                     </select>
                 </div>
+            </div>
+            
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Vendor / Negocio:</label>
+                <div style="display:flex;gap:8px;">
+                    <select id="gastoVendor" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:4px;">
+                        <option value="">-- Selecciona o agrega --</option>
+                    </select>
+                    <button type="button" onclick="app.addVendorQuick()" style="padding:10px 14px;background:#3498db;color:white;border:none;border-radius:4px;cursor:pointer;white-space:nowrap;">+ Nuevo</button>
+                </div>
+            </div>
+
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Tipo de Pago:</label>
+                <select id="gastoTipoPago" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;">
+                    <option value="Cash">💵 Cash</option>
+                    <option value="Debito">💳 Débito</option>
+                    <option value="Credito">💳 Crédito</option>
+                    <option value="Otro">Otro</option>
+                </select>
             </div>
             
             <div>
@@ -12509,7 +12641,9 @@ document.addEventListener('click', function(e) {
                             <th>Fecha</th>
                             <th>Categoría</th>
                             <th>Subcategoría</th>
+                            <th>Vendor</th>
                             <th>Concepto</th>
+                            <th>Tipo Pago</th>
                             <th>Monto</th>
                             <th>Acciones</th>
                         </tr>
