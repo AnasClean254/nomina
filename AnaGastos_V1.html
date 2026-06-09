@@ -426,6 +426,14 @@ async function syncNow() {
     toast('✅ Sincronizado con Drive');
 }
 
+// Auto-sync cada 3 minutos
+setInterval(async () => {
+    if (driveToken && folderId) {
+        await saveToDrive();
+        console.log('Auto-sync:', new Date().toLocaleTimeString());
+    }
+}, 3 * 60 * 1000);
+
 // ── TABS ──────────────────────────────────────────────────────────────
 function switchTab(tab) {
     ['registro','lista','categorias','config'].forEach(t=>{
