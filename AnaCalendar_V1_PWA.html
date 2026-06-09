@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AnaCalendar · Ana's Cleaning</title>
-<meta name="theme-color" content="#e879a0">
+<meta name="theme-color" content="#3498db">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -13,9 +13,9 @@
 <script>
 const _manifest={
   name:"AnaCalendar · Ana's Cleaning",short_name:"AnaCalendar",
-  description:"Tu horario de servicios — Ana's Cleaning Service",
+  description:"Tu horario de servicios — Ana's Cleaning Services",
   start_url:"./",display:"standalone",
-  background_color:"#0f1117",theme_color:"#e879a0",orientation:"portrait",
+  background_color:"#0f1117",theme_color:"#3498db",orientation:"portrait",
   icons:[
     {src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230f1117'/><text x='96' y='130' font-size='110' text-anchor='middle'>📅</text></svg>",sizes:"192x192",type:"image/svg+xml"},
     {src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%230f1117'/><text x='256' y='360' font-size='300' text-anchor='middle'>📅</text></svg>",sizes:"512x512",type:"image/svg+xml"}
@@ -35,8 +35,8 @@ async function checkForUpdate() {
     const match = text.match(/APP_VERSION = '([^']+)'/);
     if (match && match[1] !== APP_VERSION) {
       const banner = document.createElement('div');
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#e879a0;color:white;padding:12px 16px;z-index:9999;display:flex;justify-content:space-between;align-items:center;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
-      banner.innerHTML = '🔄 Nueva versión disponible <button onclick="caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>window.location.reload(true))" style="background:white;color:#e879a0;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">Actualizar</button>';
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#3498db;color:white;padding:12px 16px;z-index:9999;display:flex;justify-content:space-between;align-items:center;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+      banner.innerHTML = '🔄 Nueva versión disponible <button onclick="caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>window.location.reload(true))" style="background:white;color:#3498db;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">Actualizar</button>';
       document.body.appendChild(banner);
     }
   } catch(e) {}
@@ -51,8 +51,8 @@ window.addEventListener('beforeinstallprompt',e=>{e.preventDefault(); _installPr
 function showInstallBanner(){
   if(document.getElementById('_pwaBanner'))return;
   const b=document.createElement('div');b.id='_pwaBanner';
-  b.style.cssText='position:fixed;bottom:80px;left:16px;right:16px;max-width:398px;margin:0 auto;background:#3d1a28;border:1.5px solid #e879a0;border-radius:14px;padding:12px 14px;z-index:500;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:Barlow,sans-serif;box-shadow:0 4px 24px rgba(0,0,0,.5)';
-  b.innerHTML=`<div><div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:#e879a0">📲 Instalar AnaCalendar</div><div style="font-size:11px;color:#94a3b8;margin-top:2px">Agrega al inicio para acceso rápido</div></div><div style="display:flex;gap:7px"><button onclick="doInstall()" style="background:#e879a0;border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer">Instalar</button><button onclick="dismissBanner()" style="background:none;border:1px solid #2e3349;color:#94a3b8;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;padding:8px 10px;border-radius:8px;cursor:pointer">✕</button></div>`;
+  b.style.cssText='position:fixed;bottom:80px;left:16px;right:16px;max-width:398px;margin:0 auto;background:#0c2a3a;border:1.5px solid #3498db;border-radius:14px;padding:12px 14px;z-index:500;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:Barlow,sans-serif;box-shadow:0 4px 24px rgba(0,0,0,.5)';
+  b.innerHTML=`<div><div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:#3498db">📲 Instalar AnaCalendar</div><div style="font-size:11px;color:#94a3b8;margin-top:2px">Agrega al inicio para acceso rápido</div></div><div style="display:flex;gap:7px"><button onclick="doInstall()" style="background:#3498db;border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer">Instalar</button><button onclick="dismissBanner()" style="background:none;border:1px solid #2e3349;color:#94a3b8;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;padding:8px 10px;border-radius:8px;cursor:pointer">✕</button></div>`;
   document.body.appendChild(b);
 }
 function doInstall(){if(_installPrompt){_installPrompt.prompt();_installPrompt.userChoice.then(()=>{_installPrompt=null;dismissBanner();});}else{dismissBanner();}}
@@ -62,7 +62,7 @@ window.addEventListener('appinstalled',()=>{dismissBanner();});
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0f1117;--s1:#1a1d27;--s2:#22263a;--border:#2e3349;--blue:#3b82f6;--green:#60a5fa;--gbg:#1e2d3d;--yellow:#f59e0b;--ybg:#451a03;--text:#f1f5f9;--muted:#94a3b8;--brand:#e879a0;--bbg:#3d1a28;--sms:#10b981;--smsbg:#064e3b}
+:root{--bg:#0f1117;--s1:#1a1d27;--s2:#22263a;--border:#2e3349;--blue:#3b82f6;--green:#60a5fa;--gbg:#1e2d3d;--yellow:#f59e0b;--ybg:#451a03;--text:#f1f5f9;--muted:#94a3b8;--brand:#3498db;--bbg:#0c2a3a;--sms:#10b981;--smsbg:#064e3b}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;max-width:430px;margin:0 auto;padding-bottom:76px}
 .screen{display:none}.screen.active{display:block}
@@ -163,7 +163,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 .wgdn{font-size:9px;color:var(--muted);text-align:center}.wgdd{font-size:15px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;margin-bottom:3px}.wgc.today .wgdd{color:var(--brand)}
 
 /* Bottom nav */
-.bnav{position:fixed;bottom:0;left:0;right:0;max-width:430px;margin:0 auto;background:var(--s1);border-top:1px solid var(--border);display:none;padding:8px 0 12px}
+.bnav{display:none!important}
 .bnav-i{display:flex}.ni{flex:1;text-align:center;cursor:pointer;padding:3px 0;display:flex;flex-direction:column;align-items:center;gap:2px}
 .ni-ic{font-size:19px}.ni-lb{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.4px}.ni.active .ni-lb{color:var(--brand)}
 
@@ -196,8 +196,8 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 <div id="scrSetup" class="screen active">
   <div class="setup">
     <div>
-      <div class="setup-logo">Ana<em>Calendar</em></div>
-      <div class="setup-co">🌸 Ana's Cleaning Service</div>
+      <div class="setup-logo">Ana's<em>Calendar</em></div>
+      <div class="setup-co">🌸 Ana's Cleaning Services</div>
     </div>
     <div class="setup-sub">Tu horario de servicios</div>
 
@@ -234,7 +234,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
     </div>
 
     <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.7;max-width:300px">
-      Lee <strong style="color:var(--text)">brazosCS_sync.json</strong> desde Drive.<br>Solo lectura — no modifica nada.
+      Lee <strong style="color:var(--text)">anaCS_sync.json</strong> desde Drive.<br>Solo lectura — no modifica nada.
     </div>
   </div>
 </div>
@@ -243,7 +243,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 <div id="scrAgenda" class="screen">
   <div class="hdr">
     <div style="display:flex;align-items:center;gap:9px">
-      <div class="logo">Ana<em>Calendar</em></div>
+      <div class="logo">Ana's<em>Calendar</em></div>
       <div class="badge">ANA'S</div>
     </div>
     <div style="display:flex;gap:6px">
@@ -252,11 +252,18 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
       <button class="hdr-btn" id="btnSuplente" onclick="openSuplenteModal()" title="Modo Suplente" style="display:none;">🔑</button>
       <button class="hdr-btn" id="btnSupervisor" onclick="openSupervisorModal()" title="Modo Supervisor" style="display:none;">🔐</button>
       <button class="hdr-btn" onclick="openSett()">⚙</button>
+      <button id="btnDriveHeader" onclick="connectDriveFromHeader()" 
+        style="border:none;border-radius:8px;padding:5px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;background:#ef4444;color:white;">
+        ☁️ Drive
+      </button>
     </div>
   </div>
   <div class="sync"><div class="sdot" id="syncDot"></div><span id="syncLbl">—</span></div>
   <div class="week-nav">
-    <div class="week-label" id="weekLabel">Hoy</div>
+    <div class="week-label" id="weekLabel" style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+      <span id="weekLabelText">—</span>
+      <span style="font-size:0.7rem;opacity:0.6;">✏️</span>
+    </div>
     <div class="week-tabs">
       <div class="wtab active" id="tabDay" onclick="setView('day')">DÍA</div>
       <div class="wtab" id="tabWeek" onclick="setView('week')">SEMANA</div>
@@ -283,7 +290,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 <!-- ══ SCREEN: INFO (mi perfil) ══ -->
 <div id="scrInfo" class="screen">
   <div class="hdr">
-    <div class="logo">Ana<em>Calendar</em></div>
+    <div class="logo">Ana's<em>Calendar</em></div>
   </div>
   <div style="padding:20px 16px">
     <h2 style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:800;margin-bottom:16px">👤 Mi Perfil</h2>
@@ -361,11 +368,11 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 </div>
 
 <script>
-const CLIENT_ID='701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com';
+const CLIENT_ID='1701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com';
 const SCOPES='https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
-const FOLDER='AnasCleaningApp', FILE='anaCS_sync.json', RFILE='quiktrack_bra_reports.json';
-const RPTS_KEY='qt_ana_reports';
-const SESS='ac_ana_sess', TKEY='anas_drive_token', TEXP='anas_drive_token_expiry';
+const FOLDER='AnasCleaningApp', FILE='anaCS_sync.json', RFILE='quiktrack_ana_reports.json';
+const RPTS_KEY='qt_bra_reports';
+const SESS='ac_bra_sess', TKEY='anas_drive_token', TEXP='anas_drive_token_expiry';
 const DAYS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -382,6 +389,7 @@ let allEmpsList = [];
 
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible'){
+    updateDriveHeaderBtn();
     // Verificar si token está expirado o por expirar
     const exp=parseInt(localStorage.getItem(TEXP)||'0');
     if(S.driveToken && exp && Date.now() > exp - (5*60*1000)){
@@ -446,7 +454,9 @@ function tryRestoreSession(){
       launch(false);
       const tok=localStorage.getItem(TKEY);
       const exp=parseInt(localStorage.getItem(TEXP)||'0');
-      if(tok && Date.now() < exp){ setTimeout(()=>refreshData(), 1500); } try{checkBtnSuplente();}catch(e){} try{checkBtnSupervisor();}catch(e2){}
+      if(tok && Date.now() < exp){ setTimeout(()=>refreshData(), 1500); } 
+      setTimeout(updateDriveHeaderBtn, 500);
+      try{checkBtnSuplente();}catch(e){} try{checkBtnSupervisor();}catch(e2){}
       return;
     }
   }catch(e){}
@@ -469,7 +479,7 @@ function connectDrive(){
     // Iniciar refresh silencioso cada 50 minutos
     startSilentRefresh();
   }});
-  tc.requestAccessToken({prompt:'select_account', login_hint:'anasclean254@gmail.com'});
+  tc.requestAccessToken({prompt:'select_account', login_hint:'anacsrobinson2026@gmail.com'});
 }
 
 let _silentRefreshInterval = null;
@@ -503,6 +513,7 @@ function markConnected(){
   const b=document.getElementById('btnDrive');
   b.classList.add('connected');
   b.innerHTML='✅ Drive conectado';
+  updateDriveHeaderBtn();
 }
 
 async function loadSyncFile(){
@@ -531,7 +542,9 @@ async function loadSyncFile(){
       showEmpSelected(S.empName, S.group);
     }
     renderView();
+    try{checkNotesBadge();}catch(e2){}
   }catch(e){setDS('err','⚠ '+e.message);if(e.status===401){S.driveToken=null;localStorage.removeItem(TKEY);}}
+  try{checkNotesBadge();}catch(e3){}
 }
 
 async function dGet(url){
@@ -651,8 +664,8 @@ async function saveSyncToDrive(){
   if(!S.driveToken || !S.folderId) { toast('⚠️ Conecta Drive primero'); return false; }
   try {
     // Buscar el archivo en Drive
-    const sr = await dGet(`https://www.googleapis.com/drive/v3/files?q=name='brazosCS_sync.json'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id)`);
-    if(!sr.files||!sr.files.length){ toast('⚠️ No se encontró brazosCS_sync.json'); return false; }
+    const sr = await dGet(`https://www.googleapis.com/drive/v3/files?q=name='anaCS_sync.json'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id)`);
+    if(!sr.files||!sr.files.length){ toast('⚠️ No se encontró anaCS_sync.json'); return false; }
     const fileId = sr.files[0].id;
     // Construir el JSON actualizado
     const data = {
@@ -666,7 +679,7 @@ async function saveSyncToDrive(){
     };
     const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
     const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify({name:'brazosCS_sync.json'})], {type:'application/json'}));
+    form.append('metadata', new Blob([JSON.stringify({name:'anaCS_sync.json'})], {type:'application/json'}));
     form.append('file', blob);
     const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
       {method:'PATCH', headers:{Authorization:`Bearer ${S.driveToken}`}, body:form});
@@ -726,6 +739,35 @@ async function loadHorariosFromDrive(){
 }
 
 
+function updateDriveHeaderBtn(){
+  const btn = document.getElementById('btnDriveHeader');
+  if(!btn) return;
+  const exp = parseInt(localStorage.getItem(TEXP)||'0');
+  if(S.driveToken && exp && Date.now() < exp){
+    btn.style.background = '#22c55e'; // Verde — conectado
+    btn.textContent = '☁️ Drive ✓';
+    btn.title = 'Drive conectado — toca para reconectar';
+  } else if(S.driveToken && (!exp || Date.now() >= exp)){
+    btn.style.background = '#ef4444'; // Rojo — token expirado
+    btn.textContent = '☁️ Drive ⚠';
+    btn.title = 'Token expirado — toca para reconectar';
+  } else {
+    btn.style.background = '#ef4444'; // Rojo — desconectado
+    btn.textContent = '☁️ Drive';
+    btn.title = 'Toca para conectar Drive';
+  }
+}
+
+function connectDriveFromHeader(){
+  // Si token válido — reconectar de todas formas para refrescar
+  S.driveToken = null;
+  localStorage.removeItem(TKEY);
+  const btn = document.getElementById('btnDriveHeader');
+  if(btn){ btn.style.background = '#f59e0b'; btn.textContent = '☁️ Conectando...'; }
+  connectDrive();
+}
+
+
 function setDS(t,m){
   const el=document.getElementById('driveStatus');
   el.textContent=m; el.className='ds'+(t==='ok'?' ok':t==='err'?' err':'');
@@ -756,6 +798,12 @@ function buildEmpsList(){
 
 function showEmpSection(){
   document.getElementById('empSection').style.display='block';
+  // Add listener to weekLabel if not already added
+  const wl = document.getElementById('weekLabel');
+  if (wl && !wl._hasEmpListener) {
+    wl._hasEmpListener = true;
+    wl.addEventListener('click', function(){ showEmpSection(); });
+  }
   // If we already have a saved employee, show selected state
   if(S.empId){
     showEmpSelected(S.empName, S.group);
@@ -827,6 +875,7 @@ function launch(save){
   document.getElementById('syncLbl').textContent=S.driveToken?`Drive · ${FILE}`:'Datos locales';
   buildStrip(); renderView();
   updateInfoScreen();
+  try{checkNotesBadge();}catch(e){}
 }
 
 /* ── WEEK STRIP ── */
@@ -842,6 +891,11 @@ function irAHoy(){
 }
 
 function buildStrip(){
+  const wl = document.getElementById('weekLabel');
+  if (wl && !wl._hasEmpListener) {
+    wl._hasEmpListener = true;
+    wl.addEventListener('click', function(){ showEmpSection(); });
+  }
   const strip=document.getElementById('dayStrip'); strip.innerHTML='';
   const td=today();
   for(let i=0;i<14;i++){
@@ -874,7 +928,11 @@ function renderView(){
   const monthLabel = ws.getMonth()===we.getMonth()
     ? MON[ws.getMonth()]+' '+ws.getFullYear()
     : MON[ws.getMonth()]+' – '+MON[we.getMonth()]+' '+we.getFullYear();
-  document.getElementById('weekLabel').textContent=S.selectedDate===today()?'Hoy · '+monthLabel:monthLabel;
+  const firstName = (S.empName||'').split(' ')[0];
+  const grpLabel = S.group ? S.group.replace('Grupo ','G') : '';
+  const empGrpLabel = (grpLabel && firstName) ? `${grpLabel} · ${firstName}` : (grpLabel || firstName || monthLabel);
+  const wlt = document.getElementById('weekLabelText');
+  if (wlt) wlt.textContent = empGrpLabel + ' · ' + monthLabel;
   S.view==='day'?renderAgenda():renderWeek();
 }
 
@@ -905,7 +963,7 @@ function renderAgenda(){
     return;
   }
 
-  el.innerHTML=`<div class="grp-lbl">👥 ${S.group}</div>`;
+  el.innerHTML="";
 
   // Shop info card (read-only)
   if(dayRpt&&(dayRpt.shopOut||dayRpt.shopBack)){
@@ -973,7 +1031,7 @@ function renderAgenda(){
         ${checkSupervisorActivo()?`
         <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
           <button onclick="supvMoveGroup('${svc.id}')" style="flex:1;padding:6px;background:#6c3483;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:700;">👥 Cambiar Grupo</button>
-          <button onclick="supvMoveDate('${svc.id}')" style="flex:1;padding:6px;background:#e879a0;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:700;">📅 Cambiar Fecha</button>
+          <button onclick="supvMoveDate('${svc.id}')" style="flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:700;">📅 Cambiar Fecha</button>
         </div>
       `:''}
       ${true?`
@@ -1010,12 +1068,30 @@ function renderAgenda(){
   });
 
   grid.appendChild(tc); grid.appendChild(bc); el.appendChild(grid);
+
+  // ── NOTAS DEL SUPERVISOR AL FINAL DEL DÍA ──
+  const dayNotes = (S.cellNotes || {})[S.selectedDate + '__' + S.group] || [];
+  if (dayNotes.length > 0) {
+    const notesDiv = document.createElement('div');
+    notesDiv.style.cssText = 'margin:16px 0 8px;border-radius:10px;overflow:hidden;';
+    notesDiv.innerHTML = `
+      <div style="background:#f39c12;color:white;padding:8px 14px;font-size:0.82rem;font-weight:700;">
+        📋 Notas del Supervisor (${dayNotes.length})
+      </div>
+      ${dayNotes.map(n => `
+        <div style="background:#fff8e1;border-left:3px solid #f39c12;padding:10px 14px;font-size:0.88rem;color:#333;border-bottom:1px solid #ffeaa7;">
+          ${n}
+        </div>
+      `).join('')}
+    `;
+    el.appendChild(notesDiv);
+  }
 }
 
 function tog(id){document.getElementById(`blk_${id}`)?.classList.toggle('open');}
 
-function horariosKey(date){ return 'anas_horarios_'+date; }
-function horariosFile(date){ return 'anas_horarios_'+date+'.json'; }
+function horariosKey(date){ return 'ana_horarios_'+date; }
+function horariosFile(date){ return 'ana_horarios_'+date+'.json'; }
 
 function suplenteGetReports(){
   try{ return JSON.parse(localStorage.getItem(horariosKey(S.selectedDate||today()))||'{}'); }catch(e){ return {}; }
@@ -1219,7 +1295,7 @@ function loadLocal(){
     S.emps=JSON.parse(localStorage.getItem('v35_emps')||'[]');
     // Read reports too
     try{
-      const rpts2=JSON.parse(localStorage.getItem('qt_ana_reports')||'{}');
+      const rpts2=JSON.parse(localStorage.getItem('qt_bra_reports')||'{}');
       S.reports={};
       Object.values(rpts2).forEach(dayData=>{
         Object.values(dayData).forEach(grpData=>{
@@ -1427,7 +1503,7 @@ function openNotesPanel(){
       const label=`${dias[dObj.getDay()]} ${dObj.getDate()} de ${meses[dObj.getMonth()]}`;
       const isToday=d.date===date;
       return `<div style="margin-bottom:14px;">
-        <div style="font-size:0.82rem;font-weight:700;color:${isToday?'#e74c3c':'#e879a0'};margin-bottom:6px;">${isToday?'📅 HOY — ':''}${label}</div>
+        <div style="font-size:0.82rem;font-weight:700;color:${isToday?'#e74c3c':'#3498db'};margin-bottom:6px;">${isToday?'📅 HOY — ':''}${label}</div>
         ${d.notes.map(n=>`<div style="background:#fff8e1;border-left:3px solid #f39c12;padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:4px;font-size:0.88rem;color:#333;">${n}</div>`).join('')}
       </div>`;
     }).join('');
