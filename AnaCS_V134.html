@@ -11067,8 +11067,8 @@ class Scheduler {
             let empList = null;
 
             if (this.driveConnected && this.driveFolderId) {
-                // Drive disponible → leer ana_nomina_sync.json
-                const nominaSync = await this.driveReadFile('ana_nomina_sync.json');
+                // Drive disponible → leer anas_nomina_sync.json
+                const nominaSync = await this.driveReadFile('anas_nomina_sync.json');
                 empList = nominaSync?.employees || null;
             } else {
                 // Fallback: localStorage compartido (mismo navegador)
