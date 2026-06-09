@@ -11309,6 +11309,29 @@ class Scheduler {
             if (data.servs)            { this.servs = data.servs; localStorage.setItem('v35_servs', JSON.stringify(this.servs)); }
             if (data.grupos)           { this.grupos = data.grupos; localStorage.setItem('v35_grupos', JSON.stringify(this.grupos)); }
             if (data.gastos)           { this.gastos = data.gastos; localStorage.setItem('v35_gastos', JSON.stringify(this.gastos)); }
+            // ── MERGE gastos de anas_gastos.json (AnaGastos app) ──
+            try {
+                const gastosFileRes = await fetch(
+                    `https://www.googleapis.com/drive/v3/files?q=name='anas_gastos.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false&fields=files(id)`,
+                    { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                );
+                const gastosFileData = await gastosFileRes.json();
+                if (gastosFileData.files && gastosFileData.files.length) {
+                    const gastosRes = await fetch(
+                        `https://www.googleapis.com/drive/v3/files/${gastosFileData.files[0].id}?alt=media`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } }
+                    );
+                    const gastosData = await gastosRes.json();
+                    const existingIds = new Set((this.gastos || []).map(g => g.id));
+                    (gastosData.gastos || []).forEach(g => {
+                        if (!existingIds.has(g.id)) {
+                            this.gastos.push(g);
+                            existingIds.add(g.id);
+                        }
+                    });
+                    localStorage.setItem('v35_gastos', JSON.stringify(this.gastos));
+                }
+            } catch(e) { console.log('anas_gastos merge skipped:', e.message); }
             if (data.gastosCategories) { this.gastosCategories = data.gastosCategories; localStorage.setItem('v35_gastosCategories', JSON.stringify(this.gastosCategories)); }
             if (data.generatedInvoices){ this.generatedInvoices = data.generatedInvoices; localStorage.setItem('v35_generatedInvoices', JSON.stringify(this.generatedInvoices)); }
             if (data.pendingInvoices)  { this.pendingInvoices = data.pendingInvoices; localStorage.setItem('v35_pendingInvoices', JSON.stringify(this.pendingInvoices)); }

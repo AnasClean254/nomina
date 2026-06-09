@@ -377,8 +377,22 @@ async function loadFromDrive() {
             gastos=merged;
             if(data.cats)cats=data.cats;
             if(data.vendors)vendors=data.vendors;
-            saveLocal(); loadCatDropdowns(); renderCategorias(); refreshLista();
         }
+        // ── MERGE gastos de anaCS_sync.json (Scheduler) ──
+        try {
+            const srCS=await dGet(`https://www.googleapis.com/drive/v3/files?q=name='anaCS_sync.json'+and+'${folderId}'+in+parents+and+trashed=false&fields=files(id)`);
+            if(srCS.files&&srCS.files.length){
+                const dataCS=await dGet(`https://www.googleapis.com/drive/v3/files/${srCS.files[0].id}?alt=media`);
+                const existingIds=new Set(gastos.map(g=>g.id));
+                (dataCS.gastos||[]).forEach(g=>{
+                    if(!existingIds.has(g.id)){
+                        gastos.push(g);
+                        existingIds.add(g.id);
+                    }
+                });
+            }
+        } catch(e){ console.log('anaCS_sync merge skipped:', e.message); }
+        saveLocal(); loadCatDropdowns(); renderCategorias(); refreshLista();
         sdot('ok','Actualizado '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
     } catch(e){sdot('err','Error: '+e.message);}
 }
