@@ -10413,9 +10413,8 @@ class Scheduler {
         });
         // Siempre recargar horarios frescos desde localStorage y Drive
         this._prodReports = null;
-        localStorage.removeItem('qt_bra_reports');
-        if (this.driveConnected) { this.loadProductionFromDrive(); }
-        else { this.loadProductionLocal(); }
+        // Horarios ya están en localStorage (descargados por descargarHorariosGrupos al sincronizar)
+        this.loadProductionLocal();
     }
 
     closeProductionReport() {
@@ -12891,11 +12890,7 @@ document.addEventListener('click', function(e) {
             <option value="all">Todos los grupos</option>
           </select>
         </div>
-        <button onclick="app.loadProductionFromDrive()" style="padding:8px 16px;background:#3498db;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">🔄 Recargar Drive</button>
-        <button onclick="app.loadProductionLocal()" style="padding:8px 16px;background:#27ae60;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">📱 QuikTrack Local</button>
-        <button onclick="app.loadProductionDemo()" style="padding:8px 16px;background:#e67e22;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">🧪 Datos demo</button>
-        <div style="margin-left:auto;display:flex;gap:8px">
-          <button onclick="app.exportProductionCSV()" style="padding:8px 16px;background:#6f42c1;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">📥 Exportar CSV</button>
+        <div style="margin-left:auto;">
           <button onclick="app.printProductionPDF()" style="padding:8px 16px;background:#0e7490;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">🖨️ Imprimir PDF</button>
         </div>
       </div>
