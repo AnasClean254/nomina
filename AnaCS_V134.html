@@ -10323,7 +10323,6 @@ class Scheduler {
         const totalCost = baseCostPerEmp * empCount;
         const totalHrs = baseHrs;
         const ratePerHr = baseHrs > 0 ? baseCostPerEmp / baseHrs : 0;
-        const net = (totalBilled || 0) - totalCost;
         const fmt = n => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         const fmtH = hrs => {
             const h = Math.floor(hrs);
@@ -10332,6 +10331,16 @@ class Scheduler {
             const hStr = h > 0 ? (min > 0 ? h + 'h ' + min + 'min' : h + 'h') : (min + 'min');
             return hStr + ' (' + frac + ' hrs)';
         };
+        // Calcular costo de traslado con tarifa real
+        let transitCost = 0;
+        if (this._lastProdRender) {
+            const row = this._lastProdRender.groupRows[Object.keys(this._lastProdRender.groupRows).find(g => g.replace(/\s+/g,'_') === grpId)];
+            if (row && row.transitHrs > 0) {
+                transitCost = ratePerHr * row.transitHrs * empCount;
+            }
+        }
+        const totalCostConTraslado = totalCost + transitCost;
+        const net = (totalBilled || 0) - totalCostConTraslado;
         const rateEl = document.getElementById('prodMORate_' + grpId);
         const hrsEl = document.getElementById('prodMOHrs_' + grpId);
         const costEl = document.getElementById('prodMOCost_' + grpId);
@@ -10340,16 +10349,18 @@ class Scheduler {
         if (rateEl) rateEl.textContent = '$' + fmt(ratePerHr) + '/hr';
         if (hrsEl) hrsEl.textContent = fmtH(totalHrs);
         if (costEl) costEl.textContent = '$' + fmt(totalCost);
-        if (hdrCostEl) hdrCostEl.textContent = fmt(totalCost);
-        if (hdrNetEl) hdrNetEl.textContent = fmt(net);
-        // Update transit cost
+        if (hdrCostEl) hdrCostEl.textContent = fmt(totalCostConTraslado);
+        if (hdrNetEl) hdrNetEl.textContent = fmt((totalBilled || 0) - totalCostConTraslado);
+        // Update transit cost display
         const transitCostEl = document.getElementById('prodTransitCost_' + grpId);
-        if (transitCostEl && this._lastProdRender) {
-            const row = this._lastProdRender.groupRows[Object.keys(this._lastProdRender.groupRows).find(g => g.replace(/\s+/g,'_') === grpId)];
-            if (row && row.transitHrs > 0) {
-                const transitCost = ratePerHr * row.transitHrs * empCount;
-                transitCostEl.textContent = '$' + fmt(transitCost);
-            }
+        if (transitCostEl) {
+            if (transitCost > 0) transitCostEl.textContent = '$' + fmt(transitCost);
+        }
+        // Update total MO display (base + traslado) and store in dataset for grandCost
+        const totalMOEl = document.getElementById('prodMOTotal_' + grpId);
+        if (totalMOEl) {
+            totalMOEl.textContent = '$' + fmt(totalCostConTraslado);
+            totalMOEl.dataset.totalCost = totalCostConTraslado;
         }
         // Actualizar resumen global
         if (this._lastProdRender) {
@@ -10358,9 +10369,15 @@ class Scheduler {
             Object.keys(this._lastProdRender.groupRows).forEach(grp => {
                 const row = this._lastProdRender.groupRows[grp];
                 const gId = grp.replace(/\s+/g, '_');
-                const gInp = document.getElementById('prodEmpCount_' + gId);
-                const gCount = gInp ? (parseInt(gInp.value) || 1) : 1;
-                newGrandCost += row.totalCost * gCount;
+                // Tomar costo real del dataset (ya incluye tarifa individual + traslado)
+                const totalEl = document.getElementById('prodMOTotal_' + gId);
+                if (totalEl && totalEl.dataset.totalCost) {
+                    newGrandCost += parseFloat(totalEl.dataset.totalCost);
+                } else {
+                    const gInp = document.getElementById('prodEmpCount_' + gId);
+                    const gCount = gInp ? (parseInt(gInp.value) || 1) : 1;
+                    newGrandCost += row.totalCost * gCount;
+                }
                 newGrandBilled += row.totalBilled;
             });
             const summaryEl = document.getElementById('prodSummaryCost');
@@ -10751,38 +10768,46 @@ class Scheduler {
             const defaultEmpCount = activeMembers.length || 1;
             const grpId = grp.replace(/\s+/g,'_');
 
-            // Mano de Obra section - editable employee count
+            // Mano de Obra section - rediseñado
             const moHTML=`
-              <div style="margin:12px 16px;border:1px solid #b2dfdb;border-radius:8px;overflow:hidden">
-                <div style="background:#0e7490;padding:7px 12px;font-size:0.78rem;font-weight:700;color:white;display:flex;justify-content:space-between;align-items:center;">
+              <div style="margin:16px;border:2px solid #0e7490;border-radius:10px;overflow:hidden">
+                <!-- Header azul -->
+                <div style="background:#0e7490;padding:10px 16px;font-size:0.85rem;font-weight:700;color:white;display:flex;justify-content:space-between;align-items:center;">
                   <span>👷 Mano de Obra</span>
                   <div style="display:flex;align-items:center;gap:8px;">
-                    <span style="font-size:0.75rem;opacity:0.9;">Empleados que trabajaron:</span>
+                    <span style="font-size:0.78rem;opacity:0.9;">Empleados que trabajaron:</span>
                     <input type="number" id="prodEmpCount_${grpId}" value="${defaultEmpCount}" min="1" max="10"
-                      style="width:45px;padding:2px 6px;border:none;border-radius:4px;background:rgba(255,255,255,0.2);color:white;text-align:center;font-size:0.85rem;font-weight:700;"
+                      style="width:48px;padding:3px 6px;border:none;border-radius:4px;background:rgba(255,255,255,0.2);color:white;text-align:center;font-size:0.9rem;font-weight:700;"
                       oninput="app.recalcGroupMO('${grpId}', parseFloat(this.dataset.baseCostPerEmp||0), parseFloat(this.dataset.baseHrs||0), parseFloat(this.dataset.totalBilled||0))">
                   </div>
                 </div>
-                <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
-                  <thead><tr style="background:#f1f8f7">
-                    <th style="padding:6px 12px;text-align:left;color:#555">Empleados</th>
-                    <th style="padding:6px 12px;text-align:center;color:#555">Tarifa/hr</th>
-                    <th style="padding:6px 12px;text-align:center;color:#555">Horas totales</th>
-                    <th style="padding:6px 12px;text-align:right;color:#555">Costo Total MO</th>
-                  </tr></thead><tbody>
-                  <tr style="border-top:1px solid #e8f5e9;">
-                    <td style="padding:6px 12px;font-weight:600">${activeMembers.map(e=>e.name).join(', ') || grp}</td>
-                    <td style="padding:6px 12px;text-align:center;color:#666" id="prodMORate_${grpId}">$${fmt(row.totalHrs > 0 ? (row.totalCost/defaultEmpCount) / (row.totalHrs/defaultEmpCount) : 15)}/hr</td>
-                    <td style="padding:6px 12px;text-align:center;color:#2980b9;font-weight:600" id="prodMOHrs_${grpId}">${fmtH(row.totalHrs)}</td>
-                    <td style="padding:6px 12px;text-align:right;font-weight:700;color:#0e7490" id="prodMOCost_${grpId}">$${fmt(row.totalCost)}</td>
-                  </tr>
-                  ${row.transitHrs > 0 ? `<tr style="border-top:1px solid #e8f5e9;background:#fffde7;">
-                    <td style="padding:6px 12px;color:#f57f17;font-style:italic;">🚗 Traslado entre servicios</td>
-                    <td style="padding:6px 12px;text-align:center;color:#f57f17">${fmtH(row.transitHrs)}</td>
-                    <td style="padding:6px 12px;text-align:center;color:#f57f17;font-weight:600">${fmtH(row.transitHrs)}</td>
-                    <td style="padding:6px 12px;text-align:right;color:#f57f17;font-weight:600" id="prodTransitCost_${grpId}">—</td>
-                  </tr>` : ''}
-                  </tbody></table>
+                <!-- Empleados + tarifa promedio -->
+                <div style="background:#e0f7fa;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #b2dfdb;">
+                  <div style="font-size:0.82rem;color:#0e7490;font-weight:600">${activeMembers.map(e=>{const r=getRateForEmp(e);return e.name+' (<span style=\"color:#555\">$'+r.toFixed(2)+'/hr</span>)';}).join(' · ') || grp}</div>
+                  <div style="font-size:0.82rem;color:#555">Tarifa prom: <strong id="prodMORate_${grpId}" style="color:#0e7490">—</strong></div>
+                </div>
+                <!-- Desglose: trabajo + traslado + total -->
+                <div style="padding:12px 16px;background:#fff;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="font-size:0.85rem;color:#444;">⏱ Trabajo en campo</span>
+                      <span style="font-size:0.82rem;color:#2980b9;font-weight:600" id="prodMOHrs_${grpId}">${fmtH(row.totalHrs)}</span>
+                    </div>
+                    <span style="font-size:1rem;font-weight:700;color:#0e7490" id="prodMOCost_${grpId}">$${fmt(row.totalCost)}</span>
+                  </div>
+                  ${row.transitHrs > 0 ? `
+                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding:6px 10px;background:#fffde7;border-radius:6px;border-left:3px solid #f57f17;">
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <span style="font-size:0.85rem;color:#f57f17;">🚗 Traslado entre servicios</span>
+                      <span style="font-size:0.82rem;color:#f57f17;font-weight:600">${fmtH(row.transitHrs)}</span>
+                    </div>
+                    <span style="font-size:1rem;font-weight:700;color:#f57f17" id="prodTransitCost_${grpId}">—</span>
+                  </div>` : ''}
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:2px solid #0e7490;margin-top:4px;">
+                    <span style="font-size:0.9rem;font-weight:700;color:#0e7490;">💰 Total Costo MO</span>
+                    <span style="font-size:1.2rem;font-weight:700;color:#0e7490;" id="prodMOTotal_${grpId}" data-total-cost="0">$${fmt(row.totalCost)}</span>
+                  </div>
+                </div>
               </div>`;
 
             html+=`<div style="border:1px solid #e9ecef;border-radius:12px;overflow:hidden;margin-bottom:16px">
