@@ -10835,11 +10835,13 @@ class Scheduler {
         Object.keys(groupRows).sort().forEach(grp=>{
             const row=groupRows[grp];
             const grpId=grp.replace(/\s+/g,'_');
-            // Calcular tarifa total real del grupo (suma de tarifas individuales)
+            // Calcular tarifa promedio del grupo y costo total real
             const activeMembers = row.members.filter(e => e);
             const totalGroupRate = activeMembers.reduce((sum, e) => sum + getRateForEmp(e), 0);
-            const baseHrs = row.totalHrs; // horas registradas
-            const baseCostPerEmp = baseHrs * totalGroupRate; // costo real = horas × suma de tarifas
+            const avgRate = activeMembers.length > 0 ? totalGroupRate / activeMembers.length : 15;
+            const baseHrs = row.totalHrs;
+            // Costo = horas × tarifa promedio × número de empleados
+            const baseCostPerEmp = baseHrs * avgRate;
             this.recalcGroupMO(grpId, baseCostPerEmp, baseHrs, row.totalBilled);
         });
     }
