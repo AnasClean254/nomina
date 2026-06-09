@@ -5436,7 +5436,7 @@ class Scheduler {
     async driveReadNominaTotales() {
         // Buscar archivo ana_nomina_totales.json en Drive
         const searchRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_totales.json'&fields=files(id,name)`,
+            `https://www.googleapis.com/drive/v3/files?q=name='ana_nomina_totales.json'&fields=files(id,name)`,
             { headers: { Authorization: `Bearer ${this.driveToken}` } }
         );
         const searchData = await searchRes.json();
@@ -10312,13 +10312,17 @@ class Scheduler {
         }
     }
 
-    recalcGroupMO(grpId, baseCost, baseHrs, totalBilled) {
+    recalcGroupMO(grpId, baseCostPerEmp, baseHrs, totalBilled) {
         const empCountInp = document.getElementById('prodEmpCount_' + grpId);
         if (!empCountInp) return;
+        // Guardar costo por empleado en dataset para recalcular si cambia el número
+        empCountInp.dataset.baseCostPerEmp = baseCostPerEmp;
+        empCountInp.dataset.baseHrs = baseHrs;
+        empCountInp.dataset.totalBilled = totalBilled;
         const empCount = parseInt(empCountInp.value) || 1;
-        const totalCost = baseCost * empCount;
-        const totalHrs = baseHrs * empCount;
-        const ratePerHr = baseHrs > 0 ? baseCost / baseHrs : 0;
+        const totalCost = baseCostPerEmp * empCount;
+        const totalHrs = baseHrs;
+        const ratePerHr = baseHrs > 0 ? baseCostPerEmp / baseHrs : 0;
         const net = (totalBilled || 0) - totalCost;
         const fmt = n => n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         const fmtH = hrs => {
@@ -10756,7 +10760,7 @@ class Scheduler {
                     <span style="font-size:0.75rem;opacity:0.9;">Empleados que trabajaron:</span>
                     <input type="number" id="prodEmpCount_${grpId}" value="${defaultEmpCount}" min="1" max="10"
                       style="width:45px;padding:2px 6px;border:none;border-radius:4px;background:rgba(255,255,255,0.2);color:white;text-align:center;font-size:0.85rem;font-weight:700;"
-                      oninput="app.recalcGroupMO('${grpId}', ${row.totalCost}, ${row.totalHrs}, ${row.totalBilled})">
+                      oninput="app.recalcGroupMO('${grpId}', parseFloat(this.dataset.baseCostPerEmp||0), parseFloat(this.dataset.baseHrs||0), parseFloat(this.dataset.totalBilled||0))">
                   </div>
                 </div>
                 <table style="width:100%;border-collapse:collapse;font-size:0.8rem">
@@ -10831,7 +10835,12 @@ class Scheduler {
         Object.keys(groupRows).sort().forEach(grp=>{
             const row=groupRows[grp];
             const grpId=grp.replace(/\s+/g,'_');
-            this.recalcGroupMO(grpId, row.totalCost, row.totalHrs, row.totalBilled);
+            // Calcular tarifa total real del grupo (suma de tarifas individuales)
+            const activeMembers = row.members.filter(e => e);
+            const totalGroupRate = activeMembers.reduce((sum, e) => sum + getRateForEmp(e), 0);
+            const baseHrs = row.totalHrs; // horas registradas
+            const baseCostPerEmp = baseHrs * totalGroupRate; // costo real = horas × suma de tarifas
+            this.recalcGroupMO(grpId, baseCostPerEmp, baseHrs, row.totalBilled);
         });
     }
 
@@ -11038,6 +11047,8 @@ class Scheduler {
                 // Al conectar: primero descargar, luego subir
                 await this.driveDownloadData();
                 await this.driveSyncNow();
+                // Descargar horarios de Calendar inmediatamente al conectar
+                try { await this.descargarHorariosGrupos(); } catch(e) {}
                 // Importar empleados de la Nómina — siempre, sin importar timestamps
                 await this.importEmployeesFromNomina();
                 const toast = document.createElement('div');
