@@ -10381,6 +10381,71 @@ class Scheduler {
                 newGrandBilled += row.totalBilled;
             });
             // Summary cards removidos — sin actualización global necesaria
+        // Renderizar tabla semanal con costos reales ya calculados
+        if (this._weeklyPendingRender) {
+            const {dates, dailyTotals, grandSvcs, grandHrs, grandBilled, groupRows, fmt, fmtH, fmtDate} = this._weeklyPendingRender;
+            const dayNames=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+            // Recalcular dailyTotals.cost desde los costos reales del DOM por grupo
+            const realDailyCost = {};
+            dates.forEach(dt => { realDailyCost[dt] = 0; });
+            Object.keys(groupRows).forEach(grp => {
+                const row = groupRows[grp];
+                const gId = grp.replace(/\s+/g,'_');
+                const totalMOEl = document.getElementById('prodMOTotal_' + gId);
+                const totalCost = totalMOEl ? parseFloat(totalMOEl.dataset.totalCost||0) : row.totalCost;
+                // Distribuir el costo proporcional por fecha según horas
+                const totalHrs = row.totalHrs || 1;
+                row.services.filter(s=>s.status==='done'&&s.hrs>0).forEach(s=>{
+                    if (realDailyCost[s.date] !== undefined) {
+                        realDailyCost[s.date] += (s.hrs / totalHrs) * totalCost;
+                    }
+                });
+            });
+            let grandRealCost = 0;
+            dates.forEach(dt => { grandRealCost += realDailyCost[dt]||0; });
+            const grandRealNet = grandBilled - grandRealCost;
+            const tableEl = document.getElementById('prodWeeklyTable');
+            if (tableEl) {
+                tableEl.innerHTML = `<div style="margin-bottom:20px;border:1px solid #e9ecef;border-radius:12px;overflow:hidden">
+                  <div style="background:#374151;color:white;padding:10px 16px;font-weight:700;font-size:0.88rem">📅 Totales por Día</div>
+                  <div style="overflow-x:auto">
+                  <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
+                    <thead><tr style="background:#f8f9fa">
+                      <th style="padding:8px 12px;text-align:left;color:#555">Día</th>
+                      <th style="padding:8px 12px;text-align:center;color:#555">Fecha</th>
+                      <th style="padding:8px 12px;text-align:center;color:#555">Servicios</th>
+                      <th style="padding:8px 12px;text-align:center;color:#555">Horas</th>
+                      <th style="padding:8px 12px;text-align:right;color:#555">Facturado</th>
+                      <th style="padding:8px 12px;text-align:right;color:#555">Costo MO</th>
+                      <th style="padding:8px 12px;text-align:right;color:#555">Neto</th>
+                    </tr></thead><tbody>
+                    ${dates.map((dt,i)=>{
+                        const d=dailyTotals[dt];
+                        const rc=realDailyCost[dt]||0;
+                        const net=d.billed-rc;
+                        const hasData=d.svcs>0;
+                        return `<tr style="border-top:1px solid #f1f3f5;background:${hasData?(i%2===0?'#fff':'#fafafa'):'#fafafa'}">
+                          <td style="padding:8px 12px;font-weight:700;color:#374151">${dayNames[i]}</td>
+                          <td style="padding:8px 12px;text-align:center;color:#666">${fmtDate(dt)}</td>
+                          <td style="padding:8px 12px;text-align:center;font-weight:600;color:${hasData?'#27ae60':'#bbb'}">${hasData?d.svcs:'—'}</td>
+                          <td style="padding:8px 12px;text-align:center;color:${hasData?'#2980b9':'#bbb'}">${hasData?fmtH(d.hrs):'—'}</td>
+                          <td style="padding:8px 12px;text-align:right;font-weight:600;color:${hasData?'#9a7d0a':'#bbb'}">${hasData?'$'+fmt(d.billed):'—'}</td>
+                          <td style="padding:8px 12px;text-align:right;color:${hasData?'#0e7490':'#bbb'}">${hasData?'$'+fmt(rc):'—'}</td>
+                          <td style="padding:8px 12px;text-align:right;font-weight:700;color:${!hasData?'#bbb':net>=0?'#1e8449':'#922b21'}">${hasData?(net>=0?'+':'')+'$'+fmt(net):'—'}</td>
+                        </tr>`;
+                    }).join('')}
+                    <tr style="background:#374151;color:white;font-weight:700;border-top:2px solid #1f2937">
+                      <td colspan="2" style="padding:8px 12px">TOTAL SEMANA</td>
+                      <td style="padding:8px 12px;text-align:center">${grandSvcs}</td>
+                      <td style="padding:8px 12px;text-align:center">${fmtH(grandHrs)}</td>
+                      <td style="padding:8px 12px;text-align:right">$${fmt(grandBilled)}</td>
+                      <td style="padding:8px 12px;text-align:right">$${fmt(grandRealCost)}</td>
+                      <td style="padding:8px 12px;text-align:right;color:${grandRealNet>=0?'#6ee7b7':'#fca5a5'}">${grandRealNet>=0?'+':''}$${fmt(grandRealNet)}</td>
+                    </tr>
+                  </tbody></table></div></div>`;
+            }
+            this._weeklyPendingRender = null;
+        }
         }
     }
 
@@ -10701,47 +10766,11 @@ class Scheduler {
 
         // ── SIN SUMMARY CARDS — info en recuadro azul de cada grupo ──
         const netLabel = dates.length === 1 ? 'Ingresos Netos del Día' : 'Ingresos Netos del Período';
-        let html=``;
+        let html=view==='week'?`<div id="prodWeeklyTable"></div>`:``;
 
-        // ── WEEKLY DAILY TOTALS BAR ──
+        // ── WEEKLY DAILY TOTALS BAR — se renderiza después de recalcGroupMO ──
         if(view==='week'){
-            const dayNames=['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
-            html+=`<div style="margin-bottom:20px;border:1px solid #e9ecef;border-radius:12px;overflow:hidden">
-              <div style="background:#374151;color:white;padding:10px 16px;font-weight:700;font-size:0.88rem">📅 Totales por Día</div>
-              <div style="overflow-x:auto">
-              <table style="width:100%;border-collapse:collapse;font-size:0.82rem">
-                <thead><tr style="background:#f8f9fa">
-                  <th style="padding:8px 12px;text-align:left;color:#555">Día</th>
-                  <th style="padding:8px 12px;text-align:center;color:#555">Fecha</th>
-                  <th style="padding:8px 12px;text-align:center;color:#555">Servicios</th>
-                  <th style="padding:8px 12px;text-align:center;color:#555">Horas</th>
-                  <th style="padding:8px 12px;text-align:right;color:#555">Facturado</th>
-                  <th style="padding:8px 12px;text-align:right;color:#555">Costo MO</th>
-                  <th style="padding:8px 12px;text-align:right;color:#555">Neto</th>
-                </tr></thead><tbody>
-                ${dates.map((dt,i)=>{
-                    const d=dailyTotals[dt];
-                    const net=d.billed-d.cost;
-                    const hasData=d.svcs>0;
-                    return `<tr style="border-top:1px solid #f1f3f5;background:${hasData?(i%2===0?'#fff':'#fafafa'):'#fafafa'}">
-                      <td style="padding:8px 12px;font-weight:700;color:#374151">${dayNames[i]}</td>
-                      <td style="padding:8px 12px;text-align:center;color:#666">${fmtDate(dt)}</td>
-                      <td style="padding:8px 12px;text-align:center;font-weight:600;color:${hasData?'#27ae60':'#bbb'}">${hasData?d.svcs:'—'}</td>
-                      <td style="padding:8px 12px;text-align:center;color:${hasData?'#2980b9':'#bbb'}">${hasData?fmtH(d.hrs):'—'}</td>
-                      <td style="padding:8px 12px;text-align:right;font-weight:600;color:${hasData?'#9a7d0a':'#bbb'}">${hasData?'$'+fmt(d.billed):'—'}</td>
-                      <td style="padding:8px 12px;text-align:right;color:${hasData?'#0e7490':'#bbb'}">${hasData?'$'+fmt(d.cost):'—'}</td>
-                      <td style="padding:8px 12px;text-align:right;font-weight:700;color:${!hasData?'#bbb':net>=0?'#1e8449':'#922b21'}">${hasData?(net>=0?'+':'')+'$'+fmt(net):'—'}</td>
-                    </tr>`;
-                }).join('')}
-                <tr style="background:#374151;color:white;font-weight:700;border-top:2px solid #1f2937">
-                  <td colspan="2" style="padding:8px 12px">TOTAL SEMANA</td>
-                  <td style="padding:8px 12px;text-align:center">${grandSvcs}</td>
-                  <td style="padding:8px 12px;text-align:center">${fmtH(grandHrs)}</td>
-                  <td style="padding:8px 12px;text-align:right">$${fmt(grandBilled)}</td>
-                  <td style="padding:8px 12px;text-align:right">$${fmt(grandCost)}</td>
-                  <td style="padding:8px 12px;text-align:right;color:${grandNet>=0?'#6ee7b7':'#fca5a5'}">${grandNet>=0?'+':''}$${fmt(grandNet)}</td>
-                </tr>
-              </tbody></table></div></div>`;
+            this._weeklyPendingRender = {dates, dailyTotals, grandSvcs, grandHrs, grandBilled, groupRows, grandNet, fmt, fmtH, fmtDate};
         }
 
         // ── GROUP SECTIONS ──
