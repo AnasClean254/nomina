@@ -5436,7 +5436,7 @@ class Scheduler {
     async driveReadNominaTotales() {
         // Buscar archivo ana_nomina_totales.json en Drive
         const searchRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=name='ana_nomina_totales.json'&fields=files(id,name)`,
+            `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_totales.json'&fields=files(id,name)`,
             { headers: { Authorization: `Bearer ${this.driveToken}` } }
         );
         const searchData = await searchRes.json();
@@ -11059,22 +11059,6 @@ class Scheduler {
                         return;
                     }
                         await this.driveSyncNow();
-                        // Merge gastos de AnaGastos app
-                        try {
-                            const gf = await fetch(
-                                `https://www.googleapis.com/drive/v3/files?q=name='anas_gastos.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false&fields=files(id)`,
-                                { headers: { Authorization: `Bearer ${this.driveToken}` } }
-                            );
-                            const gfd = await gf.json();
-                            if (gfd.files && gfd.files.length) {
-                                const gr = await fetch(`https://www.googleapis.com/drive/v3/files/${gfd.files[0].id}?alt=media`, { headers: { Authorization: `Bearer ${this.driveToken}` } });
-                                const gd = await gr.json();
-                                const existingIds = new Set((this.gastos||[]).map(g => g.id));
-                                let added = 0;
-                                (gd.gastos||[]).forEach(g => { if (!existingIds.has(g.id)) { this.gastos.push(g); existingIds.add(g.id); added++; } });
-                                if (added > 0) { localStorage.setItem('v35_gastos', JSON.stringify(this.gastos)); console.log('AnaGastos merge:', added, 'nuevos'); }
-                            }
-                        } catch(e) {}
                         // Descargar horarios por fecha para actualizar calendario
                         try { await this.descargarHorariosGrupos(); } catch(e) {}
                         const now = new Date();
