@@ -965,15 +965,28 @@ function renderAgenda(){
 
   el.innerHTML="";
 
-  // Shop info card (read-only)
-  if(dayRpt&&(dayRpt.shopOut||dayRpt.shopBack)){
+  // Shop card — editable (registrar o corregir salida/regreso)
+  {
     const shopDiv=document.createElement('div');
-    shopDiv.className='shop-info'+(dayRpt.shopOut&&dayRpt.shopBack?' active':'');
+    const isComplete=dayRpt&&dayRpt.shopOut&&dayRpt.shopBack;
+    shopDiv.className='shop-info'+(isComplete?' active':'');
+    const soVal=dayRpt?.shopOut||'';
+    const sbVal=dayRpt?.shopBack||'';
     shopDiv.innerHTML=`
-      <div class="shop-row"><div class="shop-lbl">🚐 Salida del Shop</div><div class="${dayRpt.shopOut?'shop-time':'shop-none'}">${dayRpt.shopOut?fmt12(dayRpt.shopOut):'Pendiente'}</div></div>
-      <hr class="shop-divider">
-      <div class="shop-row"><div class="shop-lbl">🏠 Regreso al Shop</div><div class="${dayRpt.shopBack?'shop-time':'shop-none'}">${dayRpt.shopBack?fmt12(dayRpt.shopBack):'Pendiente'}</div></div>
-      ${dayRpt.shopOut&&dayRpt.shopBack?`<hr class="shop-divider"><div class="shop-row"><div style="font-size:12px;color:var(--muted)">Jornada total</div><div class="shop-time">${calcDur(dayRpt.shopOut,dayRpt.shopBack)}</div></div>`:''}
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px;">🚐 Horario del Shop</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div>
+          <div class="shop-lbl" style="font-size:12px;margin-bottom:4px;">Salida del Shop</div>
+          <input type="time" id="shopOutInput" value="${soVal}" style="width:100%;background:transparent;border:none;border-bottom:1.5px solid ${soVal?'var(--yellow)':'var(--border)'};color:${soVal?'var(--text)':'var(--muted)'};font-size:18px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:4px 0;outline:none;">
+          <button onclick="saveShopTime('shopOut','shopOutInput')" style="width:100%;margin-top:6px;padding:9px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.9rem;">${soVal?'✏️ Corregir':'💾 Registrar'}</button>
+        </div>
+        <div>
+          <div class="shop-lbl" style="font-size:12px;margin-bottom:4px;">Regreso al Shop</div>
+          <input type="time" id="shopBackInput" value="${sbVal}" style="width:100%;background:transparent;border:none;border-bottom:1.5px solid ${sbVal?'var(--green)':'var(--border)'};color:${sbVal?'var(--text)':'var(--muted)'};font-size:18px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:4px 0;outline:none;">
+          <button onclick="saveShopTime('shopBack','shopBackInput')" style="width:100%;margin-top:6px;padding:9px;background:#22c55e;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.9rem;">${sbVal?'✏️ Corregir':'💾 Registrar'}</button>
+        </div>
+      </div>
+      ${isComplete?`<hr class="shop-divider"><div class="shop-row"><div style="font-size:12px;color:var(--muted)">Jornada total</div><div class="shop-time">${calcDur(soVal,sbVal)}</div></div>`:''}
     `;
     el.appendChild(shopDiv);
   }
@@ -1121,6 +1134,30 @@ function suplenteUpdTime(id, field, val){
 }
 function suplenteUpdNote(id, val){
   suplenteUpdTime(id,'note',val);
+}
+
+function saveShopTime(field, inputId){
+  var date=S.selectedDate, empId=S.empId, group=S.group;
+  if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
+  var inp=document.getElementById(inputId);
+  var val=inp?inp.value:'';
+  if(!val){
+    var n=new Date();
+    val=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+    if(inp) inp.value=val;
+  }
+  var key=horariosKey(date);
+  var all=JSON.parse(localStorage.getItem(key)||'{}');
+  if(!all[empId]) all[empId]={empId:empId,empName:S.empName||'',group:group,services:[],savedAt:''};
+  all[empId][field]=val;
+  all[empId].savedAt=new Date().toISOString();
+  localStorage.setItem(key,JSON.stringify(all));
+  if(!S.reports) S.reports={};
+  if(!S.reports[date]) S.reports[date]={};
+  S.reports[date][empId]=all[empId];
+  toast('✅ '+(field==='shopOut'?'Salida del Shop':'Regreso al Shop')+' guardado: '+val);
+  setTimeout(function(){try{saveHorariosToDrive();}catch(e){}},300);
+  renderView();
 }
 
 /* ── WEEK VIEW ── */
