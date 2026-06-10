@@ -10795,8 +10795,8 @@ class Scheduler {
                 </div>
                 <!-- Empleados + tarifa promedio -->
                 <div style="background:#e0f7fa;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #b2dfdb;">
-                  <div style="font-size:0.82rem;color:#0e7490;font-weight:600">${activeMembers.map(e=>{const r=getRateForEmp(e);return e.name+' (<span style=\"color:#555\">$'+r.toFixed(2)+'/hr</span>)';}).join(' · ') || grp}</div>
-                  <div style="font-size:0.82rem;color:#555">Tarifa prom: <strong id="prodMORate_${grpId}" style="color:#0e7490">—</strong></div>
+                  <div style="font-size:0.82rem;color:#0e7490;font-weight:600;margin-bottom:2px">${activeMembers.map(e=>{const r=getRateForEmp(e);return e.name+' (<span style=\"color:#555\">$'+r.toFixed(2)+'/hr</span>)';}).join(' · ') || grp}</div>
+                  <div style="font-size:0.78rem;color:#555;">Tarifa prom: <strong id="prodMORate_${grpId}" style="color:#0e7490">—</strong></div>
                 </div>
                 <!-- Desglose: trabajo + traslado + total -->
                 <div style="padding:12px 16px;background:#fff;">
@@ -10859,7 +10859,6 @@ class Scheduler {
                   <th style="padding:8px 12px;text-align:center;color:#555">Salida</th>
                   <th style="padding:8px 12px;text-align:center;color:#555">Horas</th>
                   <th style="padding:8px 12px;text-align:right;color:#555">Facturado</th>
-                  <th style="padding:8px 12px;text-align:right;color:#555">Costo MO</th>
                   <th style="padding:8px 12px;text-align:center;color:#555">Estado</th>
                 </tr></thead><tbody>
                 ${row.services.map((s,i)=>`<tr style="border-top:1px solid #f1f3f5;background:${i%2===0?'#fff':'#fafafa'}">
@@ -10873,7 +10872,6 @@ class Scheduler {
                   <td style="padding:8px 12px;text-align:center">${s.checkout?fmtT(s.checkout):'—'}</td>
                   <td style="padding:8px 12px;text-align:center;font-weight:600;color:#2980b9">${s.hrs>0?fmtH(s.hrs):'—'}</td>
                   <td style="padding:8px 12px;text-align:right;font-weight:600;color:#9a7d0a">${s.price>0?'$'+fmt(s.price):'—'}</td>
-                  <td style="padding:8px 12px;text-align:right;font-weight:600;color:#0e7490">${s.cost>0?'$'+fmt(s.cost):'—'}</td>
                   <td style="padding:8px 12px;text-align:center"><span style="padding:2px 8px;border-radius:12px;font-size:0.75rem;font-weight:600;background:${s.status==='done'?'#d5f5e3':s.status==='active'?'#fef9e7':'#f2f3f4'};color:${s.status==='done'?'#1e8449':s.status==='active'?'#d4ac0d':'#777'}">${s.status==='done'?'✅ Terminado':s.status==='active'?'⏳ En servicio':'🔜 Pendiente'}</span></td>
                 </tr>`).join('')}
                 </tbody></table></div>`;
@@ -10940,7 +10938,7 @@ class Scheduler {
               <thead><tr style="background:#374151;color:white">
                 <th style="padding:6px 8px;text-align:left">Día</th><th style="padding:6px 8px;text-align:center">Fecha</th>
                 <th style="padding:6px 8px;text-align:center">Svcs</th><th style="padding:6px 8px;text-align:center">Horas</th>
-                <th style="padding:6px 8px;text-align:right">Facturado</th><th style="padding:6px 8px;text-align:right">Costo MO</th>
+                <th style="padding:6px 8px;text-align:right">Facturado</th>
                 <th style="padding:6px 8px;text-align:right">Neto</th>
               </tr></thead><tbody>
               ${dates.map((dt,i)=>{const d=dailyTotals[dt];const net=d.billed-d.cost;const has=d.svcs>0;
@@ -11000,8 +10998,8 @@ class Scheduler {
                   <span>👷 Mano de Obra</span><span>Empleados que trabajaron: ${empCount}</span>
                 </div>
                 <div style="background:#e0f7fa;padding:8px 14px;font-size:0.8rem;color:#0e7490;font-weight:600;border-bottom:1px solid #b2dfdb;">
-                  ${activeMembers.map(e=>{const r=parseFloat(e.rate)||15;return e.name+' ($'+r.toFixed(2)+'/hr)';}).join(' · ')}
-                  <span style="float:right;color:#555;">Tarifa prom: <strong>$${fmt(ratePerHr)}/hr</strong></span>
+                  <div style="margin-bottom:2px">${activeMembers.map(e=>{const r=parseFloat(e.rate)||15;return e.name+' ($'+r.toFixed(2)+'/hr)';}).join(' · ')}</div>
+                  <div style="color:#555;font-size:0.78rem;">Tarifa prom: <strong>$${fmt(ratePerHr)}/hr</strong></div>
                 </div>
                 <div style="padding:10px 14px;background:#fff;">
                   <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
@@ -11024,7 +11022,7 @@ class Scheduler {
                   <th style="padding:5px 8px;text-align:left">Fecha</th><th style="padding:5px 8px;text-align:left">Cliente</th>
                   <th style="padding:5px 8px;text-align:center">Llegada</th><th style="padding:5px 8px;text-align:center">Salida</th>
                   <th style="padding:5px 8px;text-align:center">Horas</th><th style="padding:5px 8px;text-align:right">Facturado</th>
-                  <th style="padding:5px 8px;text-align:right">Costo MO</th><th style="padding:5px 8px;text-align:center">Estado</th>
+                  <th style="padding:5px 8px;text-align:center">Estado</th>
                 </tr></thead><tbody>
                 ${row.services.map((s,i)=>`<tr style="border-top:1px solid #f0f0f0;background:${i%2===0?'#fff':'#fafafa'}">
                   <td style="padding:5px 8px;color:#666">${fmtDate(s.date)}</td>
@@ -11033,7 +11031,6 @@ class Scheduler {
                   <td style="padding:5px 8px;text-align:center">${s.checkout?fmtT(s.checkout):'—'}</td>
                   <td style="padding:5px 8px;text-align:center;font-weight:600;color:#2980b9">${s.hrs>0?fmtH(s.hrs):'—'}</td>
                   <td style="padding:5px 8px;text-align:right;color:#9a7d0a">${s.price>0?'$'+fmt(s.price):'—'}</td>
-                  <td style="padding:5px 8px;text-align:right;color:#0e7490">${s.cost>0?'$'+fmt(s.cost):'—'}</td>
                   <td style="padding:5px 8px;text-align:center;font-size:9px">${s.status==='done'?'✅ Terminado':s.status==='active'?'⏳ Activo':'🔜 Pendiente'}</td>
                 </tr>`).join('')}
                 </tbody></table>
@@ -11045,8 +11042,8 @@ class Scheduler {
         win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reporte Producción Ana's Cleaning</title>
         <style>body{font-family:Arial,sans-serif;margin:30px;color:#333}h1{color:#0e7490;margin-bottom:4px}@media print{.no-print{display:none}}</style></head><body>
         <div class="no-print" style="margin-bottom:16px"><button onclick="window.print()" style="background:#0e7490;color:white;border:none;padding:10px 20px;border-radius:6px;cursor:pointer;font-size:1rem">🖨️ Imprimir</button></div>
-        <h1>📊 Reporte de Producción — Ana's Cleaning</h1>
-        <p style="color:#666;margin:0 0 20px">Período: ${periodo} &nbsp;·&nbsp; Generado: ${new Date().toLocaleString('es-MX')}</p>
+        <h1 style="font-size:1.2rem;text-align:center;margin:0 0 4px">📊 Reporte de Producción — Ana's Cleaning</h1>
+        <p style="color:#666;margin:0 0 20px;text-align:center;font-size:0.82rem">Período: ${periodo} &nbsp;·&nbsp; Generado: ${new Date().toLocaleString('es-MX')}</p>
         ${weeklyTableHTML}${groupsHTML}
         </body></html>`);
         win.document.close();
