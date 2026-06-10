@@ -5434,7 +5434,7 @@ class Scheduler {
     async driveReadNominaTotales() {
         // Buscar archivo ana_nomina_totales.json en Drive
         const searchRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=name='ana_nomina_totales.json'&fields=files(id,name)`,
+            `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_totales.json'&fields=files(id,name)`,
             { headers: { Authorization: `Bearer ${this.driveToken}` } }
         );
         const searchData = await searchRes.json();
