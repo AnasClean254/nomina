@@ -2677,15 +2677,26 @@ class Scheduler {
         if (!unique.length) {
             dropdown.innerHTML = '<div style="padding:10px;color:#999;font-size:0.85rem;">Sin resultados</div>';
         } else {
-            dropdown.innerHTML = unique.map(c =>
-                `<div onclick="app._selectCalendarCli('${c.id}','${c.name.replace(/'/g,"\'")}','${val}')"
-                    style="padding:8px 12px;cursor:pointer;font-size:0.85rem;border-bottom:1px solid #f1f3f5;"
-                    onmouseover="this.style.background='#f0f7ff'" onmouseout="this.style.background=''"
-                >${c.name}${c.city?' · '+c.city:''}</div>`
-            ).join('') + `<div onclick="app._selectCalendarCli('all','TODOS','')"
-                style="padding:8px 12px;cursor:pointer;font-size:0.85rem;color:#888;background:#f8f9fa;"
-                onmouseover="this.style.background='#e9ecef'" onmouseout="this.style.background='#f8f9fa'"
-            >✕ Ver todos</div>`;
+            window._cliMapId = window._cliMapId||{};
+            window._cliMapName = window._cliMapName||{};
+            let dHtml = '';
+            unique.forEach(function(c) {
+                var ck = 'sc_'+String(c.id).replace(/[^a-zA-Z0-9]/g,'_');
+                window._cliMapId[ck] = String(c.id);
+                window._cliMapName[ck] = c.name;
+                dHtml += '<div data-ck="'+ck+'" class="cli-dd-item" style="padding:8px 12px;cursor:pointer;font-size:0.85rem;border-bottom:1px solid #f1f3f5;">'+c.name+(c.city?' · '+c.city:'')+'</div>';
+            });
+            dHtml += '<div data-ck="all" class="cli-dd-item" style="padding:8px 12px;cursor:pointer;font-size:0.85rem;color:#888;background:#f8f9fa;">✕ Ver todos</div>';
+            dropdown.innerHTML = dHtml;
+            dropdown.querySelectorAll('.cli-dd-item').forEach(function(el) {
+                el.addEventListener('mouseover', function(){ this.style.background='#f0f7ff'; });
+                el.addEventListener('mouseout', function(){ this.style.background=''; });
+                el.addEventListener('click', function() {
+                    var ck = this.dataset.ck;
+                    if(ck === 'all') { app._selectCalendarCli('all','TODOS',''); }
+                    else { app._selectCalendarCli(window._cliMapId[ck], window._cliMapName[ck], ''); }
+                });
+            });
         }
         dropdown.style.display = 'block';
     }
@@ -4522,7 +4533,7 @@ class Scheduler {
                         <div style="display:flex;gap:4px;flex-wrap:wrap;">
                             <button onclick="app.regenerateInvoice(${index})" class="btn" style="background: #1A4FCC; color: white; padding: 5px 8px; font-size: 0.75rem;">🔄 Regenerar</button>
                             <button onclick="app.openInvoiceForEdit(${index})" class="btn" style="background: #e67e22; color: white; padding: 5px 8px; font-size: 0.75rem;">✏️ Editar</button>
-                            <button onclick="app.editInvoiceNumber('${inv.id}', '${inv.clientName}', ${inv.invoiceNumber})" class="btn" style="background: #6c757d; color: white; padding: 5px 8px; font-size: 0.75rem;"># Nº</button>
+                            <button onclick="app.editInvoiceNumber('${inv.id}', ${inv.invoiceNumber})" class="btn" style="background: #6c757d; color: white; padding: 5px 8px; font-size: 0.75rem;"># Nº</button>
                         </div>` : '<span style="color:#95a5a6;font-size:0.8rem">—</span>'}
                 </td>
             </tr>`;
@@ -4693,7 +4704,9 @@ class Scheduler {
         a.click();
     }
 
-    editInvoiceNumber(id, clientName, currentNumber) {
+    editInvoiceNumber(id, currentNumber) {
+        const inv2 = this.generatedInvoices ? this.generatedInvoices.find(i => String(i.id) === String(id)) : null;
+        const clientName = inv2 ? inv2.clientName : '';
         const newNum = prompt(`Editar número de factura para ${clientName}:\nNúmero actual: ${currentNumber}`, currentNumber);
         if (!newNum || isNaN(parseInt(newNum))) return;
         const num = parseInt(newNum);
@@ -8591,7 +8604,7 @@ class Scheduler {
                     <button onclick="app.printPDF('${pdfUrl}')" class="btn" style="background: #1A4FCC; color: white; padding: 15px 30px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
                         🖨️ Imprimir
                     </button>
-                    <button onclick="app.savePDF(${pdfData.invoiceNumber}, '${client.name}', '${startDate}')" class="btn" style="background: #27ae60; color: white; padding: 15px 30px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                    <button onclick="app.savePDF(window.currentPDFData.invoiceNumber, window.currentPDFData.client.id, window.currentPDFData.startDate)" class="btn" style="background: #27ae60; color: white; padding: 15px 30px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
                         💾 Guardar
                     </button>
                     ${client.email ? `<button onclick="app.sendInvoiceByGmail(window.currentPDFData.blob, window.currentPDFData.client, window.currentPDFData.invoiceNumber, window.currentPDFData.total || 0, window.currentPDFData.startDate || '${startDate}', window.currentPDFData.endDate || '${endDate}')" class="btn" style="background: #ea4335; color: white; padding: 15px 30px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
@@ -8724,7 +8737,12 @@ class Scheduler {
         }
     }
     
-    async savePDF(invoiceNumber, clientName, startDate) {
+    async savePDF(invoiceNumber, clientIdOrName, startDate) {
+        let clientName = clientIdOrName;
+        if (this.clis) {
+            const cli = this.clis.find(c => String(c.id) === String(clientIdOrName));
+            if (cli) clientName = cli.name;
+        }
         const pdfData = window.currentPDFData;
 
         // ── VALIDACIÓN DE DUPLICADOS ──
