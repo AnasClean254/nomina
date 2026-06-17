@@ -4334,7 +4334,7 @@
                         const numInput = document.getElementById('chknum_' + i);
                         const check = {
                             id: Date.now() + i,
-                            date: payDateVal + 'T12:00:00.000Z',
+                            date: payDateVal + 'T12:00:00',
                             employeeId: p.employeeId,
                             employeeName: p.employeeName,
                             employeeAddress: emp ? this.getEmpAddress(emp) : '',
@@ -4355,7 +4355,7 @@
                         const txnInput = document.getElementById('txtxn_' + i);
                         const check = {
                             id: Date.now() + i + 1000,
-                            date: payDateVal + 'T12:00:00.000Z',
+                            date: payDateVal + 'T12:00:00',
                             employeeId: p.employeeId,
                             employeeName: p.employeeName,
                             employeeAddress: emp ? this.getEmpAddress(emp) : '',
