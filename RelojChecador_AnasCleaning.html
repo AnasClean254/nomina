@@ -1068,7 +1068,17 @@
                     // ── MERGE INTELIGENTE ──
                     // Empleados: merge por updatedAt — el más reciente gana
                     if (nominaData.employees && nominaData.employees.length > 0) {
+                        // Juntar lápidas que vengan de la Nómina con las locales, para no revivir borrados.
+                        this.deletedEmployees = this.deletedEmployees || [];
+                        if (nominaData.deletedEmployees) {
+                            nominaData.deletedEmployees.forEach(did => {
+                                if (!this.deletedEmployees.map(String).includes(String(did))) this.deletedEmployees.push(did);
+                            });
+                            localStorage.setItem('anas_deletedEmployees', JSON.stringify(this.deletedEmployees));
+                        }
+                        const _borrEmp = this.deletedEmployees.map(String);
                         nominaData.employees.forEach(remote => {
+                            if (_borrEmp.includes(String(remote.id))) return; // borrado en Nómina → no revivir
                             const idx = this.employees.findIndex(e => String(e.id) === String(remote.id));
                             if (idx < 0) {
                                 this.employees.push(remote); // Empleado nuevo desde Nómina
@@ -1078,6 +1088,8 @@
                                 if (remoteTime > localTime) this.employees[idx] = remote;
                             }
                         });
+                        // Quitar de la lista local cualquier empleado con lápida (por si se coló antes)
+                        this.employees = this.employees.filter(e => !_borrEmp.includes(String(e.id)));
                     }
 
                     // workConfig: siempre se acepta desde Nómina (Nómina es fuente de verdad para config)
@@ -1250,6 +1262,7 @@
             save() {
                 if (this.driveConnected) setTimeout(() => this.driveSyncNow(), 500);
                 localStorage.setItem('anas_employees', JSON.stringify(this.employees));
+                localStorage.setItem('anas_deletedEmployees', JSON.stringify(this.deletedEmployees || []));
                 localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
                 localStorage.setItem('anas_adminPin', this.adminPin);
                 localStorage.setItem('anas_workConfig', JSON.stringify(this.workConfig));
@@ -1295,6 +1308,7 @@
                 
                 // Cargar datos normalmente
                 this.employees = JSON.parse(localStorage.getItem('anas_employees') || '[]');
+                this.deletedEmployees = JSON.parse(localStorage.getItem('anas_deletedEmployees') || '[]');
                 this.attendances = JSON.parse(localStorage.getItem('anas_attendances') || '[]');
                 this.adminPin = localStorage.getItem('anas_adminPin') || '0000';
                 this.workConfig = JSON.parse(localStorage.getItem('anas_workConfig') || '{"startTime":"08:00","lateTolerance":15}');

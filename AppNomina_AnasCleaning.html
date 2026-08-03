@@ -2352,6 +2352,11 @@
             
             deleteEmployee(id) {
                 if (!confirm('¿Eliminar este empleado?')) return;
+                // Lápida: registrar el borrado para que el empleado NO reviva al sincronizar
+                // con Drive ni con el Reloj Checador (ambos comparten anas_nomina_sync.json).
+                this.deletedEmployees = this.deletedEmployees || [];
+                if (!this.deletedEmployees.map(String).includes(String(id))) this.deletedEmployees.push(id);
+                localStorage.setItem('anas_deletedEmployees', JSON.stringify(this.deletedEmployees));
                 this.employees = this.employees.filter(e => e.id !== id);
                 this.save();
                 this.refreshEmployees();
@@ -5595,7 +5600,9 @@
                             );
                             const driveData = await fileRes.json();
                             if (driveData.employees) {
+                                const _borrados = (this.deletedEmployees || []).map(String);
                                 driveData.employees.forEach(remote => {
+                                    if (_borrados.includes(String(remote.id))) return; // borrado a propósito → no revivir
                                     const idx = mergedEmployees.findIndex(e => e.id === remote.id);
                                     if (idx < 0) {
                                         // Empleado en Drive que no tengo localmente → agregar
@@ -5618,6 +5625,7 @@
                         deviceId: this.deviceId,
                         deviceName: this.deviceName,
                         employees: mergedEmployees,
+                        deletedEmployees: this.deletedEmployees || [],
                         attendances: this.attendances,
                         payrollRecords: this.payrollRecords,
                         savedPayrollPeriods: this.savedPayrollPeriods,
@@ -5715,9 +5723,21 @@
                     // Nunca se reemplazan arrays completos — cada registro compite individualmente
                     // workConfig NUNCA se toca — la config local siempre prevalece
 
+                    // Juntar lápidas de empleados de ambos lados (las del Drive + las locales),
+                    // para que un borrado hecho en cualquier PC se respete en todas.
+                    this.deletedEmployees = this.deletedEmployees || [];
+                    if (data.deletedEmployees) {
+                        data.deletedEmployees.forEach(did => {
+                            if (!this.deletedEmployees.map(String).includes(String(did))) this.deletedEmployees.push(did);
+                        });
+                        localStorage.setItem('anas_deletedEmployees', JSON.stringify(this.deletedEmployees));
+                    }
+                    const _borrEmp = this.deletedEmployees.map(String);
+
                     // Merge empleados
                     if (data.employees) {
                         data.employees.forEach(remote => {
+                            if (_borrEmp.includes(String(remote.id))) return; // borrado a propósito → no revivir
                             const idx = this.employees.findIndex(e => e.id === remote.id);
                             if (idx < 0) {
                                 this.employees.push(remote); // Empleado nuevo
@@ -5728,6 +5748,8 @@
                             }
                         });
                     }
+                    // Quitar de la lista local cualquier empleado que tenga lápida (por si se coló antes)
+                    this.employees = this.employees.filter(e => !_borrEmp.includes(String(e.id)));
 
                     // Merge asistencias
                     if (data.attendances) {
@@ -6044,6 +6066,7 @@
                     }
                 }
                 localStorage.setItem('anas_employees', JSON.stringify(this.employees));
+                localStorage.setItem('anas_deletedEmployees', JSON.stringify(this.deletedEmployees || []));
                 localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
                 localStorage.setItem('anas_payroll', JSON.stringify(this.payrollRecords));
                 localStorage.setItem('anas_payroll_periods', JSON.stringify(this.savedPayrollPeriods));
@@ -6104,6 +6127,7 @@
                 
                 // Cargar datos normalmente
                 this.employees = JSON.parse(localStorage.getItem('anas_employees') || '[]');
+                this.deletedEmployees = JSON.parse(localStorage.getItem('anas_deletedEmployees') || '[]');
                 this.attendances = JSON.parse(localStorage.getItem('anas_attendances') || '[]');
                 this.payrollRecords = JSON.parse(localStorage.getItem('anas_payroll') || '[]');
                 this.checks   = JSON.parse(localStorage.getItem('anas_checks')   || '[]');
