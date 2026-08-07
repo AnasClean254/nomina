@@ -127,7 +127,7 @@ tbody tr:last-child td { border-bottom: none; }
 </div>
 
 <div class="tabs">
-    <button class="tab active" id="tabRegistro"    onclick="switchTab('registro')">📝 Registrar</button>
+    <button class="tab active" id="tabRegistro"    onclick="nuevoGasto()">📝 Registrar</button>
     <button class="tab"        id="tabLista"       onclick="switchTab('lista')">📋 Lista</button>
     <button class="tab"        id="tabCategorias"  onclick="switchTab('categorias')">🏷️ Categorías</button>
     <button class="tab"        id="tabImportar"    onclick="document.getElementById('importExcelFile').click()">📊 Importar Excel</button>
@@ -167,7 +167,7 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="form-group full"><label>Notas (opcional)</label><textarea id="gastoNotas" rows="2"></textarea></div>
             <div class="form-group full"><label>Foto del recibo (opcional)</label><input type="file" id="gastoFoto" accept="image/*"></div>
         </div>
-        <button class="btn btn-primary btn-full" style="margin-top:16px;" onclick="saveGasto()">💾 Guardar Gasto</button>
+        <button class="btn btn-primary btn-full" id="btnGuardarGasto" style="margin-top:16px;" onclick="saveGasto()">💾 Guardar Gasto</button>
     </div>
 </div>
 
@@ -177,11 +177,15 @@ tbody tr:last-child td { border-bottom: none; }
             <button class="chip" style="background:#1A4FCC;color:white;" onclick="setFilter('week')">📅 Esta Semana</button>
             <button class="chip" style="background:var(--success);color:white;" onclick="setFilter('month')">📅 Este Mes</button>
             <button class="chip" style="background:var(--muted);color:white;" onclick="setFilter('all')">Todos</button>
+            <button class="chip" style="background:#34495e;color:white;" onclick="navegarPeriodo(-1)">◀</button>
+            <span id="periodoLabel" style="align-self:center;font-weight:700;color:var(--accent,#3498db);min-width:120px;text-align:center;"></span>
+            <button class="chip" style="background:#34495e;color:white;" onclick="navegarPeriodo(1)">▶</button>
         </div>
         <div class="filter-bar">
             <div class="form-group"><label>Desde</label><input type="date" id="filterStart" onchange="refreshLista()"></div>
             <div class="form-group"><label>Hasta</label><input type="date" id="filterEnd" onchange="refreshLista()"></div>
             <div class="form-group"><label>Categoría</label><select id="filterCat" onchange="refreshLista()"><option value="all">Todas</option></select></div>
+            <div class="form-group"><label>Buscar monto $</label><input type="number" id="filterMonto" min="0" step="0.01" placeholder="ej. 120" oninput="refreshLista()" style="width:110px;"></div>
             <button class="btn btn-blue" style="align-self:flex-end;" onclick="exportCSV()">📊 Exportar CSV</button>
         </div>
         <div class="table-wrap">
@@ -285,6 +289,7 @@ const LKEY      = 'anas_gastos_local';
 const CKEY      = 'anas_gastos_cats';
 
 let driveToken = null, folderId = null, fileId = null;
+let editandoId = null;
 let gastos = JSON.parse(localStorage.getItem(LKEY) || '[]');
 let cats   = JSON.parse(localStorage.getItem(CKEY) || 'null') || {
     "Vehículos":           ["Gas","Aseguranza","Reparación","Renovación de placas"],
@@ -357,6 +362,14 @@ function markConnected() {
     b.classList.add('connected'); b.innerHTML='✅ Drive';
     document.getElementById('driveStatusTxt').textContent='Conectado';
 }
+function markDisconnected(msg) {
+    driveToken=null;
+    const b=document.getElementById('btnDrive');
+    if(b){ b.classList.remove('connected'); b.innerHTML='⚠ Reconectar Drive'; }
+    const t=document.getElementById('driveStatusTxt'); if(t)t.textContent='DESCONECTADO';
+    sdot('err', msg||'Drive desconectado');
+    toast('⚠ '+(msg||'Drive desconectado')+' — tus gastos NO se están subiendo. Toca "⚠ Reconectar Drive" arriba.');
+}
 async function dGet(url) {
     const r=await fetch(url,{headers:{Authorization:`Bearer ${driveToken}`}});
     return r.json();
@@ -398,6 +411,9 @@ async function loadFromDrive() {
 }
 async function saveToDrive() {
     if(!driveToken||!folderId)return;
+    // Verificar si la sesión de Drive YA EXPIRÓ antes de intentar subir
+    const exp = parseInt(localStorage.getItem(TEXP)||'0');
+    if(exp && Date.now() > exp){ markDisconnected('Sesión de Drive vencida'); return; }
     sdot('spin','Guardando…');
     try {
         const blob=new Blob([JSON.stringify({gastos,cats,vendors,savedAt:new Date().toISOString()})],{type:'application/json'});
@@ -415,10 +431,16 @@ async function saveToDrive() {
             method='POST';
         }
         const res=await fetch(url,{method,headers:{Authorization:`Bearer ${driveToken}`},body:form});
+        // Validar que la subida REALMENTE funcionó
+        if(!res.ok){
+            if(res.status===401||res.status===403){ markDisconnected('Drive desconectado (sesión vencida)'); }
+            else { sdot('err','⚠ NO se guardó en Drive (error '+res.status+')'); toast('⚠ NO se pudo guardar en Drive (error '+res.status+'). Tus gastos están sólo en este dispositivo.'); }
+            return;
+        }
         const json=await res.json();
         if(!fileId)fileId=json.id;
         sdot('ok','Guardado '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
-    } catch(e){sdot('err','Error guardando');}
+    } catch(e){ markDisconnected('Sin conexión al Drive'); }
 }
 async function syncNow() {
     if(!driveToken){toast('⚠ Conecta Drive primero');return;}
@@ -562,8 +584,19 @@ function saveGasto() {
     const notas=document.getElementById('gastoNotas').value.trim();
     const fotoInput=document.getElementById('gastoFoto');
     if(!fecha||!monto||monto<=0||!categoria){alert('Por favor completa Fecha, Monto y Categoría');return;}
-    const gasto={id:Date.now(),fecha,monto,categoria,subcategoria:subcat||'N/A',vendor:vendor||'',concepto:concepto||'Sin descripción',tipoPago,notas,foto:null};
-    const doSave=(g)=>{gastos.push(g);saveLocal();clearForm();toast('✅ Gasto guardado');switchTab('lista');if(driveToken&&folderId)saveToDrive();};
+    const gasto={id:editandoId||Date.now(),fecha,monto,categoria,subcategoria:subcat||'N/A',vendor:vendor||'',concepto:concepto||'Sin descripción',tipoPago,notas,foto:null};
+    const doSave=(g)=>{
+        if(editandoId){
+            const idx=gastos.findIndex(x=>x.id===editandoId);
+            if(idx>=0){ if(g.foto===null&&gastos[idx].foto)g.foto=gastos[idx].foto; gastos[idx]=g; }
+            editandoId=null;
+            const b=document.getElementById('btnGuardarGasto'); if(b)b.innerHTML='💾 Guardar Gasto';
+            saveLocal();clearForm();toast('✅ Gasto actualizado');switchTab('lista');
+        } else {
+            gastos.push(g);saveLocal();clearForm();toast('✅ Gasto guardado — puedes registrar otro');
+        }
+        if(driveToken&&folderId)saveToDrive();
+    };
     if(fotoInput.files&&fotoInput.files[0]){
         const reader=new FileReader();
         reader.onload=(e)=>{gasto.foto=e.target.result;doSave(gasto);};
@@ -583,25 +616,48 @@ function clearForm() {
 }
 
 // ── LISTA ─────────────────────────────────────────────────────────────
+let periodoActual='all', periodoOffset=0;
 function setFilter(period) {
-    const today=new Date();
-    let start,end;
-    if(period==='week'){start=new Date(today);start.setDate(today.getDate()-today.getDay());end=new Date(start);end.setDate(start.getDate()+6);}
-    else if(period==='month'){start=new Date(today.getFullYear(),today.getMonth(),1);end=new Date(today.getFullYear(),today.getMonth()+1,0);}
-    else{document.getElementById('filterStart').value='';document.getElementById('filterEnd').value='';refreshLista();return;}
+    periodoActual=period; periodoOffset=0; aplicarPeriodo();
+}
+function navegarPeriodo(dir) {
+    if(periodoActual!=='week'&&periodoActual!=='month'){ periodoActual='month'; periodoOffset=0; }
+    periodoOffset+=dir; aplicarPeriodo();
+}
+function aplicarPeriodo() {
+    const hoy=new Date(); let start,end;
     const f=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
-    document.getElementById('filterStart').value=f(start);
-    document.getElementById('filterEnd').value=f(end);
+    const lblEl=document.getElementById('periodoLabel');
+    if(period_isWeek()){
+        start=new Date(hoy); start.setDate(hoy.getDate()-hoy.getDay()+periodoOffset*7);
+        end=new Date(start); end.setDate(start.getDate()+6);
+        document.getElementById('filterStart').value=f(start);
+        document.getElementById('filterEnd').value=f(end);
+        if(lblEl)lblEl.textContent='Sem. '+f(start).slice(5);
+    } else if(periodoActual==='month'){
+        start=new Date(hoy.getFullYear(),hoy.getMonth()+periodoOffset,1);
+        end=new Date(hoy.getFullYear(),hoy.getMonth()+periodoOffset+1,0);
+        document.getElementById('filterStart').value=f(start);
+        document.getElementById('filterEnd').value=f(end);
+        if(lblEl)lblEl.textContent=start.toLocaleDateString('es-MX',{month:'long',year:'numeric'});
+    } else {
+        document.getElementById('filterStart').value='';
+        document.getElementById('filterEnd').value='';
+        if(lblEl)lblEl.textContent='';
+    }
     refreshLista();
 }
+function period_isWeek(){ return periodoActual==='week'; }
 function refreshLista() {
     const start=document.getElementById('filterStart').value;
     const end=document.getElementById('filterEnd').value;
     const catF=document.getElementById('filterCat').value;
+    const montoBuscar=parseFloat(document.getElementById('filterMonto').value);
     let filtered=gastos.filter(g=>{
         if(start&&g.fecha<start)return false;
         if(end&&g.fecha>end)return false;
         if(catF!=='all'&&g.categoria!==catF)return false;
+        if(!isNaN(montoBuscar)&&Math.abs(g.monto-montoBuscar)>0.001)return false;
         return true;
     }).sort((a,b)=>b.fecha.localeCompare(a.fecha));
     let html='',total=0;
@@ -612,7 +668,7 @@ function refreshLista() {
         <td><span class="badge">${g.categoria}</span></td><td style="color:var(--muted);font-size:0.85rem;">${g.concepto}</td>
         <td style="font-size:0.82rem;">${pagoIcon}</td>
         <td><b>${fmtMoney(g.monto)}</b></td>
-        <td><button class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;" onclick="deleteGasto(${g.id})">🗑️</button></td></tr>`;
+        <td><button class="btn" style="padding:4px 8px;font-size:0.78rem;background:#3498db;color:#fff;margin-right:4px;" onclick="editGasto(${g.id})">✏️</button><button class="btn btn-danger" style="padding:4px 8px;font-size:0.78rem;" onclick="deleteGasto(${g.id})">🗑️</button></td></tr>`;
     });
     document.getElementById('gastosBody').innerHTML=html||'<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:20px;">Sin gastos en este período</td></tr>';
     document.getElementById('gastosTotal').textContent=fmtMoney(total);
@@ -622,6 +678,28 @@ function deleteGasto(id) {
     if(!confirm('¿Eliminar este gasto?'))return;
     gastos=gastos.filter(g=>g.id!==id);saveLocal();refreshLista();toast('Gasto eliminado');
     if(driveToken&&folderId)saveToDrive();
+}
+function nuevoGasto() {
+    editandoId=null; clearForm();
+    const b=document.getElementById('btnGuardarGasto'); if(b)b.innerHTML='💾 Guardar Gasto';
+    switchTab('registro');
+}
+function editGasto(id) {
+    const g=gastos.find(x=>x.id===id); if(!g)return;
+    editandoId=id;
+    document.getElementById('gastoFecha').value=g.fecha||localDate();
+    document.getElementById('gastoMonto').value=g.monto;
+    document.getElementById('gastoCategoria').value=g.categoria||'';
+    updateSubcategorias();
+    document.getElementById('gastoSubcategoria').value=(g.subcategoria&&g.subcategoria!=='N/A')?g.subcategoria:'';
+    document.getElementById('gastoVendor').value=g.vendor||'';
+    document.getElementById('gastoConcepto').value=(g.concepto&&g.concepto!=='Sin descripción')?g.concepto:'';
+    document.getElementById('gastoTipoPago').value=g.tipoPago||'Cash';
+    document.getElementById('gastoNotas').value=g.notas||'';
+    document.getElementById('gastoFoto').value='';
+    const b=document.getElementById('btnGuardarGasto'); if(b)b.innerHTML='✏️ Actualizar Gasto';
+    switchTab('registro');
+    window.scrollTo(0,0);
 }
 function exportCSV() {
     const start=document.getElementById('filterStart').value;
