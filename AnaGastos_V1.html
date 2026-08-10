@@ -392,20 +392,9 @@ async function loadFromDrive() {
             if(data.cats){Object.keys(data.cats).forEach(c=>{if(!cats[c])cats[c]=data.cats[c];else cats[c]=[...new Set([...data.cats[c],...cats[c]])];});}
             if(data.vendors)vendors=[...new Set([...data.vendors,...vendors])];
         }
-        // ── MERGE gastos de anaCS_sync.json (Scheduler) ──
-        try {
-            const srCS=await dGet(`https://www.googleapis.com/drive/v3/files?q=name='anaCS_sync.json'+and+'${folderId}'+in+parents+and+trashed=false&fields=files(id)`);
-            if(srCS.files&&srCS.files.length){
-                const dataCS=await dGet(`https://www.googleapis.com/drive/v3/files/${srCS.files[0].id}?alt=media`);
-                const existingIds=new Set(gastos.map(g=>g.id));
-                (dataCS.gastos||[]).forEach(g=>{
-                    if(!existingIds.has(g.id)){
-                        gastos.push(g);
-                        existingIds.add(g.id);
-                    }
-                });
-            }
-        } catch(e){ console.log('anaCS_sync merge skipped:', e.message); }
+        // (ELIMINADO) Antes se absorbían los gastos de anaCS_sync.json (Scheduler) aquí.
+        // Se quitó a propósito: AnaGastos es la ÚNICA fuente de verdad de gastos y ya NO
+        // ingiere gastos del Scheduler (eso recontaminaba los datos reales con los de prueba).
         saveLocal(); loadCatDropdowns(); renderCategorias(); refreshLista();
         sdot('ok','Actualizado '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
     } catch(e){sdot('err','Error: '+e.message);}
