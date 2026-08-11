@@ -15957,103 +15957,121 @@ Motivo de cancelación (opcional):`);
     }
     
     importClientsCSV() {
+        // MODO UPSERT: empareja por Nombre+PropiedadID. Actualiza los existentes
+        // (solo campos con valor; nunca vacía nada; si cambia el tipo re-deriva
+        // serviceType/billingPeriod) y AGREGA los que no existen. No toca grupo,
+        // invoicingType, notas, active ni id. No borra ningún cliente.
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = '.csv';
-        
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
                     const text = event.target.result;
                     const lines = text.split('\n').filter(line => line.trim());
-                    
-                    if (lines.length < 2) {
-                        alert('❌ Archivo vacío o inválido');
-                        return;
-                    }
-                    
-                    // Skip header
+                    if (lines.length < 2) { alert('❌ Archivo vacío o inválido'); return; }
                     const dataLines = lines.slice(1);
-                    const newClients = [];
+
+                    const deriveSvc = (t) => (t==='airbnb'?'airbnb':t==='unico'?'unico':t==='construccion'?'construccion':'residencial');
+                    const deriveBill = (t) => (t==='unico'?'perservice':(t==='semanal'||t==='diario'||t==='2xsemana'||t==='3xsemana')?'weekly':t==='cada3semanas'?'monthly':t==='quincenal'?'biweekly':'monthly');
+
                     let errors = 0;
-                    
-                    dataLines.forEach((line, index) => {
-                        try {
-                            // Parse CSV line: respeta comillas Y captura campos vacíos
-                            // (necesario para 9 columnas — el Email suele venir vacío, y el
-                            // parser viejo con regex se saltaba los vacíos y desalineaba todo).
-                            const clean = [];
-                            let cur = '', inQ = false;
-                            for (let ci = 0; ci < line.length; ci++) {
-                                const ch = line[ci];
-                                if (ch === '"') { inQ = !inQ; }
-                                else if (ch === ',' && !inQ) { clean.push(cur.trim()); cur = ''; }
-                                else { cur += ch; }
-                            }
-                            clean.push(cur.trim());
-                            if (clean.length < 9 || !clean[0]) {
-                                errors++;
-                                return;
-                            }
-                            
-                            const client = {
-                                id: Date.now() + index,
-                                name: clean[0],
-                                address: clean[1] || '',
-                                city: clean[2] || '',
-                                zip: clean[3] || '',
-                                phone: clean[4] || '',
-                                email: clean[5] || '',
-                                propId: clean[6] || '',
-                                price: parseFloat(clean[7]) || 0,
-                                type: clean[8] || 'semanal',
-                                state: 'TX'
-                            };
-                            
-                            if (client.name) {
-                                newClients.push(client);
-                            } else {
-                                errors++;
-                            }
-                        } catch (err) {
-                            errors++;
+                    const plan = [];
+                    let toUpdate = 0, toAdd = 0, unchanged = 0;
+
+                    dataLines.forEach((line) => {
+                        const clean = [];
+                        let cur = '', inQ = false;
+                        for (let ci = 0; ci < line.length; ci++) {
+                            const ch = line[ci];
+                            if (ch === '"') { inQ = !inQ; }
+                            else if (ch === ',' && !inQ) { clean.push(cur.trim()); cur = ''; }
+                            else { cur += ch; }
+                        }
+                        clean.push(cur.trim());
+                        if (clean.length < 9 || !clean[0]) { errors++; return; }
+
+                        const name = clean[0];
+                        const propId = clean[6] || name;
+                        const row = {
+                            name, address: clean[1] || '', city: clean[2] || '', zip: clean[3] || '',
+                            phone: clean[4] || '', email: clean[5] || '', propId,
+                            price: parseFloat(clean[7]) || 0, type: clean[8] || 'semanal'
+                        };
+                        const existing = this.clis.find(c =>
+                            (c.name||'').trim().toLowerCase() === name.trim().toLowerCase() &&
+                            ((c.propId||c.name||'').trim().toLowerCase()) === propId.trim().toLowerCase()
+                        );
+                        if (existing) {
+                            const changes = {};
+                            if (row.address && row.address !== (existing.address||'')) changes.address = row.address;
+                            if (row.city && row.city !== (existing.city||'')) changes.city = row.city;
+                            if (row.zip && row.zip !== (existing.zip||'')) changes.zip = row.zip;
+                            if (row.phone && row.phone !== (existing.phone||'')) changes.phone = row.phone;
+                            if (row.email && row.email !== (existing.email||'')) changes.email = row.email;
+                            if (!isNaN(row.price) && row.price !== existing.price) changes.price = row.price;
+                            if (row.type && row.type !== existing.type) changes.type = row.type;
+                            if (Object.keys(changes).length) { toUpdate++; } else { unchanged++; }
+                            plan.push({ isNew:false, existing, changes });
+                        } else {
+                            toAdd++;
+                            plan.push({ isNew:true, row });
                         }
                     });
-                    
-                    if (newClients.length === 0) {
-                        alert('❌ No se pudieron importar clientes. Verifica el formato del CSV.');
-                        return;
-                    }
-                    
-                    const msg = `📊 IMPORTAR ${newClients.length} CLIENTES\n\n` +
-                               `Clientes actuales: ${this.clis.length}\n` +
-                               `Nuevos clientes: ${newClients.length}\n` +
-                               (errors > 0 ? `Errores: ${errors} líneas\n\n` : '\n') +
-                               `¿Deseas AGREGAR estos clientes?\n` +
-                               `(No se borrarán los existentes)`;
-                    
+
+                    if (plan.length === 0) { alert('❌ No se pudieron leer clientes. Verifica el formato del CSV.'); return; }
+
+                    const msg = `📊 ACTUALIZAR Y AGREGAR CLIENTES\n\n` +
+                        `Actualizar existentes: ${toUpdate}\n` +
+                        `Agregar nuevos: ${toAdd}\n` +
+                        `Sin cambios: ${unchanged}\n` +
+                        (errors > 0 ? `Líneas con error: ${errors}\n` : '') +
+                        `\nSe emparejan por Nombre + PropiedadID.\n` +
+                        `No se borra ningún cliente, grupo ni nota.\n\n¿Aplicar?`;
                     if (!confirm(msg)) return;
-                    
-                    this.clis = [...this.clis, ...newClients];
+
+                    plan.forEach(p => {
+                        if (p.isNew) {
+                            const r = p.row;
+                            this.clis.push({
+                                id: `cli_bra_${Date.now()}_${Math.floor(Math.random()*1000000)}`,
+                                name: r.name, address: r.address, city: r.city, state: 'TX',
+                                zip: r.zip, phone: r.phone, email: r.email,
+                                price: r.price, fee: r.price, type: r.type,
+                                serviceType: deriveSvc(r.type), billingPeriod: deriveBill(r.type),
+                                propId: r.propId, active: true, notes: ''
+                            });
+                        } else if (Object.keys(p.changes).length) {
+                            const c = p.existing, ch = p.changes;
+                            if (ch.address !== undefined) c.address = ch.address;
+                            if (ch.city !== undefined) c.city = ch.city;
+                            if (ch.zip !== undefined) c.zip = ch.zip;
+                            if (ch.phone !== undefined) c.phone = ch.phone;
+                            if (ch.email !== undefined) c.email = ch.email;
+                            if (ch.price !== undefined) { c.price = ch.price; c.fee = ch.price; }
+                            if (ch.type !== undefined) {
+                                c.type = ch.type;
+                                c.serviceType = deriveSvc(ch.type);
+                                c.billingPeriod = deriveBill(ch.type);
+                            }
+                        }
+                    });
+
                     localStorage.setItem('v35_clis', JSON.stringify(this.clis));
                     this.renderClis();
-                    
-                    alert(`✅ ¡${newClients.length} clientes importados correctamente!` +
-                         (errors > 0 ? `\n\n⚠️ ${errors} líneas con errores fueron omitidas` : ''));
-                    
+                    alert(`✅ Listo: ${toUpdate} actualizados, ${toAdd} agregados` +
+                          (unchanged > 0 ? `, ${unchanged} sin cambios` : '') + '.' +
+                          (errors > 0 ? `\n⚠️ ${errors} líneas con error fueron omitidas.` : ''));
                 } catch (error) {
                     alert('❌ Error al importar: ' + error.message);
                     console.error('Import error:', error);
                 }
             };
-            
             reader.readAsText(file);
         };
-        
         input.click();
     }
     
