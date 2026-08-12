@@ -1641,11 +1641,17 @@
         <div id="finTabResumen" style="display: none; padding: 15px;">
             <div style="background:#f8f9fa; padding:10px; border-radius:6px; margin-bottom: 15px;">
                 <!-- Filtros de período -->
-                <div style="display:flex; gap:6px; justify-content:center">
+                <div style="display:flex; gap:6px; justify-content:center; flex-wrap:wrap;">
                     <button onclick="app.setFinResumenPeriod('month')" class="btn" id="btnResumenMes" style="background:#27ae60; color:white; padding: 6px 12px; font-size: 0.85rem;">Mes</button>
                     <button onclick="app.setFinResumenPeriod('quarter')" class="btn" id="btnResumenTrimestre" style="background:#95a5a6; color:white; padding: 6px 12px; font-size: 0.85rem;">Trimestre</button>
                     <button onclick="app.setFinResumenPeriod('semester')" class="btn" id="btnResumenSemestre" style="background:#95a5a6; color:white; padding: 6px 12px; font-size: 0.85rem;">Semestre</button>
                     <button onclick="app.setFinResumenPeriod('year')" class="btn" id="btnResumenAno" style="background:#95a5a6; color:white; padding: 6px 12px; font-size: 0.85rem;">Año</button>
+                </div>
+                <!-- Navegador de período -->
+                <div style="display:flex; gap:10px; justify-content:center; align-items:center; margin-top:8px;">
+                    <button onclick="app.navegarFinance(-1)" class="btn" style="background:#7f8c8d; color:white; padding: 6px 14px; font-size: 0.85rem;">◀</button>
+                    <span id="finResumenLabel" style="font-weight:bold; min-width:160px; text-align:center; color:#2c3e50;"></span>
+                    <button onclick="app.navegarFinance(1)" class="btn" style="background:#7f8c8d; color:white; padding: 6px 14px; font-size: 0.85rem;">▶</button>
                 </div>
             </div>
             
@@ -8985,6 +8991,7 @@ Motivo de cancelación (opcional):`);
         
         // Guardar período actual para exportar
         this.currentResumenPeriod = period;
+        this.finResumenOffset = 0;   // reiniciar el navegador al cambiar de modo
         
         // Actualizar botones
         const btnMes = document.getElementById('btnResumenMes');
@@ -9005,25 +9012,39 @@ Motivo de cancelación (opcional):`);
         this.generateResumenFinanciero(period);
     }
     
+    navegarFinance(dir) {
+        // ◀ / ▶ : mueve el período del Resumen Financiero por su unidad activa
+        if (!this.currentResumenPeriod) this.currentResumenPeriod = 'month';
+        this.finResumenOffset = (this.finResumenOffset || 0) + dir;
+        this.generateResumenFinanciero(this.currentResumenPeriod);
+    }
+    
     generateResumenFinanciero(period) {
         const today = new Date();
-        let start, end;
+        const off = this.finResumenOffset || 0;   // desplazamiento del navegador ◀▶
+        let start, end, periodLabel = '';
         
         if (period === 'month') {
-            start = new Date(today.getFullYear(), today.getMonth(), 1);
-            end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            start = new Date(today.getFullYear(), today.getMonth() + off, 1);
+            end = new Date(today.getFullYear(), today.getMonth() + off + 1, 0);
+            periodLabel = start.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
         } else if (period === 'quarter') {
             const quarter = Math.floor(today.getMonth() / 3);
-            start = new Date(today.getFullYear(), quarter * 3, 1);
-            end = new Date(today.getFullYear(), quarter * 3 + 3, 0);
+            start = new Date(today.getFullYear(), quarter * 3 + off * 3, 1);
+            end = new Date(today.getFullYear(), quarter * 3 + off * 3 + 3, 0);
+            periodLabel = `${start.toLocaleDateString('es-MX',{month:'short'})}–${new Date(end.getFullYear(), end.getMonth(), 1).toLocaleDateString('es-MX',{month:'short'})} ${end.getFullYear()}`;
         } else if (period === 'semester') {
             const semester = today.getMonth() < 6 ? 0 : 6;
-            start = new Date(today.getFullYear(), semester, 1);
-            end = new Date(today.getFullYear(), semester + 6, 0);
+            start = new Date(today.getFullYear(), semester + off * 6, 1);
+            end = new Date(today.getFullYear(), semester + off * 6 + 6, 0);
+            periodLabel = `${start.toLocaleDateString('es-MX',{month:'short'})}–${new Date(end.getFullYear(), end.getMonth(), 1).toLocaleDateString('es-MX',{month:'short'})} ${end.getFullYear()}`;
         } else if (period === 'year') {
-            start = new Date(today.getFullYear(), 0, 1);
-            end = new Date(today.getFullYear(), 11, 31);
+            start = new Date(today.getFullYear() + off, 0, 1);
+            end = new Date(today.getFullYear() + off, 11, 31);
+            periodLabel = String(start.getFullYear());
         }
+        const _finLbl = document.getElementById('finResumenLabel');
+        if (_finLbl) _finLbl.textContent = periodLabel;
         
         const formatDate = (date) => {
             const year = date.getFullYear();
@@ -9257,14 +9278,14 @@ Motivo de cancelación (opcional):`);
     }
 
     async driveReadNominaTotales() {
-        // Buscar archivo ana_nomina_totales.json en Drive
+        // Buscar archivo anas_nomina_totales.json en Drive
         const searchRes = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=name='ana_nomina_totales.json'&fields=files(id,name)`,
+            `https://www.googleapis.com/drive/v3/files?q=name='anas_nomina_totales.json'&fields=files(id,name)`,
             { headers: { Authorization: `Bearer ${this.driveToken}` } }
         );
         const searchData = await searchRes.json();
         if (!searchData.files || searchData.files.length === 0) {
-            throw new Error('Archivo ana_nomina_totales.json no encontrado en Drive');
+            throw new Error('Archivo anas_nomina_totales.json no encontrado en Drive');
         }
         const fileId = searchData.files[0].id;
         const fileRes = await fetch(
@@ -16061,7 +16082,7 @@ Motivo de cancelación (opcional):`);
                     });
 
                     localStorage.setItem('v35_clis', JSON.stringify(this.clis));
-                    this.renderClis();
+                    this.refreshSels(); this.render();
                     alert(`✅ Listo: ${toUpdate} actualizados, ${toAdd} agregados` +
                           (unchanged > 0 ? `, ${unchanged} sin cambios` : '') + '.' +
                           (errors > 0 ? `\n⚠️ ${errors} líneas con error fueron omitidas.` : ''));
@@ -17811,8 +17832,11 @@ Motivo de cancelación (opcional):`);
             let empList = null;
 
             if (this.driveConnected && this.driveFolderId) {
-                // Drive disponible → leer ana_nomina_sync.json
-                const nominaSync = await this.driveReadFile('ana_nomina_sync.json');
+                // Drive disponible → leer anas_nomina_sync.json (con fallback al nombre viejo sin 's')
+                let nominaSync = null;
+                try { nominaSync = await this.driveReadFile('anas_nomina_sync.json'); }
+                catch(e) { nominaSync = await this.driveReadFile('ana_nomina_sync.json'); }
+                this._nominaSyncData = nominaSync;
                 empList = nominaSync?.employees || null;
             } else {
                 // Fallback: localStorage compartido (mismo navegador)
@@ -17862,11 +17886,32 @@ Motivo de cancelación (opcional):`);
 
         // ── Importar totales de nómina ──
         try {
-            const totales = await this.driveReadNominaTotales();
-            if (totales && totales.periodos) {
-                this.nominaTotales = totales.periodos;
+            // Preferir los períodos GUARDADOS que ya vienen en anas_nomina_sync.json
+            const spp = (this._nominaSyncData && this._nominaSyncData.savedPayrollPeriods) || null;
+            if (spp && spp.length) {
+                const seen = new Set();
+                this.nominaTotales = spp.map(p => ({
+                    periodoId: p.id || '',
+                    fechaInicio: p.start || p.startDate || '',
+                    fechaFin: p.end || p.endDate || '',
+                    etiqueta: p.label || `${p.start || ''} - ${p.end || ''}`,
+                    totalNeto: Math.round((p.payroll || []).reduce((s, e) => s + (e.netPay || 0), 0) * 100) / 100
+                })).filter(x => {
+                    if (!x.fechaInicio || !x.fechaFin) return false;   // sin fechas no se puede ubicar
+                    const k = x.fechaInicio + '|' + x.fechaFin;
+                    if (seen.has(k)) return false;                     // quitar períodos duplicados
+                    seen.add(k); return true;
+                });
                 localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
                 nominasOk = true;
+            } else {
+                // Fallback: archivo de totales aparte (anas_nomina_totales.json)
+                const totales = await this.driveReadNominaTotales();
+                if (totales && totales.periodos) {
+                    this.nominaTotales = totales.periodos;
+                    localStorage.setItem('v35_nominaTotales', JSON.stringify(this.nominaTotales));
+                    nominasOk = true;
+                }
             }
         } catch(err) {
             console.log('ℹ️ Nóminas no disponibles (Drive no conectado o sin datos):', err.message);
