@@ -17895,6 +17895,7 @@ Motivo de cancelación (opcional):`);
                     fechaInicio: p.start || p.startDate || '',
                     fechaFin: p.end || p.endDate || '',
                     etiqueta: p.label || `${p.start || ''} - ${p.end || ''}`,
+                    numEmpleados: (p.payroll || []).length,
                     totalNeto: Math.round((p.payroll || []).reduce((s, e) => s + (e.netPay || 0), 0) * 100) / 100
                 })).filter(x => {
                     if (!x.fechaInicio || !x.fechaFin) return false;   // sin fechas no se puede ubicar
