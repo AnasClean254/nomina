@@ -1767,6 +1767,8 @@ class Scheduler {
         this.estimates = JSON.parse(localStorage.getItem('v35_estimates')) || [];
         this.serviceCatalog = JSON.parse(localStorage.getItem('v35_serviceCatalog')) || this.getDefaultServiceCatalog();
         this.nominaTotales = JSON.parse(localStorage.getItem('v35_nominaTotales')) || [];
+        this.gastosAna = JSON.parse(localStorage.getItem('v35_gastosAna')) || [];
+        this.gastosAnaCats = JSON.parse(localStorage.getItem('v35_gastosAnaCats')) || {};
         this.gastosCategories = JSON.parse(localStorage.getItem('v35_gastosCategories')) || {
             "Vehículos": ["Gas", "Aseguranza", "Reparación", "Renovación de placas"],
             "Materiales y Equipo": ["Productos químicos", "Herramientas", "Equipo"],
@@ -9070,7 +9072,7 @@ Motivo de cancelación (opcional):`);
         });
         
         // Filtrar gastos por período
-        const filteredGastos = this.gastos.filter(g => g.fecha >= startStr && g.fecha <= endStr);
+        const filteredGastos = (this.gastosAna || []).filter(g => g.fecha >= startStr && g.fecha <= endStr);
         
         // 💰 Calcular nómina del período
         let totalNomina = 0;
@@ -9143,6 +9145,7 @@ Motivo de cancelación (opcional):`);
                     <div style="display: flex; align-items: center; margin-bottom: 10px;">
                         <span style="font-weight: 600; color: #2c3e50;">Gastos</span>
                         <span style="color: #6c757d; font-size: 0.85rem; margin-left: 10px;">(${filteredGastos.length} registros)</span>
+                        <button onclick="app.refrescarGastosAna()" title="Actualizar gastos desde AnaGastos" style="background:none; border:none; cursor:pointer; font-size:0.9rem; margin-left:6px;">🔄</button>
                         <span style="flex: 1; border-bottom: 2px dotted #ddd; margin: 0 10px;"></span>
                         <div style="font-size: 1.2rem; font-weight: 700; color: #dc3545;">
                             -$${totalGastos.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}
@@ -9150,30 +9153,41 @@ Motivo de cancelación (opcional):`);
                     </div>
         `;
         
-        // Desglose de gastos
+        // Desglose de gastos — COLAPSABLE: por defecto solo categorias; clic para ver subcategorias
         if (Object.keys(gastosPorCategoria).length > 0) {
-            html += `<div style="padding-left: 20px; margin-top: 10px;">`;
+            html += `<div style="padding-left: 12px; margin-top: 8px;">`;
+            html += `<div style="text-align:right; margin-bottom:6px;">
+                        <button onclick="app.toggleAllGastoCats(true)" style="background:#ecf0f1; border:1px solid #ccc; border-radius:5px; padding:3px 8px; font-size:0.72rem; cursor:pointer; margin-right:4px;">Expandir todo</button>
+                        <button onclick="app.toggleAllGastoCats(false)" style="background:#ecf0f1; border:1px solid #ccc; border-radius:5px; padding:3px 8px; font-size:0.72rem; cursor:pointer;">Colapsar todo</button>
+                     </div>`;
+            let _gcatN = 0;
             Object.keys(gastosPorCategoria).sort().forEach(cat => {
                 const catData = gastosPorCategoria[cat];
+                const subId = `gcat_${_gcatN}_sub`;
+                const hasSub = Object.keys(catData.subcategorias).length > 0;
                 html += `
-                    <div style="display: flex; align-items: center; padding: 5px 0; font-size: 0.9rem; color: #495057;">
-                        <span style="font-weight: 500;">${cat}</span>
+                    <div ${hasSub ? `onclick="app.toggleGastoCat('${subId}')"` : ''} style="display: flex; align-items: center; padding: 6px 0; font-size: 0.9rem; color: #495057; cursor: ${hasSub ? 'pointer' : 'default'};">
+                        <span id="${subId}_arr" style="width:14px; color:#95a5a6;">${hasSub ? '▸' : ''}</span>
+                        <span style="font-weight: 600;">${cat}</span>
                         <span style="flex: 1; border-bottom: 1px dotted #ccc; margin: 0 10px;"></span>
-                        <span>$${catData.total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                        <span style="font-weight:600;">$${catData.total.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
                     </div>
                 `;
-                
-                // Subcategorías (indentadas)
-                Object.keys(catData.subcategorias).sort().forEach(subcat => {
-                    const monto = catData.subcategorias[subcat];
-                    html += `
-                        <div style="display: flex; align-items: center; padding: 3px 0 3px 20px; font-size: 0.85rem; color: #6c757d;">
-                            <span>• ${subcat}</span>
-                            <span style="flex: 1; border-bottom: 1px dotted #ddd; margin: 0 8px;"></span>
-                            <span>$${monto.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
-                        </div>
-                    `;
-                });
+                if (hasSub) {
+                    html += `<div id="${subId}" data-gcat-sub style="display:none;">`;
+                    Object.keys(catData.subcategorias).sort().forEach(subcat => {
+                        const monto = catData.subcategorias[subcat];
+                        html += `
+                            <div style="display: flex; align-items: center; padding: 3px 0 3px 28px; font-size: 0.85rem; color: #6c757d;">
+                                <span>• ${subcat}</span>
+                                <span style="flex: 1; border-bottom: 1px dotted #ddd; margin: 0 8px;"></span>
+                                <span>$${monto.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>
+                            </div>
+                        `;
+                    });
+                    html += `</div>`;
+                }
+                _gcatN++;
             });
             html += `</div>`;
         }
@@ -9261,6 +9275,44 @@ Motivo de cancelación (opcional):`);
             btn.disabled = false;
             alert('❌ ' + err.message);
         }
+    }
+
+    async importGastosFromAnaGastos() {
+        // Espejo de SOLO LECTURA (Opcion A): lee anas_gastos.json y REEMPLAZA el conjunto completo.
+        try {
+            if (!this.driveToken) return;
+            let data = null;
+            try { data = await this.driveReadFile('anas_gastos.json'); }
+            catch(e) { return; }
+            if (data && Array.isArray(data.gastos)) {
+                this.gastosAna = data.gastos;
+                this.gastosAnaCats = data.cats || {};
+                localStorage.setItem('v35_gastosAna', JSON.stringify(this.gastosAna));
+                localStorage.setItem('v35_gastosAnaCats', JSON.stringify(this.gastosAnaCats));
+            }
+        } catch(err) { console.log('ℹ️ Gastos de Ana no disponibles:', err.message); }
+    }
+
+    async refrescarGastosAna() {
+        await this.importGastosFromAnaGastos();
+        this.generateResumenFinanciero(this.currentResumenPeriod || 'month');
+    }
+
+    toggleGastoCat(id) {
+        const sub = document.getElementById(id);
+        const arrow = document.getElementById(id + '_arr');
+        if (!sub) return;
+        const open = sub.style.display !== 'none';
+        sub.style.display = open ? 'none' : 'block';
+        if (arrow) arrow.textContent = open ? '▸' : '▾';
+    }
+
+    toggleAllGastoCats(expand) {
+        document.querySelectorAll('[data-gcat-sub]').forEach(sub => {
+            sub.style.display = expand ? 'block' : 'none';
+            const arrow = document.getElementById(sub.id + '_arr');
+            if (arrow) arrow.textContent = expand ? '▾' : '▸';
+        });
     }
 
     async driveReadFile(fileName) {
@@ -9950,7 +10002,7 @@ Motivo de cancelación (opcional):`);
             });
             
             // Filtrar gastos
-            const filteredGastos = this.gastos.filter(g => g.fecha >= startStr && g.fecha <= endStr);
+            const filteredGastos = (this.gastosAna || []).filter(g => g.fecha >= startStr && g.fecha <= endStr);
             
             // Agrupar gastos
             const gastosPorCategoria = {};
@@ -17398,6 +17450,8 @@ Motivo de cancelación (opcional):`);
                 }
                 // Importar empleados de la Nómina — siempre, sin importar timestamps
                 await this.importEmployeesFromNomina();
+                // Importar gastos de AnaGastos (espejo de solo lectura para Finanzas)
+                await this.importGastosFromAnaGastos();
                 const toast = document.createElement('div');
                 toast.style.cssText = 'position:fixed;top:20px;right:20px;background:#27ae60;color:white;padding:15px 20px;border-radius:10px;z-index:9999;font-size:1rem;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
                 toast.innerHTML = '☁️ Conectado a Google Drive<br><small>Datos sincronizados</small>';
