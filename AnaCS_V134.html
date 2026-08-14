@@ -1127,7 +1127,7 @@
 </div>
 
 <div id="catalogModal" class="modal" onclick="event.stopPropagation()" style="z-index:9000;">
-    <div class="modal-content" style="width:min(900px, 95%);">
+    <div class="modal-content" style="width:80vw; max-width:1500px;">
         <div style="position: relative;">
             <button onclick="app.closeCatalog()" style="position: absolute; top: 0; right: 0; background: #e74c3c; color: white; border: none; width: 30px; height: 30px; border-radius: 50%; font-size: 1.1rem; font-weight: bold; cursor: pointer; line-height: 1; z-index: 10;">✕</button>
             <h2 style="margin-top:0; padding-right: 40px;">⚙ Base de Datos</h2>
@@ -1185,18 +1185,12 @@
                             <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:10px">
                                 <input type="hidden" id="editCliId">
                                 <input type="text" id="nc" placeholder="Nombre del Dueño" style="grid-column:span 2">
-                                <div id="propIdWrap" style="grid-column:span 2; display:none;">
-                                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                                        <label style="font-size:0.78rem; font-weight:700; color:#555;">🏠 Propiedades</label>
-                                        <button type="button" onclick="app.addPropField()" style="background:#27ae60;color:white;border:none;padding:2px 10px;border-radius:4px;cursor:pointer;font-size:0.75rem;">+ Agregar</button>
-                                    </div>
-                                    <div id="propFieldsList"></div>
-                                </div>
+                                <div style="grid-column:span 2; font-size:0.82rem; font-weight:700; color:#2c3e50; border-bottom:2px solid #e67e22; padding-bottom:3px; margin:6px 0 2px;">👤 Información del Cliente</div>
                                 <input type="hidden" id="np">
-                                <input type="number" id="pc" placeholder="Precio $">
+                                <input type="number" id="pc" placeholder="Precio $ (cliente)">
                                 <input type="tel" id="tc" placeholder="Teléfono">
-                                <input type="email" id="ec" placeholder="Email" style="grid-column:span 1">
-                                <input type="text" id="dc" placeholder="Dirección" style="grid-column:span 2">
+                                <input type="email" id="ec" placeholder="Email" style="grid-column:span 2">
+                                <input type="text" id="dc" placeholder="Dirección (residencia u oficina del cliente)" style="grid-column:span 2">
                                 <input type="text" id="dci" placeholder="Ciudad">
                                 <input type="text" id="dzip" placeholder="ZIP / Código Postal">
                                 <select id="ntype" onchange="app.togglePropIdWrap(this.value)" style="grid-column:span 2">
@@ -1205,6 +1199,17 @@
                                     <option value="semanal">Semanal</option><option value="cada3semanas">Cada 3 Sem</option><option value="quincenal">Quincenal</option>
                                     <option value="mensual">Mensual</option><option value="airbnb">AirBnB</option><option value="construccion">🏗️ Construcción</option>
                                 </select>
+                                <label style="grid-column:span 2; display:flex; align-items:center; gap:6px; font-size:0.82rem; font-weight:700; color:#2c3e50; cursor:pointer; background:#eaf2fb; border:1px solid #b6d4f0; border-radius:6px; padding:8px;">
+                                    <input type="checkbox" id="cliMultiProp" onchange="app.toggleMultiProp(this.checked)" style="width:auto;">
+                                    🏘️ Multipropiedad — cada propiedad con su recurrencia, facturación y grupo de factura
+                                </label>
+                                <div id="propIdWrap" style="grid-column:span 2; display:none;">
+                                    <div style="display:flex; justify-content:space-between; align-items:center; margin:6px 0 4px;">
+                                        <label style="font-size:0.82rem; font-weight:700; color:#2c3e50; border-bottom:2px solid #e67e22; padding-bottom:3px;">🏠 Propiedades (cada una con su precio y recurrencia)</label>
+                                        <button type="button" onclick="app.addPropField()" style="background:#27ae60;color:white;border:none;padding:2px 10px;border-radius:4px;cursor:pointer;font-size:0.75rem;">+ Agregar</button>
+                                    </div>
+                                    <div id="propFieldsList"></div>
+                                </div>
                                 <select id="cliServiceType" style="grid-column:span 2">
                                     <option value="residencial">🏠 Residencial</option>
                                     <option value="comercial">🏢 Comercial</option>
@@ -1760,9 +1765,11 @@ class Scheduler {
         this.clis = JSON.parse(localStorage.getItem('v35_clis')) || [];
         this.serviceLog = JSON.parse(localStorage.getItem('v35_serviceLog') || '[]');
         this.servs = JSON.parse(localStorage.getItem('v35_servs')) || [];
+        this.gruposHistorial = JSON.parse(localStorage.getItem('v35_gruposHistorial')) || {};
         this.grupos = JSON.parse(localStorage.getItem('v35_grupos')) || {
             "Grupo A":["","","","",""], "Grupo B":["","","","",""]
         };
+        this._dedupGrupos();
         this.gastos = JSON.parse(localStorage.getItem('v35_gastos')) || [];
         this.estimates = JSON.parse(localStorage.getItem('v35_estimates')) || [];
         this.serviceCatalog = JSON.parse(localStorage.getItem('v35_serviceCatalog')) || this.getDefaultServiceCatalog();
@@ -2484,30 +2491,22 @@ class Scheduler {
             chip.onclick = () => this.openGrupoEditModal(gName);
             bar.appendChild(chip);
         });
+        const rotBtn = document.createElement('div');
+        rotBtn.className = 'grupo-bar-chip';
+        rotBtn.style.background = '#34495e';
+        rotBtn.style.cursor = 'pointer';
+        rotBtn.title = 'Rotar empleadas entre grupos para una fecha';
+        rotBtn.innerHTML = `<span class="chip-title">🔄 Rotación</span><span class="chip-members">arrastrar / tocar</span>`;
+        rotBtn.onclick = () => this.openRotacionModal();
+        bar.appendChild(rotBtn);
         grid.appendChild(bar);
     }
 
     openGrupoEditModal(nombreGrupo) {
         const existing = document.getElementById('grupoEditModal');
         if (existing) existing.remove();
-        const slots = this.grupos[nombreGrupo] || [];
-        const assignedElsewhere = new Set();
-        Object.entries(this.grupos).forEach(([gName, members]) => {
-            if (gName === nombreGrupo) return;
-            members.forEach(id => { if (id) assignedElsewhere.add(String(id)); });
-        });
-        const assignedIds = new Set();
-        Object.values(this.grupos).forEach(ms => ms.forEach(id => { if (id) assignedIds.add(String(id)); }));
-        const unassigned = this.emps.filter(e => !assignedIds.has(String(e.id)));
-        const selects = Array.from({length:5}, (_,i) => {
-            const currentId = String(slots[i] || '');
-            const opts = `<option value="">— Vacante —</option>` +
-                this.emps.filter(e => !assignedElsewhere.has(String(e.id)) || String(e.id) === currentId)
-                .map(e => `<option value="${e.id}" ${String(e.id)===currentId?'selected':''}>${e.name}</option>`).join('');
-            return `<div style="margin-bottom:8px;"><label style="font-size:0.8rem;color:#666;">Posición ${i+1}:</label><select id="gEditSlot_${i}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">${opts}</select></div>`;
-        }).join('');
-        const unassignedHtml = unassigned.length > 0
-            ? `<div style="background:#fff3cd;border-radius:8px;padding:10px;margin-top:10px;"><div style="font-size:0.8rem;font-weight:700;color:#856404;margin-bottom:4px;">⚠️ Sin grupo:</div>${unassigned.map(e=>`<span style="font-size:0.78rem;color:#856404;">• ${e.name}</span><br>`).join('')}</div>` : '';
+        const fecha = new Date().toLocaleDateString('en-CA');
+        this._grupoEditFecha = fecha;
         const gColor = this.getGrupoColor(nombreGrupo);
         const modal = document.createElement('div');
         modal.id = 'grupoEditModal';
@@ -2517,7 +2516,13 @@ class Scheduler {
                 <h3 style="margin:0;color:${gColor};">👥 ${nombreGrupo}</h3>
                 <button onclick="document.getElementById('grupoEditModal').remove()" style="background:none;border:none;font-size:1.3rem;cursor:pointer;color:#999;">✕</button>
             </div>
-            ${selects}${unassignedHtml}
+            <div style="display:flex;align-items:center;gap:6px;justify-content:center;margin-bottom:8px;background:#f8f9fa;border-radius:8px;padding:8px;">
+                <button onclick="app._navGrupoFecha('${nombreGrupo}',-1)" style="background:${gColor};color:white;border:none;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:1rem;">◀</button>
+                <input type="date" id="gEditFecha" value="${fecha}" onchange="app._setGrupoFecha('${nombreGrupo}', this.value)" style="padding:7px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;">
+                <button onclick="app._navGrupoFecha('${nombreGrupo}',1)" style="background:${gColor};color:white;border:none;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:1rem;">▶</button>
+            </div>
+            <div id="gEditFechaMsg" style="text-align:center;font-size:0.75rem;color:#888;margin-bottom:10px;">Editando HOY (actualiza el grupo actual + historial)</div>
+            <div id="gEditSlotsWrap">${this._renderGrupoSlots(nombreGrupo, fecha)}</div>
             <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
                 <button onclick="document.getElementById('grupoEditModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
                 <button onclick="app.saveGrupoFromModal('${nombreGrupo}')" style="background:${gColor};color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar</button>
@@ -2527,14 +2532,247 @@ class Scheduler {
         modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
     }
 
+    // Limpia this.grupos: quita empleadas repetidas y vacantes de cada grupo. Persiste si cambió.
+    _dedupGrupos() {
+        if (!this.grupos || typeof this.grupos !== 'object') return;
+        let changed = false;
+        Object.keys(this.grupos).forEach(g => {
+            const arr = this.grupos[g] || [];
+            const seen = new Set(); const out = [];
+            arr.forEach(id => { if (!id) return; const k = String(id); if (seen.has(k)) return; seen.add(k); out.push(id); });
+            if (out.length !== arr.length) changed = true;
+            this.grupos[g] = out;
+        });
+        if (changed) localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
+    }
+
+    _rosterParaFecha(nombreGrupo, fecha) {
+        const hoy = new Date().toLocaleDateString('en-CA');
+        let base;
+        if (fecha === hoy) {
+            base = this.grupos[nombreGrupo] || [];   // HOY = composición actual (fuente de verdad, = el botón)
+        } else {
+            const hist = this.gruposHistorial || {};
+            if (hist[fecha] && hist[fecha][nombreGrupo]) base = hist[fecha][nombreGrupo];
+            else {
+                const previas = Object.keys(hist).filter(fq => fq < fecha && hist[fq][nombreGrupo]).sort();
+                base = previas.length ? hist[previas[previas.length-1]][nombreGrupo] : (this.grupos[nombreGrupo] || []);
+            }
+        }
+        // dedup: la misma empleada no puede aparecer dos veces en el grupo
+        const seen = new Set(); const out = [];
+        base.forEach(id => { if (!id) return; const k = String(id); if (seen.has(k)) return; seen.add(k); out.push(id); });
+        return out;
+    }
+
+    _serviciosDeGrupoFecha(nombreGrupo, fecha) {
+        const roster = new Set(this._rosterParaFecha(nombreGrupo, fecha).map(String));
+        return (this.servs || []).filter(sv => sv.date === fecha && !sv.cancelled &&
+            (sv.grupo === nombreGrupo || (sv.empId && roster.has(String(sv.empId)))));
+    }
+
+    _renderGrupoSlots(nombreGrupo, fecha) {
+        const slots = this._rosterParaFecha(nombreGrupo, fecha);
+        const assignedElsewhere = new Set();
+        Object.keys(this.grupos).forEach(gName => {
+            if (gName === nombreGrupo) return;
+            this._rosterParaFecha(gName, fecha).forEach(id => { if (id) assignedElsewhere.add(String(id)); });
+        });
+        const assignedIds = new Set();
+        Object.keys(this.grupos).forEach(gName => this._rosterParaFecha(gName, fecha).forEach(id => { if (id) assignedIds.add(String(id)); }));
+        const unassigned = this.emps.filter(e => !assignedIds.has(String(e.id)));
+        const _nSlots = Math.max(5, slots.filter(Boolean).length);
+        const selects = Array.from({length:_nSlots}, (_,i) => {
+            const currentId = String(slots[i] || '');
+            const opts = `<option value="">— Vacante —</option>` +
+                this.emps.filter(e => !assignedElsewhere.has(String(e.id)) || String(e.id) === currentId)
+                .map(e => `<option value="${e.id}" ${String(e.id)===currentId?'selected':''}>${e.name}</option>`).join('');
+            return `<div style="margin-bottom:8px;"><label style="font-size:0.8rem;color:#666;">Posición ${i+1}:</label><select id="gEditSlot_${i}" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;">${opts}</select></div>`;
+        }).join('');
+        const unassignedHtml = unassigned.length > 0
+            ? `<div style="background:#fff3cd;border-radius:8px;padding:10px;margin-top:10px;"><div style="font-size:0.8rem;font-weight:700;color:#856404;margin-bottom:4px;">⚠️ Sin grupo:</div>${unassigned.map(e=>`<span style="font-size:0.78rem;color:#856404;">• ${e.name}</span><br>`).join('')}</div>` : '';
+        const servs = this._serviciosDeGrupoFecha(nombreGrupo, fecha);
+        const servsHtml = servs.length
+            ? `<div style="background:#eef7ee;border-radius:8px;padding:10px;margin-top:10px;"><div style="font-size:0.8rem;font-weight:700;color:#256029;margin-bottom:4px;">🧹 Servicios de este grupo (${fecha}) — ${servs.length}:</div>${servs.map(sv=>{const c=this.clis.find(x=>String(x.id)===String(sv.cliId)); return `<span style="font-size:0.76rem;color:#256029;">• ${c?(c.propId||c.name):(sv.name||'Servicio')}</span><br>`;}).join('')}</div>`
+            : `<div style="font-size:0.75rem;color:#aaa;margin-top:8px;">Sin servicios registrados para este grupo el ${fecha}.</div>`;
+        return selects + unassignedHtml + servsHtml;
+    }
+
+    _setGrupoFecha(nombreGrupo, fecha) {
+        if (!fecha) return;
+        this._grupoEditFecha = fecha;
+        const wrap = document.getElementById('gEditSlotsWrap');
+        if (wrap) wrap.innerHTML = this._renderGrupoSlots(nombreGrupo, fecha);
+        const inp = document.getElementById('gEditFecha'); if (inp && inp.value !== fecha) inp.value = fecha;
+        const msg = document.getElementById('gEditFechaMsg');
+        if (msg) {
+            const hoy = new Date().toLocaleDateString('en-CA');
+            const tieneReg = this.gruposHistorial[fecha] && this.gruposHistorial[fecha][nombreGrupo];
+            msg.textContent = fecha === hoy
+                ? 'Editando HOY (actualiza el grupo actual + historial)'
+                : (tieneReg ? '📅 Editando el historial de esta fecha' : '📅 Sin registro este día — mostrando la última agrupación previa');
+        }
+    }
+
+    _navGrupoFecha(nombreGrupo, dir) {
+        const base = this._grupoEditFecha || new Date().toLocaleDateString('en-CA');
+        const d = new Date(base + 'T00:00:00');
+        d.setDate(d.getDate() + dir);
+        this._setGrupoFecha(nombreGrupo, d.toLocaleDateString('en-CA'));
+    }
+
+    // ── TABLERO DE ROTACIÓN DE GRUPOS (drag&drop + tocar-tocar, por fecha) ──
+    openRotacionModal() {
+        document.getElementById('rotacionModal')?.remove();
+        const fecha = new Date().toLocaleDateString('en-CA');
+        this._rotFecha = fecha;
+        this._rotSelected = null;
+        this._rotBuildState(fecha);
+        const modal = document.createElement('div');
+        modal.id = 'rotacionModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;';
+        modal.innerHTML = `<div style="background:white;border-radius:12px;padding:20px;max-width:900px;width:100%;max-height:92vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 style="margin:0;color:#2c3e50;">🔄 Rotación de Grupos</h3>
+                <button onclick="document.getElementById('rotacionModal').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#999;">✕</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:6px;justify-content:center;margin-bottom:6px;background:#f8f9fa;border-radius:8px;padding:8px;">
+                <button onclick="app._rotNav(-1)" style="background:#34495e;color:white;border:none;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:1rem;">◀</button>
+                <input type="date" id="rotFecha" value="${fecha}" onchange="app._rotSetFecha(this.value)" style="padding:7px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;">
+                <button onclick="app._rotNav(1)" style="background:#34495e;color:white;border:none;width:34px;height:34px;border-radius:6px;cursor:pointer;font-size:1rem;">▶</button>
+            </div>
+            <div id="rotMsg" style="text-align:center;font-size:0.75rem;color:#888;margin-bottom:10px;"></div>
+            <div id="rotBoard"></div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                <button onclick="document.getElementById('rotacionModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                <button onclick="app.guardarRotacion()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar rotación</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+        this._rotRender();
+        this._rotUpdateMsg();
+    }
+
+    _rotBuildState(fecha) {
+        const state = {};
+        Object.keys(this.grupos).forEach(g => {
+            state[g] = this._rosterParaFecha(g, fecha).filter(id => id && id !== '').map(String);
+        });
+        const asignadas = new Set();
+        Object.values(state).forEach(arr => arr.forEach(id => asignadas.add(String(id))));
+        state['__sin__'] = this.emps.filter(e => !asignadas.has(String(e.id))).map(e => String(e.id));
+        this._rotState = state;
+    }
+
+    _rotUpdateMsg() {
+        const msg = document.getElementById('rotMsg');
+        if (!msg) return;
+        const hoy = new Date().toLocaleDateString('en-CA');
+        const tiene = this.gruposHistorial[this._rotFecha] && Object.keys(this.gruposHistorial[this._rotFecha]).length;
+        msg.innerHTML = this._rotFecha === hoy
+            ? 'Rotación de <b>HOY</b> (al guardar actualiza los grupos actuales + historial). Toca una empleada y luego el grupo destino, o arrástrala.'
+            : (tiene ? '📅 Editando la rotación de esta fecha (solo historial).' : '📅 Sin registro este día — base: última agrupación previa. Al guardar queda en el historial de esta fecha.');
+    }
+
+    _rotRender() {
+        const board = document.getElementById('rotBoard');
+        if (!board) return;
+        const cols = [...Object.keys(this.grupos), '__sin__'];
+        board.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;';
+        board.innerHTML = cols.map(g => {
+            const esSin = g === '__sin__';
+            const color = esSin ? '#95a5a6' : this.getGrupoColor(g);
+            const titulo = esSin ? '🚫 Sin grupo' : g;
+            const chips = (this._rotState[g] || []).map(id => {
+                const e = this.emps.find(x => String(x.id) === String(id));
+                const nombre = e ? e.name : '¿?';
+                const sel = String(this._rotSelected) === String(id);
+                return `<div draggable="true" ondragstart="app._rotDragStart(event,'${id}')" onclick="event.stopPropagation(); app._rotTapChip('${id}')" style="background:${sel?'#f1c40f':'#fff'};border:2px solid ${sel?'#f39c12':color};border-radius:8px;padding:7px 10px;margin:4px 0;cursor:pointer;font-size:0.85rem;color:#2c3e50;user-select:none;">${sel?'✋ ':''}${nombre}</div>`;
+            }).join('') || `<div style="font-size:0.75rem;color:#bbb;padding:6px;">— vacío —</div>`;
+            return `<div ondragover="event.preventDefault()" ondrop="app._rotDrop(event,'${g}')" onclick="app._rotTapColumn('${g}')" style="flex:1;min-width:150px;background:#f8f9fa;border-top:4px solid ${color};border-radius:8px;padding:8px;min-height:90px;">
+                <div style="font-weight:700;color:${color};font-size:0.9rem;margin-bottom:6px;text-align:center;">${titulo} <span style="color:#999;font-weight:400;">(${(this._rotState[g]||[]).length})</span></div>
+                ${chips}
+            </div>`;
+        }).join('');
+    }
+
+    _rotMove(empId, destGrupo) {
+        if (!this._rotState) return;
+        Object.keys(this._rotState).forEach(g => {
+            this._rotState[g] = this._rotState[g].filter(id => String(id) !== String(empId));
+        });
+        if (!this._rotState[destGrupo]) this._rotState[destGrupo] = [];
+        this._rotState[destGrupo].push(String(empId));
+        this._rotSelected = null;
+        this._rotRender();
+    }
+
+    _rotDragStart(ev, empId) { ev.dataTransfer.setData('text/plain', empId); this._rotSelected = null; }
+    _rotDrop(ev, destGrupo) { ev.preventDefault(); const empId = ev.dataTransfer.getData('text/plain'); if (empId) this._rotMove(empId, destGrupo); }
+    _rotTapChip(empId) { this._rotSelected = (String(this._rotSelected) === String(empId)) ? null : String(empId); this._rotRender(); }
+    _rotTapColumn(destGrupo) { if (this._rotSelected) this._rotMove(this._rotSelected, destGrupo); }
+
+    _rotSetFecha(fecha) {
+        if (!fecha) return;
+        this._rotFecha = fecha;
+        this._rotSelected = null;
+        this._rotBuildState(fecha);
+        const inp = document.getElementById('rotFecha'); if (inp && inp.value !== fecha) inp.value = fecha;
+        this._rotRender();
+        this._rotUpdateMsg();
+    }
+    _rotNav(dir) {
+        const base = this._rotFecha || new Date().toLocaleDateString('en-CA');
+        const d = new Date(base + 'T00:00:00'); d.setDate(d.getDate() + dir);
+        this._rotSetFecha(d.toLocaleDateString('en-CA'));
+    }
+
+    guardarRotacion() {
+        const fecha = this._rotFecha || new Date().toLocaleDateString('en-CA');
+        const hoy = new Date().toLocaleDateString('en-CA');
+        if (!this.gruposHistorial) this.gruposHistorial = {};
+        if (!this.gruposHistorial[fecha]) this.gruposHistorial[fecha] = {};
+        Object.keys(this.grupos).forEach(g => {
+            const seen = new Set();
+            const roster = (this._rotState[g] || []).filter(id => { if (!id) return false; const k = String(id); if (seen.has(k)) return false; seen.add(k); return true; });
+            this.gruposHistorial[fecha][g] = roster;
+            if (fecha === hoy) this.grupos[g] = roster.slice();
+        });
+        localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+        if (fecha === hoy) localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
+        this.save();
+        document.getElementById('rotacionModal')?.remove();
+        this.render();
+    }
+
     saveGrupoFromModal(nombreGrupo) {
-        for (let i = 0; i < 5; i++) {
-            const sel = document.getElementById(`gEditSlot_${i}`);
-            if (sel) this.grupos[nombreGrupo][i] = sel.value;
+        const fecha = this._grupoEditFecha || new Date().toLocaleDateString('en-CA');
+        const hoy = new Date().toLocaleDateString('en-CA');
+        const roster = [];
+        let _i = 0;
+        while (document.getElementById(`gEditSlot_${_i}`)) { roster.push(document.getElementById(`gEditSlot_${_i}`).value); _i++; }
+        // dedup: fuera vacantes y empleadas repetidas en el mismo grupo
+        const _seen = new Set();
+        const rosterClean = roster.filter(v => { if (!v) return false; if (_seen.has(v)) return false; _seen.add(v); return true; });
+        if (!this.gruposHistorial) this.gruposHistorial = {};
+        if (!this.gruposHistorial[fecha]) this.gruposHistorial[fecha] = {};
+        this.gruposHistorial[fecha][nombreGrupo] = rosterClean;
+        localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+        if (fecha === hoy) {
+            this.grupos[nombreGrupo] = rosterClean.slice();
+            localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
         }
         this.save();
         document.getElementById('grupoEditModal')?.remove();
         this.render();
+    }
+
+    mergeGruposHistorial(w = {}, l = {}) {
+        const out = {};
+        const fechas = new Set([...Object.keys(w||{}), ...Object.keys(l||{})]);
+        fechas.forEach(fq => { out[fq] = Object.assign({}, (l && l[fq]) || {}, (w && w[fq]) || {}); });
+        return out;
     }
 
     getGrupoColor(nombreGrupo) {
@@ -2734,7 +2972,9 @@ class Scheduler {
                 const textMode4 = this.getTextMode(typeKey4);
                 div.style.color = textMode4 === 'auto' ? getTextColor(bgColor4) : (textMode4 === 'white' ? '#fff' : '#000');
                 const propPart = showPropId && c.propId ? ` - ${c.propId}` : '';
-                const mainLine = `${prioPrefix}${c.name}${propPart}${[c.address, c.city].filter(Boolean).join(', ') ? ' - ' + [c.address, c.city].filter(Boolean).join(', ') : ''}`;
+                // Airbnb/único/construcción: mostrar el ID de propiedad (no la dirección).
+                const addrPart4 = showPropId ? '' : ([c.address, c.city].filter(Boolean).join(', ') ? ' - ' + [c.address, c.city].filter(Boolean).join(', ') : '');
+                const mainLine = `${prioPrefix}${c.name}${propPart}${addrPart4}`;
                 const timeLine = (s.timeStart || s.timeEnd)
                     ? `<div class="ev-time">${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}${(() => { if(s.timeStart && s.timeEnd) { const [sh,sm]=s.timeStart.split(':').map(Number); const [eh,em]=s.timeEnd.split(':').map(Number); const d=(eh*60+em)-(sh*60+sm); if(d>0) return ` (${Math.floor(d/60)}h${d%60>0?' '+d%60+'m':''})`; } return ''; })()}</div>`
                     : '';
@@ -10676,7 +10916,7 @@ Motivo de cancelación (opcional):`);
         this.save(); this.renderCat(); this.refreshSels();
     }
 
-    addPropField(value='', price='', billing='weekly', cliId='') {
+    addPropField(value='', price='', billing='weekly', cliId='', tipo='semanal', grupo='') {
         const list = document.getElementById('propFieldsList');
         if (!list) return;
         const row = document.createElement('div');
@@ -10684,42 +10924,78 @@ Motivo de cancelación (opcional):`);
         // por el TEXTO del nombre, así que al editarle el nombre a una propiedad la app ya
         // no la reconocía y creaba otra en vez de actualizarla (caso Hyacinth).
         if (cliId) row.dataset.cliId = String(cliId);
-        row.style.cssText = 'display:flex;gap:4px;margin-bottom:4px;align-items:center;';
+        row.style.cssText = 'display:flex;gap:4px;margin-bottom:6px;align-items:center;flex-wrap:nowrap;';
+        const recurOpts = ['unico','diario','2xsemana','3xsemana','semanal','cada3semanas','quincenal','mensual','airbnb','construccion'];
+        const recurLabels = {unico:'Único',diario:'Diario','2xsemana':'2x Sem','3xsemana':'3x Sem',semanal:'Semanal',cada3semanas:'Cada 3 Sem',quincenal:'Quincenal',mensual:'Mensual',airbnb:'AirBnB',construccion:'Construcción'};
+        const recurHtml = recurOpts.map(o => `<option value="${o}" ${tipo===o?'selected':''}>${recurLabels[o]}</option>`).join('');
         row.innerHTML = `
-            <input type="text" placeholder="Nombre/ID propiedad" value="${value}"
-                style="flex:2;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;">
-            <input type="number" placeholder="$Precio" value="${price}"
-                style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.85rem;" min="0" step="0.01">
-            <select title="Frecuencia de facturación de esta propiedad" style="flex:1;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.78rem;">
-                <option value="weekly" ${billing==='weekly'?'selected':''}>📅 Semanal</option>
-                <option value="monthly" ${billing==='monthly'?'selected':''}>🗓️ Mensual</option>
+            <input type="text" class="prop-name" placeholder="Nombre/ID propiedad" value="${value}" title="${value}"
+                style="flex:2.2;min-width:0;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.82rem;">
+            <input type="number" class="prop-price" placeholder="$Precio" value="${price}"
+                style="flex:0.9;min-width:0;padding:6px;border:1px solid #ddd;border-radius:4px;font-size:0.82rem;" min="0" step="0.01">
+            <select class="prop-recur" title="Recurrencia de esta propiedad" style="flex:1;min-width:0;padding:5px;border:1px solid #ddd;border-radius:4px;font-size:0.74rem;">
+                ${recurHtml}
             </select>
+            <select class="prop-bill" title="Frecuencia de facturación de esta propiedad" style="flex:1;min-width:0;padding:5px;border:1px solid #ddd;border-radius:4px;font-size:0.74rem;">
+                <option value="weekly" ${billing==='weekly'?'selected':''}>📅 Fact. Sem</option>
+                <option value="biweekly" ${billing==='biweekly'?'selected':''}>📅 Fact. Quinc</option>
+                <option value="monthly" ${billing==='monthly'?'selected':''}>🗓️ Fact. Mens</option>
+                <option value="perservice" ${billing==='perservice'?'selected':''}>🧾 Por Servicio</option>
+            </select>
+            <input type="text" class="prop-grupo" placeholder="Grupo" value="${grupo}" title="Misma etiqueta = misma factura; en blanco = individual"
+                style="flex:1;min-width:0;padding:5px;border:1px solid #ddd;border-radius:4px;font-size:0.74rem;">
             <button type="button" onclick="this.parentElement.remove()" 
                 style="background:#e74c3c;color:white;border:none;padding:4px 8px;border-radius:4px;cursor:pointer;font-size:0.8rem;">✕</button>`;
         list.appendChild(row);
     }
 
+    _toggleClientPriceRecur(isMulti) {
+        // Multipropiedad: el precio y la recurrencia los lleva CADA propiedad, no el cliente.
+        const pc = document.getElementById('pc');
+        const ntype = document.getElementById('ntype');
+        if (pc) pc.style.display = isMulti ? 'none' : '';
+        if (ntype) ntype.style.display = isMulti ? 'none' : '';
+    }
+
+    toggleMultiProp(checked) {
+        const wrap = document.getElementById('propIdWrap');
+        if (!wrap) return;
+        wrap.style.display = checked ? 'block' : 'none';
+        this._toggleClientPriceRecur(checked);
+        if (checked && document.getElementById('propFieldsList').children.length === 0) {
+            this.addPropField('', '', 'weekly', '', document.getElementById('ntype')?.value || 'semanal', '');
+        }
+    }
+
     togglePropIdWrap(type) {
         const wrap = document.getElementById('propIdWrap');
         if (!wrap) return;
-        const isMulti = type === 'airbnb' || type === 'construccion';
+        const cb = document.getElementById('cliMultiProp');
+        // airbnb/construccion siguen activando multipropiedad solos (marca la casilla)
+        if (type === 'airbnb' || type === 'construccion') { if (cb) cb.checked = true; }
+        const isMulti = (cb && cb.checked) || type === 'airbnb' || type === 'construccion';
         wrap.style.display = isMulti ? 'block' : 'none';
+        this._toggleClientPriceRecur(isMulti);
         if (isMulti && document.getElementById('propFieldsList').children.length === 0) {
-            this.addPropField();
+            this.addPropField('', '', 'weekly', '', type || 'semanal', '');
         }
+    }
+
+    _deriveSvcType(t) {
+        return t==='airbnb'?'airbnb':t==='unico'?'unico':t==='construccion'?'construccion':'residencial';
     }
 
     getPropsFromFields() {
         const list = document.getElementById('propFieldsList');
         if (!list) return [];
         return [...list.children].map(row => {
-            const inputs = row.querySelectorAll('input');
-            const select = row.querySelector('select');
-            const propId = inputs[0]?.value.trim() || '';
-            const price = inputs[1]?.value.trim() || '';
-            const billingPeriod = select?.value || 'weekly';
+            const propId = row.querySelector('.prop-name')?.value.trim() || '';
+            const price = row.querySelector('.prop-price')?.value.trim() || '';
+            const type = row.querySelector('.prop-recur')?.value || 'semanal';
+            const billingPeriod = row.querySelector('.prop-bill')?.value || 'weekly';
+            const grupoFactura = row.querySelector('.prop-grupo')?.value.trim() || '';
             const cliId = row.dataset.cliId || '';
-            return propId ? { propId, price, billingPeriod, cliId } : null;
+            return propId ? { propId, price, type, billingPeriod, grupoFactura, cliId } : null;
         }).filter(Boolean);
     }
 
@@ -10754,7 +11030,7 @@ Motivo de cancelación (opcional):`);
         const editId = document.getElementById('editCliId').value;
         const name = document.getElementById('nc').value.trim();
         const type = document.getElementById('ntype').value;
-        const isMulti = type === 'airbnb' || type === 'construccion'; // unico ya no es multi-propiedad
+        const isMulti = (document.getElementById('cliMultiProp') && document.getElementById('cliMultiProp').checked) || type === 'airbnb' || type === 'construccion';
         // Para multi-propiedad, leer del propFieldsList; para unico/otros, del campo dirección
         const propId = isMulti
             ? (this.getPropsFromFields()[0]?.propId || document.getElementById('np').value.trim())
@@ -10817,8 +11093,7 @@ Motivo de cancelación (opcional):`);
                 if(isMulti) {
                     // Para multi-propiedad: actualizar datos base y agregar/quitar propiedades
                     const mainCli = this.clis[idx];
-                    const existingProps = this.clis.filter(c => c.name === mainCli.name &&
-                        (c.type==='airbnb'||c.type==='construccion'));
+                    const existingProps = this.clis.filter(c => c.name === mainCli.name);
                     const wasMainAlreadyMulti = existingProps.includes(mainCli);
                     const existingPropIds = existingProps.map(c => c.propId);
                     const fieldProps = this.getPropsFromFields();
@@ -10827,8 +11102,8 @@ Motivo de cancelación (opcional):`);
                         c.name = name; c.tel = tel; c.email = email;
                         c.address = address; c.city = city; c.zip = zip;
                         c.paymentTerms = payTerms;
-                        c.type = type; c.serviceType = serviceType;
-                        c.invoicingType = invoicingType; // billingPeriod ya NO se fuerza aquí — cada propiedad tiene el suyo
+                        // type/serviceType/billingPeriod/grupoFactura ya NO se fuerzan aquí — cada propiedad tiene el suyo
+                        c.invoicingType = invoicingType;
                         c.autoCharge = autoCharge;
                         c.taxRate = taxRate;
                         c.cobraImpuestos = cobraImpuestos;
@@ -10851,8 +11126,13 @@ Motivo de cancelación (opcional):`);
                             if (fp.propId && fp.propId !== c.propId) c.propId = fp.propId;
                             c.price = fp.price || price;
                             c.billingPeriod = fp.billingPeriod || c.billingPeriod || billingPeriod;
+                            c.type = fp.type || c.type || type;                 // recurrencia POR propiedad
+                            c.serviceType = this._deriveSvcType(c.type);
+                            c.grupoFactura = fp.grupoFactura || '';             // etiqueta de grupo de factura
                         } else {
                             c.billingPeriod = c.billingPeriod || billingPeriod;
+                            if (!c.type) c.type = type;
+                            c.serviceType = this._deriveSvcType(c.type);
                         }
                         applyCommon(c);
                     });
@@ -10888,8 +11168,11 @@ Motivo de cancelación (opcional):`);
                             this.clis.push({
                                 id: String(Date.now() + i * 100 + Math.floor(Math.random() * 1000)), 
                                 name, propId: fp.propId.trim(),
-                                price: fp.price || price, tel, address, city, zip, type,
-                                serviceType, billingPeriod: fp.billingPeriod || billingPeriod, invoicingType,
+                                price: fp.price || price, tel, address, city, zip,
+                                type: fp.type || type,
+                                serviceType: this._deriveSvcType(fp.type || type),
+                                billingPeriod: fp.billingPeriod || billingPeriod, invoicingType,
+                                grupoFactura: fp.grupoFactura || '',
                                 taxRate: taxRate,
                                 cobraImpuestos: cobraImpuestos,
                                 servicePaused: servicePaused,
@@ -10910,7 +11193,6 @@ Motivo de cancelación (opcional):`);
                     this.clis = this.clis.filter(c => {
                         if(c.id === mainCli.id) return true;
                         if(c.name !== name) return true;
-                        if(c.type!=='airbnb'&&c.type!=='construccion') return true;
                         const sigue = idsEnForm.has(String(c.id))
                             || nombresSinId.includes((c.propId || '').trim().toLowerCase());
                         // Si de verdad se quitó, dejar lápida para que no reviva desde Drive
@@ -10974,6 +11256,8 @@ Motivo de cancelación (opcional):`);
             document.getElementById('ntype').value = 'unico';
             document.getElementById('cliServiceType').value = 'residencial';
             document.getElementById('cliBillingPeriod').value = 'monthly';
+            if(document.getElementById('cliMultiProp')) document.getElementById('cliMultiProp').checked = false;
+            this._toggleClientPriceRecur(false);
             document.getElementById('editCliId').value = '';
             document.getElementById('regenBlock').style.display = 'none';
             
@@ -10989,8 +11273,8 @@ Motivo de cancelación (opcional):`);
             return;
         }
         
-        // Sistema de propiedades múltiples para AirBnB/Construcción (NO unico)
-        if(type === 'airbnb' || type === 'construccion') {
+        // Sistema de propiedades múltiples (casilla Multipropiedad, o airbnb/construccion)
+        if(isMulti) {
             const props = this.getPropsFromFields();
             if (!props.length) { alert('Agrega al menos una propiedad'); return; }
             const invTypeProp = document.getElementById('cliInvoicingType') ? document.getElementById('cliInvoicingType').value : 'perservice';
@@ -11001,7 +11285,11 @@ Motivo de cancelación (opcional):`);
                 this.clis.push({
                     id: String(Date.now() + i * 100),
                     name, propId: fp.propId, price: fp.price || price, tel, address, city, zip,
-                    type, serviceType, billingPeriod, invoicingType: invTypeProp,
+                    type: fp.type || type,
+                    serviceType: this._deriveSvcType(fp.type || type),
+                    billingPeriod: fp.billingPeriod || billingPeriod,
+                    grupoFactura: fp.grupoFactura || '',
+                    invoicingType: invTypeProp,
                     taxRate: (document.getElementById('cliTaxRate') ? parseFloat(document.getElementById('cliTaxRate').value) || 8.25 : 8.25),
                     cobraImpuestos: (document.getElementById('cliApplyTax') ? document.getElementById('cliApplyTax').checked : true)
                 });
@@ -11120,17 +11408,21 @@ Motivo de cancelación (opcional):`);
             document.getElementById('regenFrom').value = _today;
             document.getElementById('regenUntil').value = _endYear;
             // Cargar propiedades múltiples si aplica
-            this.togglePropIdWrap(cli.type || '');
             const _editPropList = document.getElementById('propFieldsList');
             if (_editPropList) {
                 _editPropList.innerHTML = '';
-                const isMulti = cli.type==='airbnb'||cli.type==='construccion';
+                const allProps = this.clis.filter(c => c.name.trim().toLowerCase() === cli.name.trim().toLowerCase());
+                const isMulti = allProps.length > 1 || cli.type==='airbnb' || cli.type==='construccion';
+                const _cb = document.getElementById('cliMultiProp');
+                if (_cb) _cb.checked = isMulti;
+                const _wrap = document.getElementById('propIdWrap');
+                if (_wrap) _wrap.style.display = isMulti ? 'block' : 'none';
+                this._toggleClientPriceRecur(isMulti);
                 if(isMulti) {
-                    const allProps = this.clis.filter(c => c.name.trim().toLowerCase() === cli.name.trim().toLowerCase() && (c.type==='airbnb'||c.type==='unico'||c.type==='construccion'));
                     if(allProps.length > 0) {
-                        allProps.forEach(p => this.addPropField(p.propId || '', p.price || '', p.billingPeriod || 'weekly', p.id));
+                        allProps.forEach(p => this.addPropField(p.propId || '', p.price || '', p.billingPeriod || 'weekly', p.id, p.type || 'semanal', p.grupoFactura || ''));
                     } else if(cli.propId) {
-                        this.addPropField(cli.propId, '', cli.billingPeriod || 'weekly', cli.id);
+                        this.addPropField(cli.propId, '', cli.billingPeriod || 'weekly', cli.id, cli.type || 'semanal', cli.grupoFactura || '');
                     }
                 }
             }
@@ -11797,10 +12089,12 @@ Motivo de cancelación (opcional):`);
         alert('✅ Respaldo completo descargado.\n\nGuárdalo en un lugar seguro. Contiene TODOS los datos de la app. Puedes restaurarlo con el botón "Importar".');
     }
     importar() {
-        if (!confirm('⚠️ RESTAURAR REEMPLAZA TODOS LOS DATOS ACTUALES.\n\nTodo lo que tengas ahora en esta PC se perderá y se sustituirá por el contenido del archivo. Esto no se puede deshacer.\n\n¿Estás seguro de que quieres continuar?')) return;
         const i = document.createElement('input'); i.type = 'file';
-        i.accept = '.json';
+        i.accept = '.json,application/json';
         i.onchange = e => {
+            const file = e.target.files && e.target.files[0];
+            if (!file) return;
+            if (!confirm('RESTAURAR REEMPLAZA TODOS LOS DATOS ACTUALES.\n\nSe sustituira todo por el contenido del archivo y no se puede deshacer.\n\nContinuar?')) return;
             const r = new FileReader();
             r.onload = () => {
                 try {
@@ -11884,7 +12178,7 @@ Motivo de cancelación (opcional):`);
                     alert('❌ Error al importar: ' + err.message);
                 }
             };
-            r.readAsText(e.target.files[0]);
+            r.readAsText(file);
         };
         i.click();
     }
@@ -17809,6 +18103,7 @@ Motivo de cancelación (opcional):`);
                 clis: this.clis,
                 servs: this.servs,
                 grupos: this.grupos,
+                gruposHistorial: this.gruposHistorial || {},
                 // gastos: YA NO se suben a anaCS_sync.json — AnaGastos es la fuente de verdad de gastos.
                 // (Antes AnaGastos absorbía estos gastos y recontaminaba sus datos reales.)
                 gastosCategories: this.gastosCategories || {},
@@ -18070,6 +18365,7 @@ Motivo de cancelación (opcional):`);
                 if (data.clis)             { this.clis = data.clis; localStorage.setItem('v35_clis', JSON.stringify(this.clis)); }
                 if (data.servs)            { this.servs = data.servs; localStorage.setItem('v35_servs', JSON.stringify(this.servs)); }
                 if (data.grupos)           { this.grupos = data.grupos; localStorage.setItem('v35_grupos', JSON.stringify(this.grupos)); }
+                if (data.gruposHistorial)  { this.gruposHistorial = data.gruposHistorial; localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial)); }
                 if (data.gastos)           { this.gastos = data.gastos; localStorage.setItem('v35_gastos', JSON.stringify(this.gastos)); }
                 if (data.gastosCategories) { this.gastosCategories = data.gastosCategories; localStorage.setItem('v35_gastosCategories', JSON.stringify(this.gastosCategories)); }
                 if (data.generatedInvoices){ this.generatedInvoices = data.generatedInvoices; localStorage.setItem('v35_generatedInvoices', JSON.stringify(this.generatedInvoices)); }
@@ -18127,6 +18423,8 @@ Motivo de cancelación (opcional):`);
                 cellNotes: JSON.parse(localStorage.getItem('ana_cellNotes') || '{}'),
                 serviceCatalog: this.serviceCatalog || [],
                 estimates: this.estimates || [],
+                grupos: this.grupos || {},
+                gruposHistorial: this.gruposHistorial || {},
             };
             const driveSide = {
                 emps: data.emps || [], clis: data.clis || [], servs: data.servs || [],
@@ -18139,6 +18437,8 @@ Motivo de cancelación (opcional):`);
                 cellNotes: data.cellNotes || {},
                 serviceCatalog: data.serviceCatalog || [],
                 estimates: data.estimates || [],
+                grupos: data.grupos || {},
+                gruposHistorial: data.gruposHistorial || {},
             };
             const winner = localWins ? localSide : driveSide;
             const loser  = localWins ? driveSide : localSide;
@@ -18149,6 +18449,16 @@ Motivo de cancelación (opcional):`);
             this.gastos              = this.mergeArraysById(winner.gastos, loser.gastos);
             this.serviceCatalog      = this.mergeArraysById(winner.serviceCatalog, loser.serviceCatalog);
             this.estimates           = this.mergeArraysById(winner.estimates, loser.estimates);
+            // ── GRUPOS: gana la composición MÁS RECIENTE (last-writer-wins por timestamp) ──
+            // No unión: Ana ROTA empleadas (quita/mueve), y unir nunca dejaría quitar a nadie.
+            // Fallback al perdedor solo si el ganador viene vacío (para no borrar los grupos).
+            this.grupos = (winner.grupos && Object.keys(winner.grupos).length > 0)
+                ? winner.grupos
+                : ((loser.grupos && Object.keys(loser.grupos).length > 0) ? loser.grupos : (this.grupos || {}));
+            this._dedupGrupos();
+            localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
+            this.gruposHistorial = this.mergeGruposHistorial(winner.gruposHistorial, loser.gruposHistorial);
+            localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
 
             // Para facturas: merge especial — el status de pago SIEMPRE viene de Drive
             // ÚNICAMENTE cuando es un pago real de Stripe (el Worker actualiza Drive
