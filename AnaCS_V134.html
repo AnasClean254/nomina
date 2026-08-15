@@ -10018,6 +10018,7 @@ Motivo de cancelación (opcional):`);
         Array.from(cats).sort().forEach(cat => {
             select.innerHTML += `<option value="${cat}">${cat}</option>`;
         });
+        this.loadGastoExtraFilters();
     }
     
     updateSubcategorias() {
@@ -10202,6 +10203,27 @@ Motivo de cancelación (opcional):`);
         this.switchGastosTab('registro');
     }
     
+    loadGastoExtraFilters() {
+        const ySel = document.getElementById('gastoFilterYear');
+        const sSel = document.getElementById('gastoFilterSubcat');
+        const years = new Set(), subs = new Set();
+        (this.gastosAna || []).forEach(g => {
+            if (g.fecha && g.fecha.length >= 4) years.add(g.fecha.substring(0, 4));
+            if (g.subcategoria) subs.add(g.subcategoria);
+        });
+        if (ySel) ySel.innerHTML = '<option value="all">Todos</option>' + Array.from(years).sort().reverse().map(y => `<option value="${y}">${y}</option>`).join('');
+        if (sSel) sSel.innerHTML = '<option value="all">Todas</option>' + Array.from(subs).sort().map(x => `<option value="${x}">${x}</option>`).join('');
+    }
+
+    onGastoYearChange() {
+        const y = document.getElementById('gastoFilterYear');
+        if (y && y.value !== 'all') {
+            const s = document.getElementById('gastoFilterStart'); if (s) s.value = '';
+            const e = document.getElementById('gastoFilterEnd'); if (e) e.value = '';
+        }
+        this.refreshGastos();
+    }
+
     refreshGastos() {
         const start = document.getElementById('gastoFilterStart').value;
         const end = document.getElementById('gastoFilterEnd').value;
@@ -10210,8 +10232,12 @@ Motivo de cancelación (opcional):`);
         const montoStr = montoField ? montoField.value : '';
         const montoBuscar = montoStr === '' ? null : parseFloat(montoStr);
         const buscandoMonto = (montoBuscar !== null && !isNaN(montoBuscar));
+        const yearFilter = (document.getElementById('gastoFilterYear') || {}).value || 'all';
+        const subcatFilter = (document.getElementById('gastoFilterSubcat') || {}).value || 'all';
         
         const filtered = (this.gastosAna || []).filter(g => {
+            if (yearFilter !== 'all' && !(g.fecha || '').startsWith(yearFilter + '-')) return false;
+            if (subcatFilter !== 'all' && (g.subcategoria || '') !== subcatFilter) return false;
             // Búsqueda por monto exacto: ignora el rango de fechas, respeta la categoría
             if (buscandoMonto) {
                 if (Math.abs(g.monto - montoBuscar) > 0.001) return false;
@@ -20710,6 +20736,20 @@ document.addEventListener('click', function(e) {
                     <div>
                         <label style="font-weight: bold; display: block; margin-bottom: 5px;">Buscar monto exacto:</label>
                         <input type="number" id="gastoFilterMonto" step="0.01" placeholder="0.00" oninput="app.refreshGastos()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
+                    <div>
+                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Año:</label>
+                        <select id="gastoFilterYear" onchange="app.onGastoYearChange()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="all">Todos</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subcategoría:</label>
+                        <select id="gastoFilterSubcat" onchange="app.refreshGastos()" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <option value="all">Todas</option>
+                        </select>
                     </div>
                 </div>
             </div>
