@@ -7965,6 +7965,7 @@ class Scheduler {
             (inv.id && inv.id == id) || inv.invoiceNumber == id
         );
         if (!invoice) { alert('No se encontró la factura'); return; }
+        if (invoice.esCombinada) { this._regenerarCombinada(invoice); return; }
 
         this.closeGeneratedInvoices();
         this.openInvoice();
@@ -8204,11 +8205,105 @@ Motivo de cancelación (opcional):`);
         alert(`✅ Factura de ${invoice.clientName} regresada a Pendientes`);
     }
 
+    // Re-dibuja una factura COMBINADA desde sus datos guardados (no recalcula).
+    _regenerarCombinada(inv) {
+        const { jsPDF } = window.jspdf;
+        const client = this.clis.find(c => c.name === inv.clientName) || {};
+        let config = JSON.parse(localStorage.getItem('companyConfig') || '{}');
+        if (typeof config === 'string') { try { config = JSON.parse(config); } catch(e){ config = {}; } }
+        const companyName = config.name || "Ana's Cleaning Services";
+        const money = (n) => '$' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        const fmt = (ff) => { if(!ff) return ''; const [y,m,d]=String(ff).split('-'); return `${m}/${d}/${y}`; };
+        const subt = inv.mostrarSubtotales !== false;
+        const lineas = inv.items || [];
+        const doc = new jsPDF();
+
+        doc.setFillColor(245, 245, 245);
+        doc.rect(0, 0, 210, 52, 'F');
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
+        doc.line(0, 52, 210, 52);
+        doc.setLineWidth(0.2);
+        const companyLogo = localStorage.getItem('companyLogo') || config.logo || '';
+        if (companyLogo) {
+            try {
+                const _lh = config.logoSize || 25;
+                let _ar = 1;
+                const _dom = document.getElementById('logoPreviewImg');
+                if (_dom && _dom.naturalWidth && _dom.naturalHeight) { _ar = _dom.naturalWidth / _dom.naturalHeight; }
+                else { try { const _p = doc.getImageProperties(companyLogo); if (_p && _p.width && _p.height) _ar = _p.width / _p.height; } catch (_e) {} }
+                doc.addImage(companyLogo, 'JPEG', 20, 5, _lh * _ar, _lh);
+            } catch (e) { console.warn('logo combinada:', e); }
+        }
+        doc.setTextColor(44, 62, 80);
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text(companyName, 20, companyLogo ? 33 : 15);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(80, 80, 80);
+        if (config.address) doc.text(config.address, 20, companyLogo ? 37 : 20);
+        if (config.phone) doc.text('Phone: ' + config.phone, 20, companyLogo ? 41 : 25);
+        doc.text(config.email || 'anascleaningservice254@gmail.com', 20, companyLogo ? 45 : 29);
+        doc.setFontSize(24);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(44, 62, 80);
+        doc.text('INVOICE', 105, 24, { align: 'center' });
+
+        doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(44, 62, 80);
+        doc.text('No. ' + String(inv.invoiceNumber).padStart(4,'0'), 190, 18, { align: 'right' });
+        doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(100,100,100);
+        doc.text(fmt(inv.generatedDate), 190, 23, { align: 'right' });
+
+        doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(120,120,120);
+        doc.text('BILL TO', 20, 54);
+        doc.setFont(undefined,'normal'); doc.setTextColor(50,50,50); doc.setFontSize(11);
+        doc.text(inv.clientName, 20, 61);
+        let byLine = 67; doc.setFontSize(9);
+        (this.getClientAddressLines(client)||[]).forEach(l => { doc.text(String(l).substring(0,50), 20, byLine); byLine += 5; });
+        const email = this.getClientEmail(client);
+        if (email) { doc.setTextColor(80,80,80); doc.text(email, 20, byLine); }
+
+        doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(80,80,80);
+        doc.text('Period:', 120, 54);
+        doc.text('Due:', 120, 61);
+        doc.setFont(undefined,'normal'); doc.setTextColor(50,50,50);
+        doc.text(fmt(inv.startDate) + ' - ' + fmt(inv.endDate), 190, 54, { align:'right' });
+        doc.text(inv.dueDate || '', 190, 61, { align:'right' });
+
+        const colServ = subt ? 150 : 186;
+        let y = 84;
+        doc.setFillColor(230,230,230); doc.rect(20, y, 170, 9, 'F');
+        doc.setTextColor(0,0,0); doc.setFontSize(9); doc.setFont(undefined,'bold');
+        doc.text('PROPERTY', 24, y+6);
+        doc.text('SERVICES', colServ, y+6, { align:'right' });
+        if (subt) doc.text('SUBTOTAL', 186, y+6, { align:'right' });
+        y += 9;
+        doc.setTextColor(50,50,50); doc.setFont(undefined,'normal'); doc.setFontSize(9);
+        lineas.forEach((ln, i) => {
+            if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, 8, 'F'); }
+            doc.text(String(ln.description||'').substring(0, subt ? 55 : 72), 24, y+5.5);
+            doc.text(String(ln.qty!=null?ln.qty:''), colServ, y+5.5, { align:'right' });
+            if (subt) doc.text(money(ln.total), 186, y+5.5, { align:'right' });
+            y += 8;
+        });
+
+        y = Math.max(y + 6, doc.internal.pageSize.getHeight() - 60);
+        doc.setFillColor(44,62,80); doc.rect(20, y, 170, 12, 'F');
+        doc.setFont(undefined,'bold'); doc.setFontSize(14); doc.setTextColor(255,255,255);
+        doc.text('TOTAL:', 130, y+8);
+        doc.text(money(inv.total), 185, y+8, { align:'right' });
+
+        try { this.drawPaymentOptions(doc, 20, y + 14, 170, 'COMBINED', inv.clientName, inv.total); } catch(e){}
+        window.open(doc.output('bloburl'), '_blank');
+    }
+
     regenerateInvoice(id) {
         const invoice = (this.generatedInvoices || []).find(inv =>
             (inv.id && inv.id == id) || inv.invoiceNumber == id
         );
         if (!invoice) { alert('No se encontró la factura'); return; }
+        if (invoice.esCombinada) { this._regenerarCombinada(invoice); return; }
 
         // Buscar el cliente
         // FIX: en clientes multi-propiedad (varias fichas con el MISMO name), buscar solo
@@ -8779,7 +8874,7 @@ Motivo de cancelación (opcional):`);
     // NO toca el generador de facturas existente. Prueba por consola:
     //   app.facturaCombinada('PARAMOUNT REALTY', 'A', 2026, 8)   (etiqueta de grupo)
     //   app.facturaCombinada('PARAMOUNT REALTY', '', 2026, 8)    (vacío = TODAS las propiedades)
-    facturaCombinada(clientName, grupoLabel, year, month, mostrarSubtotales = true, diasPago = 7) {
+    facturaCombinada(clientName, grupoLabel, year, month, mostrarSubtotales = true, diasPago = 7, guardar = false) {
         if (!clientName || !year || !month) { alert("Uso: facturaCombinada(nombre, etiquetaGrupo, anio, mes)"); return; }
         const mm = String(month).padStart(2,'0');
         const start = `${year}-${mm}-01`;
@@ -8810,26 +8905,53 @@ Motivo de cancelación (opcional):`);
         let config = JSON.parse(localStorage.getItem('companyConfig') || '{}');
         if (typeof config === 'string') { try { config = JSON.parse(config); } catch(e){ config = {}; } }
         const companyName = config.name || "Ana's Cleaning Services";
+        let invNum = null;
+        if (guardar) {
+            invNum = this.getNextInvoiceNumber();
+            const _startN = config.invoiceStartNumber || 1;
+            if (invNum < _startN) invNum = _startN;
+        }
         const money = (n) => '$' + parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         const meses = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
 
-        doc.setFontSize(20); doc.setFont(undefined,'bold'); doc.setTextColor(31,41,55);
-        doc.text(companyName, 20, 22);
-        doc.setFontSize(9); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
-        let hy = 28;
-        if (config.address) { doc.text(config.address, 20, hy); hy += 5; }
-        if (config.phone) { doc.text('Tel: ' + config.phone, 20, hy); hy += 5; }
-        if (config.email) { doc.text(config.email, 20, hy); }
+        doc.setFillColor(245, 245, 245);
+        doc.rect(0, 0, 210, 52, 'F');
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.3);
+        doc.line(0, 52, 210, 52);
+        doc.setLineWidth(0.2);
+        const companyLogo = localStorage.getItem('companyLogo') || config.logo || '';
+        if (companyLogo) {
+            try {
+                const _lh = config.logoSize || 25;
+                let _ar = 1;
+                const _dom = document.getElementById('logoPreviewImg');
+                if (_dom && _dom.naturalWidth && _dom.naturalHeight) { _ar = _dom.naturalWidth / _dom.naturalHeight; }
+                else { try { const _p = doc.getImageProperties(companyLogo); if (_p && _p.width && _p.height) _ar = _p.width / _p.height; } catch (_e) {} }
+                doc.addImage(companyLogo, 'JPEG', 20, 5, _lh * _ar, _lh);
+            } catch (e) { console.warn('logo combinada:', e); }
+        }
+        doc.setTextColor(44, 62, 80);
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'bold');
+        doc.text(companyName, 20, companyLogo ? 33 : 15);
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(80, 80, 80);
+        if (config.address) doc.text(config.address, 20, companyLogo ? 37 : 20);
+        if (config.phone) doc.text('Phone: ' + config.phone, 20, companyLogo ? 41 : 25);
+        doc.text(config.email || 'anascleaningservice254@gmail.com', 20, companyLogo ? 45 : 29);
+        doc.setFontSize(24);
+        doc.setFont(undefined, 'bold');
+        doc.setTextColor(44, 62, 80);
+        doc.text('INVOICE', 105, 24, { align: 'center' });
 
-        doc.setFontSize(11); doc.setTextColor(37,99,235); doc.setFont(undefined,'bold');
-        doc.text('INVOICE', 190, 20, { align:'right' });
-        doc.setFontSize(9); doc.setFont(undefined,'normal'); doc.setTextColor(100,100,100);
-        doc.text(`${meses[month]} ${year}`, 190, 27, { align:'right' });
-        doc.text('Date: ' + new Date().toLocaleDateString('en-US'), 190, 32, { align:'right' });
-
-        doc.setDrawColor(37,99,235); doc.setLineWidth(1); doc.line(20, 44, 190, 44); doc.setLineWidth(0.2);
+        doc.setFontSize(12); doc.setFont(undefined, 'bold'); doc.setTextColor(44, 62, 80);
+        doc.text('No. ' + (invNum ? String(invNum).padStart(4,'0') : ''), 190, 18, { align: 'right' });
+        doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.setTextColor(100,100,100);
+        doc.text(new Date().toLocaleDateString('en-US'), 190, 23, { align: 'right' });
 
         doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(120,120,120);
         doc.text('BILL TO', 20, 54);
@@ -8845,16 +8967,16 @@ Motivo de cancelación (opcional):`);
         const _due = new Date(); _due.setDate(_due.getDate() + (diasPago || 7));   // 7 días (email/mensaje) o 15 (correo)
         const dueStr = _due.toLocaleDateString('en-US');
         doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(80,80,80);
-        doc.text('Billing Period:', 120, 54);
-        doc.text('Due Date:', 120, 61);
+        doc.text('Period:', 120, 54);
+        doc.text('Due:', 120, 61);
         doc.setFont(undefined,'normal'); doc.setTextColor(50,50,50);
         doc.text(periodStr, 190, 54, { align:'right' });
         doc.text(dueStr, 190, 61, { align:'right' });
 
         const colServ = mostrarSubtotales ? 150 : 186;
         let y = 84;
-        doc.setFillColor(31,41,55); doc.rect(20, y, 170, 9, 'F');
-        doc.setTextColor(255,255,255); doc.setFontSize(9); doc.setFont(undefined,'bold');
+        doc.setFillColor(230,230,230); doc.rect(20, y, 170, 9, 'F');
+        doc.setTextColor(0,0,0); doc.setFontSize(9); doc.setFont(undefined,'bold');
         doc.text('PROPERTY', 24, y+6);
         doc.text('SERVICES', colServ, y+6, { align:'right' });
         if (mostrarSubtotales) doc.text('SUBTOTAL', 186, y+6, { align:'right' });
@@ -8868,18 +8990,102 @@ Motivo de cancelación (opcional):`);
             y += 8;
         });
 
-        doc.setDrawColor(180,180,180); doc.line(110, y+2, 190, y+2);
-        y += 10;
-        doc.setFillColor(254,242,242); doc.rect(110, y-6, 80, 12, 'F');
-        doc.setFont(undefined,'bold'); doc.setFontSize(13); doc.setTextColor(220,38,38);
-        doc.text('GRAND TOTAL:', 114, y+2);
-        doc.text(money(granTotal), 186, y+2, { align:'right' });
+        y = Math.max(y + 6, doc.internal.pageSize.getHeight() - 60);
+        doc.setFillColor(44,62,80); doc.rect(20, y, 170, 12, 'F');
+        doc.setFont(undefined,'bold'); doc.setFontSize(14); doc.setTextColor(255,255,255);
+        doc.text('TOTAL:', 130, y+8);
+        doc.text(money(granTotal), 185, y+8, { align:'right' });
 
         try { this.drawPaymentOptions(doc, 20, y + 14, 170, 'COMBINED', clientName, granTotal); }
         catch(e) { console.warn('formas de pago:', e); }
 
         window.open(doc.output('bloburl'), '_blank');
+        if (guardar) {
+            const totalVisitas = lineas.reduce((a,b)=>a+b.visitas,0);
+            this.generatedInvoices.push({
+                id: Date.now() + Math.random(),
+                invoiceNumber: invNum,
+                generatedDate: new Date().toISOString().split('T')[0],
+                clientName: clientName,
+                clientIds: props.map(p => p.id),
+                type: 'multiprop', serviceType: 'combined',
+                startDate: start, endDate: end,
+                serviceCount: totalVisitas,
+                total: granTotal, subtotal: granTotal,
+                applyTax: false, taxRate: 0,
+                periodKey: clientName + '-comb-' + year + '-' + mm,
+                items: lineas.map(ln => ({ description: ln.dir, qty: ln.visitas, total: ln.importe })),
+                mostrarSubtotales: mostrarSubtotales,
+                esCombinada: true, dueDate: dueStr,
+                status: 'pendiente', sentAt: null, paidAt: null, paidAmount: null, notes: ''
+            });
+            const _curLast = parseInt(localStorage.getItem('lastInvoiceNumber') || '0');
+            if (invNum > _curLast) localStorage.setItem('lastInvoiceNumber', invNum.toString());
+            this.save();
+            console.log('✅ Factura combinada GUARDADA #' + String(invNum).padStart(4,'0'));
+        }
         console.log(`Factura combinada: ${lineas.length} propiedades, ${lineas.reduce((a,b)=>a+b.visitas,0)} servicios, total ${money(granTotal)}`);
+    }
+
+    // ── MODAL de Factura Combinada (Opción A: aislado, no toca el render de Pendientes) ──
+    openFacturaCombinadaModal() {
+        document.getElementById('facturaCombModal')?.remove();
+        const byName = {};
+        this.clis.forEach(c => { const n=(c.name||'').trim(); if(!n) return; (byName[n]=byName[n]||[]).push(c); });
+        const multiNames = Object.keys(byName).filter(n => byName[n].length > 1 || byName[n].some(c => this._hasProp(c))).sort();
+        const hoy = new Date();
+        const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+        const modal = document.createElement('div');
+        modal.id = 'facturaCombModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:10000;display:flex;align-items:center;justify-content:center;padding:14px;';
+        modal.innerHTML = `<div style="background:white;border-radius:12px;padding:22px;max-width:460px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+                <h3 style="margin:0;color:#2c3e50;">🏘️ Factura Combinada</h3>
+                <button onclick="document.getElementById('facturaCombModal').remove()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#999;">✕</button>
+            </div>
+            <label style="font-size:0.82rem;font-weight:700;color:#555;">Cliente multipropiedad</label>
+            <select id="fcCliente" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:6px;margin:4px 0 12px;font-size:0.9rem;box-sizing:border-box;">
+                ${multiNames.map(n => `<option value="${n.replace(/"/g,'&quot;')}">${n}</option>`).join('')}
+            </select>
+            <label style="font-size:0.82rem;font-weight:700;color:#555;">Etiqueta de grupo (opcional — vacío = todas las propiedades)</label>
+            <input type="text" id="fcGrupo" placeholder="Vacío = todas las propiedades del cliente" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:6px;margin:4px 0 12px;font-size:0.9rem;box-sizing:border-box;">
+            <div style="display:flex;gap:10px;margin-bottom:12px;">
+                <div style="flex:1;"><label style="font-size:0.82rem;font-weight:700;color:#555;">Mes</label>
+                    <select id="fcMes" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+                        ${meses.map((m,i)=>`<option value="${i+1}" ${i===hoy.getMonth()?'selected':''}>${m}</option>`).join('')}
+                    </select>
+                </div>
+                <div style="width:120px;"><label style="font-size:0.82rem;font-weight:700;color:#555;">Año</label>
+                    <input type="number" id="fcAnio" value="${hoy.getFullYear()}" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+            </div>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.88rem;color:#2c3e50;cursor:pointer;margin-bottom:12px;">
+                <input type="checkbox" id="fcSubtotales" checked style="width:auto;"> Mostrar subtotales por propiedad
+            </label>
+            <label style="font-size:0.82rem;font-weight:700;color:#555;">Canal de envío (define la fecha límite)</label>
+            <div style="display:flex;gap:16px;margin:6px 0 18px;">
+                <label style="display:flex;align-items:center;gap:5px;font-size:0.88rem;cursor:pointer;"><input type="radio" name="fcCanal" value="7" checked> Email/Mensaje (7 días)</label>
+                <label style="display:flex;align-items:center;gap:5px;font-size:0.88rem;cursor:pointer;"><input type="radio" name="fcCanal" value="15"> Correo (15 días)</label>
+            </div>
+            <div style="display:flex;gap:10px;justify-content:flex-end;">
+                <button onclick="document.getElementById('facturaCombModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                <button onclick="app._generarFacturaCombinadaDesdeModal()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">Generar y guardar</button>
+            </div>
+        </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    }
+
+    _generarFacturaCombinadaDesdeModal() {
+        const cliente = document.getElementById('fcCliente')?.value;
+        const grupo = (document.getElementById('fcGrupo')?.value || '').trim();
+        const mes = parseInt(document.getElementById('fcMes')?.value) || (new Date().getMonth()+1);
+        const anio = parseInt(document.getElementById('fcAnio')?.value) || new Date().getFullYear();
+        const subt = document.getElementById('fcSubtotales')?.checked !== false;
+        const canal = document.querySelector('input[name="fcCanal"]:checked')?.value || '7';
+        if (!cliente) { alert('Elige un cliente.'); return; }
+        document.getElementById('facturaCombModal')?.remove();
+        this.facturaCombinada(cliente, grupo, anio, mes, subt, parseInt(canal), true);
     }
 
     // Dibuja UNA hoja de estado de cuenta en el doc dado (reutilizable para impresión por lotes).
@@ -9754,6 +9960,10 @@ Motivo de cancelación (opcional):`);
         const lblOpen = document.getElementById('gastoPeriodoLabel');
         if (lblOpen) lblOpen.textContent = firstDay.toLocaleDateString('es-MX', { month: 'long', year: 'numeric' });
         
+        // SOLO LECTURA: los gastos se registran en la app AnaGastos; aquí solo se ven
+        const _tr = document.getElementById('tabGastosRegistro'); if (_tr) _tr.style.display = 'none';
+        const _tc = document.getElementById('tabGastosCategorias'); if (_tc) _tc.style.display = 'none';
+        try { this.switchGastosTab('lista'); } catch(e) {}
         this.refreshGastos();
         document.getElementById('gastosModal').style.display = 'block';
     }
@@ -9799,9 +10009,13 @@ Motivo de cancelación (opcional):`);
     
     loadCategoriasFilter() {
         const select = document.getElementById('gastoFilterCategoria');
+        if (!select) return;
         select.innerHTML = '<option value="all">Todas</option>';
-        
-        Object.keys(this.gastosCategories).forEach(cat => {
+        // Solo lectura: categorías del espejo de AnaGastos (las que traen los gastos)
+        const cats = new Set();
+        Object.keys(this.gastosAnaCats || {}).forEach(c => { if (c) cats.add(c); });
+        (this.gastosAna || []).forEach(g => { if (g.categoria) cats.add(g.categoria); });
+        Array.from(cats).sort().forEach(cat => {
             select.innerHTML += `<option value="${cat}">${cat}</option>`;
         });
     }
@@ -9997,7 +10211,7 @@ Motivo de cancelación (opcional):`);
         const montoBuscar = montoStr === '' ? null : parseFloat(montoStr);
         const buscandoMonto = (montoBuscar !== null && !isNaN(montoBuscar));
         
-        const filtered = this.gastos.filter(g => {
+        const filtered = (this.gastosAna || []).filter(g => {
             // Búsqueda por monto exacto: ignora el rango de fechas, respeta la categoría
             if (buscandoMonto) {
                 if (Math.abs(g.monto - montoBuscar) > 0.001) return false;
@@ -10030,9 +10244,7 @@ Motivo de cancelación (opcional):`);
                 <td>${g.tipoPago || ''}</td>
                 <td><b>$${g.monto.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}</b></td>
                 <td>
-                    <button onclick="app.editGasto(${g.id})" style="background: #f39c12; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">✏️</button>
-                    ${g.foto ? `<button onclick="app.viewGastoFoto(${g.id})" style="background: #1A4FCC; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px;">📷 Ver</button>` : ''}
-                    <button onclick="app.deleteGasto(${g.id})" style="background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">🗑️</button>
+                    ${g.foto ? `<button onclick="app.viewGastoFoto(${g.id})" style="background: #1A4FCC; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">📷 Ver</button>` : '<span style="color:#bbb;">—</span>'}
                 </td>
             </tr>`;
         });
@@ -10079,7 +10291,7 @@ Motivo de cancelación (opcional):`);
         
         let csv = 'Fecha,Categoría,Subcategoría,Concepto,Vendor,Pago,Monto,Notas\n';
         
-        const filtered = this.gastos.filter(g => {
+        const filtered = (this.gastosAna || []).filter(g => {
             if (start && g.fecha < start) return false;
             if (end && g.fecha > end) return false;
             return true;
@@ -12194,6 +12406,8 @@ Motivo de cancelación (opcional):`);
             grupos: this.grupos,
             gastos: this.gastos || [],
             gastosCategories: this.gastosCategories || {},
+            gastosAna: this.gastosAna || [],
+            gastosAnaCats: this.gastosAnaCats || {},
             generatedInvoices: this.generatedInvoices || [],
             pendingInvoices: this.pendingInvoices || [],
             dismissedPendingKeys: this.dismissedPendingKeys || [],
@@ -12266,6 +12480,8 @@ Motivo de cancelación (opcional):`);
                             this.grupos = d.grupos || [];
                             this.gastos = d.gastos || [];
                             this.gastosCategories = d.gastosCategories || {};
+                            if (d.gastosAna) { this.gastosAna = d.gastosAna; localStorage.setItem('v35_gastosAna', JSON.stringify(this.gastosAna)); }
+                            if (d.gastosAnaCats) { this.gastosAnaCats = d.gastosAnaCats; localStorage.setItem('v35_gastosAnaCats', JSON.stringify(this.gastosAnaCats)); }
                             this.generatedInvoices = d.generatedInvoices || [];
                             this.pendingInvoices = d.pendingInvoices || [];
                             // Restaurar también el resto de campos del respaldo completo,
@@ -15456,8 +15672,9 @@ Motivo de cancelación (opcional):`);
             doc.setFontSize(8);
             doc.setTextColor(80, 80, 80);
             doc.text(companyAddress, 20, companyLogo ? 37 : 20);
-            doc.text('Tel: ' + companyPhone, 20, companyLogo ? 41 : 25);
-            if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
+            doc.text('Phone: ' + companyPhone, 20, companyLogo ? 41 : 25);
+            if (config.email) doc.text(config.email, 20, companyLogo ? 45 : 29);
+            else if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
             if (companyWebsite) doc.text(companyWebsite, 20, companyLogo ? 48 : 35);
             
             doc.setFontSize(24);
@@ -15497,8 +15714,9 @@ Motivo de cancelación (opcional):`);
             doc.setFont(undefined, 'normal');
             doc.setFontSize(8);
             doc.text(companyAddress, 20, companyLogo ? 37 : 20);
-            doc.text('Tel: ' + companyPhone, 20, companyLogo ? 41 : 25);
-            if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
+            doc.text('Phone: ' + companyPhone, 20, companyLogo ? 41 : 25);
+            if (config.email) doc.text(config.email, 20, companyLogo ? 45 : 29);
+            else if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
             if (companyWebsite) doc.text(companyWebsite, 20, companyLogo ? 48 : 35);
             
             doc.setFontSize(26);
@@ -15758,8 +15976,9 @@ Motivo de cancelación (opcional):`);
         doc.text(client.name, 20, yStart + 7);
         if (client.address) doc.text(client.address, 20, yStart + 12);
         const cityLine = [client.city, client.state, client.zip].filter(Boolean).join(', ');
-        if (cityLine) doc.text(cityLine, 20, yStart + 17);
-        if (client.phone) doc.text('Tel: ' + client.phone, 20, yStart + 17);
+        const _telPart = client.phone ? ('Tel: ' + client.phone) : '';
+        const _line3 = [cityLine, _telPart].filter(Boolean).join('   -   ');
+        if (_line3) doc.text(_line3, 20, yStart + 17);
         if (client.email) {
             const clientEmails = client.email.split(',').map(e => e.trim());
             doc.text('Email: ' + clientEmails[0], 20, yStart + 22);
@@ -16014,8 +16233,9 @@ Motivo de cancelación (opcional):`);
             doc.setFontSize(8);
             doc.setTextColor(80, 80, 80);
             doc.text(companyAddress, 20, companyLogo ? 37 : 20);
-            doc.text('Tel: ' + companyPhone, 20, companyLogo ? 41 : 25);
-            if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
+            doc.text('Phone: ' + companyPhone, 20, companyLogo ? 41 : 25);
+            if (config.email) doc.text(config.email, 20, companyLogo ? 45 : 29);
+            else if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
             if (companyWebsite) doc.text(companyWebsite, 20, companyLogo ? 46 : 35);
             
             doc.setFontSize(24);
@@ -16054,8 +16274,9 @@ Motivo de cancelación (opcional):`);
             doc.setFont(undefined, 'normal');
             doc.setFontSize(8);
             doc.text(companyAddress, 20, companyLogo ? 37 : 20);
-            doc.text('Tel: ' + companyPhone, 20, companyLogo ? 41 : 25);
-            if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
+            doc.text('Phone: ' + companyPhone, 20, companyLogo ? 41 : 25);
+            if (config.email) doc.text(config.email, 20, companyLogo ? 45 : 29);
+            else if (companyRFC) doc.text(companyRFC, 20, companyLogo ? 45 : 30);
             if (companyWebsite) doc.text(companyWebsite, 20, companyLogo ? 46 : 35);
             
             // FACTURA centro (blanco, redondeado)
@@ -16257,8 +16478,9 @@ Motivo de cancelación (opcional):`);
         doc.text(client.name, 20, yStart + 7);
         if (client.address) doc.text(client.address, 20, yStart + 12);
         const cityLine = [client.city, client.state, client.zip].filter(Boolean).join(', ');
-        if (cityLine) doc.text(cityLine, 20, yStart + 17);
-        if (client.phone) doc.text('Tel: ' + client.phone, 20, yStart + 17);
+        const _telPart = client.phone ? ('Tel: ' + client.phone) : '';
+        const _line3 = [cityLine, _telPart].filter(Boolean).join('   -   ');
+        if (_line3) doc.text(_line3, 20, yStart + 17);
         if (client.email) {
             const clientEmails = client.email.split(',').map(e => e.trim());
             doc.text('Email: ' + clientEmails[0], 20, yStart + 22);
@@ -16476,6 +16698,7 @@ Motivo de cancelación (opcional):`);
 
                     const deriveSvc = (t) => (t==='airbnb'?'airbnb':t==='unico'?'unico':t==='construccion'?'construccion':'residencial');
                     const deriveBill = (t) => (t==='unico'?'perservice':(t==='semanal'||t==='diario'||t==='2xsemana'||t==='3xsemana')?'weekly':t==='cada3semanas'?'monthly':t==='quincenal'?'biweekly':'monthly');
+                    const composePropAddr = (r) => { const cityLine = r.city ? (r.city + ', TX' + (r.zip ? ' ' + r.zip : '')) : (r.zip ? 'TX ' + r.zip : ''); return [r.address, cityLine].filter(Boolean).join(', '); };
 
                     let errors = 0;
                     const plan = [];
@@ -16511,6 +16734,8 @@ Motivo de cancelación (opcional):`);
                             if (row.zip && row.zip !== (existing.zip||'')) changes.zip = row.zip;
                             if (row.phone && row.phone !== (existing.phone||'')) changes.phone = row.phone;
                             if (row.email && row.email !== (existing.email||'')) changes.email = row.email;
+                            const _pa = composePropAddr(row);
+                            if (_pa && _pa !== (existing.propAddress||'')) changes.propAddress = _pa;
                             if (!isNaN(row.price) && row.price !== existing.price) changes.price = row.price;
                             if (row.type && row.type !== existing.type) changes.type = row.type;
                             if (Object.keys(changes).length) { toUpdate++; } else { unchanged++; }
@@ -16541,7 +16766,8 @@ Motivo de cancelación (opcional):`);
                                 zip: r.zip, phone: r.phone, email: r.email,
                                 price: r.price, fee: r.price, type: r.type,
                                 serviceType: deriveSvc(r.type), billingPeriod: deriveBill(r.type),
-                                propId: r.propId, active: true, notes: ''
+                                propId: r.propId, active: true, notes: '',
+                                propAddress: composePropAddr(r)
                             });
                         } else if (Object.keys(p.changes).length) {
                             const c = p.existing, ch = p.changes;
@@ -16550,6 +16776,7 @@ Motivo de cancelación (opcional):`);
                             if (ch.zip !== undefined) c.zip = ch.zip;
                             if (ch.phone !== undefined) c.phone = ch.phone;
                             if (ch.email !== undefined) c.email = ch.email;
+                            if (ch.propAddress !== undefined) c.propAddress = ch.propAddress;
                             if (ch.price !== undefined) { c.price = ch.price; c.fee = ch.price; }
                             if (ch.type !== undefined) {
                                 c.type = ch.type;
@@ -20329,6 +20556,7 @@ document.addEventListener('click', function(e) {
                 <span style="width:1px; height:22px; background:rgba(255,255,255,0.4); margin:0 2px;"></span>
                 <button onclick="app.verClienteEnEnviadas()" title="Ir a Enviadas" style="background:rgba(255,255,255,0.9); color:#16a085; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:1rem; font-weight:bold;">📑 Enviadas</button>
                 <button onclick="app.verClienteEnGenerar()" title="Ir a Generar Factura" style="background:rgba(255,255,255,0.9); color:#e67e22; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:1rem; font-weight:bold;">🧾 Generar</button>
+                <button onclick="app.openFacturaCombinadaModal()" title="Factura combinada mensual de un cliente multipropiedad" style="background:rgba(255,255,255,0.9); color:#8e44ad; border:none; border-radius:6px; padding:8px 12px; cursor:pointer; font-size:1rem; font-weight:bold;">🏘️ Combinada</button>
                 📋 Facturas Pendientes de Generar
             </span>
             <div style="display:flex; gap:8px; align-items:center;">
