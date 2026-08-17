@@ -2538,7 +2538,7 @@ class Scheduler {
     }
 
     _svcLabel(c) {
-        const addr = [c.address, c.city].filter(Boolean).join(', ');
+        const addr = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : [c.address, c.city].filter(Boolean).join(', ');
         const prop = this._hasProp(c) ? c.propId : '';
         return [c.name, addr, prop].filter(Boolean).join(' - ');
     }
@@ -8874,12 +8874,13 @@ Motivo de cancelación (opcional):`);
     // NO toca el generador de facturas existente. Prueba por consola:
     //   app.facturaCombinada('PARAMOUNT REALTY', 'A', 2026, 8)   (etiqueta de grupo)
     //   app.facturaCombinada('PARAMOUNT REALTY', '', 2026, 8)    (vacío = TODAS las propiedades)
-    facturaCombinada(clientName, grupoLabel, year, month, mostrarSubtotales = true, diasPago = 7, guardar = false) {
+    facturaCombinada(clientName, grupoLabel, year, month, mostrarSubtotales = true, diasPago = 7, guardar = false, fechaInicio = null, fechaFin = null) {
         if (!clientName || !year || !month) { alert("Uso: facturaCombinada(nombre, etiquetaGrupo, anio, mes)"); return; }
         const mm = String(month).padStart(2,'0');
-        const start = `${year}-${mm}-01`;
+        let start = `${year}-${mm}-01`;
         const lastDay = new Date(year, month, 0).getDate();
-        const end = `${year}-${mm}-${String(lastDay).padStart(2,'0')}`;
+        let end = `${year}-${mm}-${String(lastDay).padStart(2,'0')}`;
+        if (fechaInicio && fechaFin) { start = fechaInicio; end = fechaFin; }
         const props = this.clis.filter(c =>
             c.name.trim().toLowerCase() === clientName.trim().toLowerCase() &&
             (grupoLabel ? (c.grupoFactura||'').trim().toLowerCase() === String(grupoLabel).trim().toLowerCase() : true)
@@ -8905,12 +8906,9 @@ Motivo de cancelación (opcional):`);
         let config = JSON.parse(localStorage.getItem('companyConfig') || '{}');
         if (typeof config === 'string') { try { config = JSON.parse(config); } catch(e){ config = {}; } }
         const companyName = config.name || "Ana's Cleaning Services";
-        let invNum = null;
-        if (guardar) {
-            invNum = this.getNextInvoiceNumber();
-            const _startN = config.invoiceStartNumber || 1;
-            if (invNum < _startN) invNum = _startN;
-        }
+        let invNum = this.getNextInvoiceNumber();
+        const _startN = config.invoiceStartNumber || 1;
+        if (invNum < _startN) invNum = _startN;
         const money = (n) => '$' + parseFloat(n).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         const meses = ['','January','February','March','April','May','June','July','August','September','October','November','December'];
         const { jsPDF } = window.jspdf;
@@ -8999,32 +8997,85 @@ Motivo de cancelación (opcional):`);
         try { this.drawPaymentOptions(doc, 20, y + 14, 170, 'COMBINED', clientName, granTotal); }
         catch(e) { console.warn('formas de pago:', e); }
 
-        window.open(doc.output('bloburl'), '_blank');
-        if (guardar) {
-            const totalVisitas = lineas.reduce((a,b)=>a+b.visitas,0);
-            this.generatedInvoices.push({
-                id: Date.now() + Math.random(),
-                invoiceNumber: invNum,
-                generatedDate: new Date().toISOString().split('T')[0],
-                clientName: clientName,
-                clientIds: props.map(p => p.id),
-                type: 'multiprop', serviceType: 'combined',
-                startDate: start, endDate: end,
-                serviceCount: totalVisitas,
-                total: granTotal, subtotal: granTotal,
-                applyTax: false, taxRate: 0,
-                periodKey: clientName + '-comb-' + year + '-' + mm,
-                items: lineas.map(ln => ({ description: ln.dir, qty: ln.visitas, total: ln.importe })),
-                mostrarSubtotales: mostrarSubtotales,
-                esCombinada: true, dueDate: dueStr,
-                status: 'pendiente', sentAt: null, paidAt: null, paidAmount: null, notes: ''
-            });
-            const _curLast = parseInt(localStorage.getItem('lastInvoiceNumber') || '0');
-            if (invNum > _curLast) localStorage.setItem('lastInvoiceNumber', invNum.toString());
-            this.save();
-            console.log('✅ Factura combinada GUARDADA #' + String(invNum).padStart(4,'0'));
-        }
-        console.log(`Factura combinada: ${lineas.length} propiedades, ${lineas.reduce((a,b)=>a+b.visitas,0)} servicios, total ${money(granTotal)}`);
+        const totalVisitas = lineas.reduce((a,b)=>a+b.visitas,0);
+        const _combData = {
+            invNum: invNum,
+            clientName: clientName,
+            clientIds: props.map(p => p.id),
+            startDate: start, endDate: end,
+            serviceCount: totalVisitas,
+            total: granTotal,
+            periodKey: clientName + '-comb-' + year + '-' + mm,
+            items: lineas.map(ln => ({ description: ln.dir, qty: ln.visitas, total: ln.importe })),
+            mostrarSubtotales: mostrarSubtotales,
+            dueDate: dueStr
+        };
+        window._combData = _combData;
+        const _combBlob = doc.output('blob');
+        if (guardar === true) { this._guardarCombinadaData(_combData); }
+        this._previewCombinada(_combBlob, _combData, guardar === true);
+        console.log(`Factura combinada: ${lineas.length} props, ${totalVisitas} servicios, total ${money(granTotal)}`);
+    }
+
+    // Guarda una combinada como generatedInvoice (desde el preview o directo)
+    _guardarCombinadaData(d) {
+        if (d._saved) return false;
+        this.generatedInvoices.push({
+            id: Date.now() + Math.random(),
+            invoiceNumber: d.invNum,
+            generatedDate: new Date().toISOString().split('T')[0],
+            clientName: d.clientName,
+            clientIds: d.clientIds,
+            type: 'multiprop', serviceType: 'combined',
+            startDate: d.startDate, endDate: d.endDate,
+            serviceCount: d.serviceCount,
+            total: d.total, subtotal: d.total,
+            applyTax: false, taxRate: 0,
+            periodKey: d.periodKey,
+            items: d.items,
+            mostrarSubtotales: d.mostrarSubtotales,
+            esCombinada: true, dueDate: d.dueDate,
+            status: 'pendiente', sentAt: null, paidAt: null, paidAmount: null, notes: ''
+        });
+        const _curLast = parseInt(localStorage.getItem('lastInvoiceNumber') || '0');
+        if (d.invNum > _curLast) localStorage.setItem('lastInvoiceNumber', d.invNum.toString());
+        this.save();
+        d._saved = true;
+        return true;
+    }
+
+    // Preview de la combinada con botones (como el de las facturas normales)
+    _previewCombinada(blob, d, yaGuardada) {
+        document.getElementById('combPreviewModal')?.remove();
+        const url = URL.createObjectURL(blob);
+        const noStr = 'No. ' + String(d.invNum).padStart(4,'0');
+        const m = document.createElement('div');
+        m.id = 'combPreviewModal';
+        m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);z-index:10001;display:flex;align-items:center;justify-content:center;';
+        m.innerHTML = `
+            <div style="background:white;width:90%;height:92%;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+                <div style="padding:16px 20px;border-bottom:2px solid #ddd;display:flex;justify-content:space-between;align-items:center;">
+                    <h2 style="margin:0;color:#2c3e50;font-size:1.2rem;">🏘️ Vista Previa - Factura Combinada ${noStr}</h2>
+                    <button onclick="document.getElementById('combPreviewModal').remove()" style="background:#e74c3c;color:white;border:none;padding:9px 18px;border-radius:6px;cursor:pointer;font-weight:bold;">✕ Cerrar</button>
+                </div>
+                <iframe src="${url}" style="flex:1;border:none;"></iframe>
+                <div style="padding:16px 20px;border-top:2px solid #ddd;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                    <button onclick="app.printPDF('${url}')" style="background:#1A4FCC;color:white;padding:13px 26px;font-size:0.95rem;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">🖨️ Imprimir</button>
+                    <a href="${url}" download="Factura_Combinada_${String(d.invNum).padStart(4,'0')}.pdf" style="background:#e67e22;color:white;padding:13px 26px;font-size:0.95rem;border-radius:8px;font-weight:bold;text-decoration:none;">💾 Descargar</a>
+                    <button id="combBtnGuardar" onclick="app._guardarCombinadaDesdePreview()" ${yaGuardada ? 'disabled' : ''} style="background:${yaGuardada ? '#95a5a6' : '#27ae60'};color:white;padding:13px 26px;font-size:0.95rem;border:none;border-radius:8px;cursor:${yaGuardada ? 'default' : 'pointer'};font-weight:bold;">${yaGuardada ? '✅ Ya guardada en Enviadas' : '✅ Guardar como Enviada'}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(m);
+    }
+
+    _guardarCombinadaDesdePreview() {
+        const d = window._combData;
+        if (!d) { alert('No hay factura para guardar.'); return; }
+        const ok = this._guardarCombinadaData(d);
+        const btn = document.getElementById('combBtnGuardar');
+        if (btn) { btn.textContent = '✅ Ya guardada en Enviadas'; btn.style.background = '#95a5a6'; btn.style.cursor = 'default'; btn.disabled = true; }
+        try { if (typeof this.refreshGeneratedInvoices === 'function') this.refreshGeneratedInvoices(); } catch(e){}
+        if (ok) { try { (this.toast ? this.toast('Factura combinada #' + String(d.invNum).padStart(4,'0') + ' guardada') : alert('Factura combinada #' + String(d.invNum).padStart(4,'0') + ' guardada en Enviadas.')); } catch(e){} }
     }
 
     // ── MODAL de Factura Combinada (Opción A: aislado, no toca el render de Pendientes) ──
@@ -9059,6 +9110,15 @@ Motivo de cancelación (opcional):`);
                     <input type="number" id="fcAnio" value="${hoy.getFullYear()}" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
                 </div>
             </div>
+            <div style="display:flex;gap:10px;margin-bottom:4px;">
+                <div style="flex:1;"><label style="font-size:0.82rem;font-weight:700;color:#555;">Desde (opcional)</label>
+                    <input type="date" id="fcDesde" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+                <div style="flex:1;"><label style="font-size:0.82rem;font-weight:700;color:#555;">Hasta (opcional)</label>
+                    <input type="date" id="fcHasta" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
+                </div>
+            </div>
+            <div style="font-size:0.72rem;color:#888;margin:0 0 12px;">Si dejas Desde/Hasta vacíos, usa todo el mes seleccionado.</div>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.88rem;color:#2c3e50;cursor:pointer;margin-bottom:12px;">
                 <input type="checkbox" id="fcSubtotales" checked style="width:auto;"> Mostrar subtotales por propiedad
             </label>
@@ -9067,25 +9127,29 @@ Motivo de cancelación (opcional):`);
                 <label style="display:flex;align-items:center;gap:5px;font-size:0.88rem;cursor:pointer;"><input type="radio" name="fcCanal" value="7" checked> Email/Mensaje (7 días)</label>
                 <label style="display:flex;align-items:center;gap:5px;font-size:0.88rem;cursor:pointer;"><input type="radio" name="fcCanal" value="15"> Correo (15 días)</label>
             </div>
-            <div style="display:flex;gap:10px;justify-content:flex-end;">
+            <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
                 <button onclick="document.getElementById('facturaCombModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
-                <button onclick="app._generarFacturaCombinadaDesdeModal()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">Generar y guardar</button>
+                <button onclick="app._generarFacturaCombinadaDesdeModal(false)" style="background:#2980b9;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-weight:bold;">👁️ Vista previa</button>
+                <button onclick="app._generarFacturaCombinadaDesdeModal(true)" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">Generar y guardar</button>
             </div>
         </div>`;
         document.body.appendChild(modal);
         modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
     }
 
-    _generarFacturaCombinadaDesdeModal() {
+    _generarFacturaCombinadaDesdeModal(guardar) {
         const cliente = document.getElementById('fcCliente')?.value;
         const grupo = (document.getElementById('fcGrupo')?.value || '').trim();
         const mes = parseInt(document.getElementById('fcMes')?.value) || (new Date().getMonth()+1);
         const anio = parseInt(document.getElementById('fcAnio')?.value) || new Date().getFullYear();
         const subt = document.getElementById('fcSubtotales')?.checked !== false;
         const canal = document.querySelector('input[name="fcCanal"]:checked')?.value || '7';
+        const desde = (document.getElementById('fcDesde')?.value || '').trim() || null;
+        const hasta = (document.getElementById('fcHasta')?.value || '').trim() || null;
         if (!cliente) { alert('Elige un cliente.'); return; }
+        if ((desde && !hasta) || (!desde && hasta)) { alert('Para usar un rango, llena Desde Y Hasta (o deja ambos vacíos para usar el mes).'); return; }
         document.getElementById('facturaCombModal')?.remove();
-        this.facturaCombinada(cliente, grupo, anio, mes, subt, parseInt(canal), true);
+        this.facturaCombinada(cliente, grupo, anio, mes, subt, parseInt(canal), guardar === true, desde, hasta);
     }
 
     // Dibuja UNA hoja de estado de cuenta en el doc dado (reutilizable para impresión por lotes).
