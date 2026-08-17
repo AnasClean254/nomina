@@ -964,6 +964,7 @@
                     <div id="groupSuggestion" style="display:none; margin-top:5px; padding:6px 10px; border-radius:6px; font-size:0.78rem; border:1px solid #a5d6a7;"></div>
                 </div>
                 <div style="grid-column: span 2"><label>Concepto Factura <span style="font-size:0.75rem;color:#999;">(opcional - reemplaza el concepto automático)</span></label><input type="text" id="taskName" placeholder="Ej: Deep Cleaning, Move-out..."></div>
+                <div style="grid-column: span 2"><label>💲 Precio de esta visita <span style="font-size:0.75rem;color:#999;">(opcional - reemplaza el precio de la propiedad, solo para esta visita)</span></label><input type="number" id="mSvcPrice" step="0.01" min="0" placeholder="— usa el precio de la propiedad —" style="width:100%;box-sizing:border-box;padding:8px;border:2px solid #ddd;border-radius:6px;"></div>
                 <div>
                     <label>Color del Servicio <span style="color:#999;font-weight:400;font-size:0.78rem;">— opcional, sobreescribe el color de la serie</span></label>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
@@ -3854,6 +3855,7 @@ class Scheduler {
             const suggBadgeE = document.getElementById('groupSuggestion');
             if(suggBadgeE) suggBadgeE.style.display = 'none'; 
             document.getElementById('taskName').value = s.name || ''; 
+            { const _msp = document.getElementById('mSvcPrice'); if (_msp) _msp.value = (s.price !== undefined && s.price !== null && s.price !== '') ? s.price : ''; }
             if(document.getElementById('mPriority')) {
                 document.getElementById('mPriority').value = s.priority || '';
                 // Mostrar opción de aplicar a serie solo si tiene serieId
@@ -3894,6 +3896,7 @@ class Scheduler {
             // No sugerir grupo al editar servicio existente - mantener grupo original
             // if(document.getElementById('mCli').value) setTimeout(() => this.suggestGroup(), 50);
             document.getElementById('taskName').value = ''; 
+            { const _msp2 = document.getElementById('mSvcPrice'); if (_msp2) _msp2.value = ''; }
             if(document.getElementById('mPriority')) {
                 document.getElementById('mPriority').value = '';
                 const pWrap = document.getElementById('priorityApplyWrap');
@@ -4217,6 +4220,7 @@ class Scheduler {
             timeStart: document.getElementById('mTimeStart').value || '',
             timeEnd: document.getElementById('mTimeEnd').value || '', 
             name: document.getElementById('taskName').value,
+            price: (function(){ var _v = (document.getElementById('mSvcPrice')||{}).value; return (_v !== undefined && _v !== '' && !isNaN(parseFloat(_v))) ? parseFloat(_v) : undefined; })(),
             priority: document.getElementById('mPriority')?.value || '',
             customColor: (document.getElementById('mCustomColorActive')?.checked && document.getElementById('mCustomColor')?.value !== '#ffffff') ? document.getElementById('mCustomColor')?.value : null,
             airbnbNote: document.getElementById('mAirbnbNote')?.value || '',
