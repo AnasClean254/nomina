@@ -2539,8 +2539,9 @@ class Scheduler {
     }
 
     _svcLabel(c) {
-        const addr = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : [c.address, c.city].filter(Boolean).join(', ');
-        const prop = this._hasProp(c) ? c.propId : '';
+        const isMulti = this._hasProp(c);
+        const addr = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : (isMulti ? '' : [c.address, c.city].filter(Boolean).join(', '));
+        const prop = isMulti ? c.propId : '';
         return [c.name, addr, prop].filter(Boolean).join(' - ');
     }
 
@@ -3633,8 +3634,10 @@ class Scheduler {
         if (props.length > 1 && wrap && propSel) {
             propSel.innerHTML = props.map(p => {
                 const hp = p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase();
-                const propLabel = hp ? (p.propId.length > 28 ? p.propId.substring(0,25)+'…' : p.propId) : (p.address||p.name);
-                return `<option value="${p.id}">${propLabel}${p.city ? ' · ' + p.city : ''}</option>`;
+                const _pid = hp ? (p.propId.length > 30 ? p.propId.substring(0,27)+'…' : p.propId.trim()) : '';
+                const _pa = (p.propAddress && p.propAddress.trim()) ? p.propAddress.trim() : '';
+                const label = [_pid, _pa].filter(Boolean).join('  ·  ') || (p.address || p.name);
+                return `<option value="${p.id}">${label}</option>`;
             }).join('');
             wrap.style.display = 'block';
         } else if (wrap) {
