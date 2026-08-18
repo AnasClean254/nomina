@@ -9165,7 +9165,8 @@ Motivo de cancelación (opcional):`);
                     <input type="date" id="fcHasta" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-size:0.9rem;box-sizing:border-box;">
                 </div>
             </div>
-            <div style="font-size:0.72rem;color:#888;margin:0 0 12px;">Si dejas Desde/Hasta vacíos, usa todo el mes seleccionado.</div>
+            <div style="font-size:0.72rem;color:#888;margin:0 0 6px;">Si dejas Desde/Hasta vacíos, usa todo el mes seleccionado.</div>
+            <button type="button" onclick="app._detectarSinFacturar('combinada')" style="width:100%;background:#8e44ad;color:white;border:none;padding:9px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:0.85rem;margin-bottom:12px;">🔍 Detectar servicios sin facturar (hasta fin del mes pasado)</button>
             <label style="display:flex;align-items:center;gap:8px;font-size:0.88rem;color:#2c3e50;cursor:pointer;margin-bottom:12px;">
                 <input type="checkbox" id="fcSubtotales" checked style="width:auto;"> Mostrar subtotales por propiedad
             </label>
@@ -14346,6 +14347,50 @@ Motivo de cancelación (opcional):`);
         this.updateManualInvoiceTotals?.();
         // Marcar que esta factura es manual, para que al reabrirla vuelva a Manual.
         if (window.currentPDFData) window.currentPDFData._isManual = true;
+    }
+
+    // Rellena el rango Desde/Hasta con los servicios NO facturados del cliente,
+    // hasta FIN DEL MES PASADO (no incluye el mes en curso). Opcional (botón manual).
+    // Red de seguridad por si Pendientes se saltó algún servicio.
+    _detectarSinFacturar(modo) {
+        let clientName, clientIds;
+        if (modo === 'combinada') {
+            const nom = document.getElementById('fcCliente')?.value;
+            if (!nom) { alert('Primero elige un cliente.'); return; }
+            clientName = nom;
+            clientIds = this.clis.filter(c => (c.name||'').trim().toLowerCase() === nom.trim().toLowerCase()).map(c => String(c.id));
+        } else {
+            const cid = document.getElementById('invoiceClient')?.value;
+            if (!cid) { alert('Primero elige un cliente.'); return; }
+            const cli = this.clis.find(c => String(c.id) === String(cid));
+            if (!cli) { alert('Cliente no encontrado.'); return; }
+            clientName = cli.name;
+            clientIds = this.clis.filter(c => (c.name||'').trim().toLowerCase() === (cli.name||'').trim().toLowerCase()).map(c => String(c.id));
+        }
+        const hoy = new Date();
+        const finMesPasado = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+        const finStr = finMesPasado.toLocaleDateString('en-CA');
+        const yaFacturado = (svcDate, propId) => (this.generatedInvoices || []).some(g => {
+            if (g.status === 'cancelada') return false;
+            if (g.clientName !== clientName) return false;
+            if (!(g.startDate <= svcDate && g.endDate >= svcDate)) return false;
+            if (g.clientIds && g.clientIds.length > 0) return g.clientIds.some(id => String(id) === String(propId));
+            return true;
+        });
+        const sinFacturar = (this.servs || []).filter(sv =>
+            clientIds.includes(String(sv.cliId)) && !sv.cancelled && sv.date <= finStr && !yaFacturado(sv.date, sv.cliId)
+        );
+        if (!sinFacturar.length) { alert('No se encontraron servicios sin facturar para este cliente hasta el fin del mes pasado (' + finStr + ').'); return; }
+        const fechas = sinFacturar.map(sv => sv.date).sort();
+        const desde = fechas[0];
+        if (modo === 'combinada') {
+            const dI = document.getElementById('fcDesde'); if (dI) dI.value = desde;
+            const hI = document.getElementById('fcHasta'); if (hI) hI.value = finStr;
+        } else {
+            const dI = document.getElementById('invoiceStart'); if (dI) dI.value = desde;
+            const hI = document.getElementById('invoiceEnd'); if (hI) hI.value = finStr;
+        }
+        alert('Se encontraron ' + sinFacturar.length + ' servicio(s) sin facturar.\nRango puesto: ' + desde + ' a ' + finStr + '.\n(No incluye el mes en curso.)');
     }
 
     previewInvoice() {
@@ -20133,6 +20178,7 @@ document.addEventListener('click', function(e) {
                     <input type="date" id="invoiceEnd" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
                 </div>
             </div>
+            <button type="button" onclick="app._detectarSinFacturar('normal')" style="width:100%;background:#8e44ad;color:white;border:none;padding:9px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:0.85rem;">🔍 Detectar servicios sin facturar (hasta fin del mes pasado)</button>
             
             <div>
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Fecha Límite de Pago:</label>
