@@ -2415,13 +2415,13 @@ class Scheduler {
                             ev.style.color = '#aaa';
                             ev.style.border = '1px solid #ddd';
                             ev.style.textDecoration = 'line-through';
-                            ev.textContent = '❌ ' + prioPrefixM + c.name;
+                            ev.textContent = '❌ ' + prioPrefixM + this._calLabel(c);
                         } else {
                             ev.style.backgroundColor = bgColor;
                             const textModeM = this.getTextMode(typeKeyM);
                             ev.style.color = textModeM === 'auto' ? getTextColor(bgColor) : (textModeM === 'white' ? '#fff' : '#000');
                             const showPropIdM = this._hasProp(c);
-                            const lblM = prioPrefixM + c.name + (c.city ? ' - ' + c.city : '') + (showPropIdM && c.propId ? ' / ' + c.propId : '');
+                            const lblM = prioPrefixM + this._calLabel(c);
                             // Badge de grupo
                             const evGrp = s.grupo || Object.keys(this.grupos).find(g => this.grupos[g].includes(s.empId.toString())) || '';
                             const evLetra = evGrp.replace(/Grupo /i,'').trim();
@@ -2543,6 +2543,15 @@ class Scheduler {
         const addr = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : (isMulti ? '' : [c.address, c.city].filter(Boolean).join(', '));
         const prop = isMulti ? c.propId : '';
         return [c.name, addr, prop].filter(Boolean).join(' - ');
+    }
+
+    // Etiqueta corta para el calendario: 1ª palabra del nombre + dirección hasta la ciudad (sin estado/ZIP) + IDpropiedad
+    _calLabel(c) {
+        const nom = String(c.name || '').trim().split(/\s+/)[0];
+        const isMulti = this._hasProp(c);
+        const addr = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim().replace(/,\s*TX\b.*$/i, '').trim() : (isMulti ? '' : [c.address, c.city].filter(Boolean).join(', '));
+        const prop = (isMulti && c.propId) ? c.propId : '';
+        return [nom, addr, prop].filter(Boolean).join(' - ');
     }
 
     _dedupGrupos() {
@@ -2975,7 +2984,7 @@ class Scheduler {
                 div.style.textDecorationColor = 'white';
                 div.style.textDecorationThickness = '2px';
                 const _addrCan = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : (showPropId ? '' : [c.address, c.city].filter(Boolean).join(', '));
-                const cancelLabel = `❌ ${prioPrefix}${c.name}${_addrCan ? ' - ' + _addrCan : ''}`;
+                const cancelLabel = `❌ ${prioPrefix}${this._calLabel(c)}`;
                 const cancelProp  = showPropId && c.propId ? `<div class="ev-propid">${c.propId}</div>` : '';
                 div.innerHTML = `<div class="ev-prop">${cancelLabel}</div>${cancelProp}`;
             } else {
@@ -2989,7 +2998,7 @@ class Scheduler {
                 const _addr4 = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : (showPropId ? '' : [c.address, c.city].filter(Boolean).join(', '));
                 const addrPart4 = _addr4 ? ' - ' + _addr4 : '';
                 // Muestra Nombre - Dirección - IDpropiedad (el tooltip div.title trae todo completo)
-                const mainLine = `${prioPrefix}${c.name}${addrPart4}${propPart}`;
+                const mainLine = `${prioPrefix}${this._calLabel(c)}`;
                 const timeLine = (s.timeStart || s.timeEnd)
                     ? `<div class="ev-time">${this.fmt12(s.timeStart)}${s.timeEnd ? ' - ' + this.fmt12(s.timeEnd) : ''}${(() => { if(s.timeStart && s.timeEnd) { const [sh,sm]=s.timeStart.split(':').map(Number); const [eh,em]=s.timeEnd.split(':').map(Number); const d=(eh*60+em)-(sh*60+sm); if(d>0) return ` (${Math.floor(d/60)}h${d%60>0?' '+d%60+'m':''})`; } return ''; })()}</div>`
                     : '';
@@ -14264,7 +14273,7 @@ Motivo de cancelación (opcional):`);
         const fuentes = hasMultiType ? allClientsForName : [client];
         fuentes.forEach(c => {
             this.servs.filter(s => String(s.cliId) === String(c.id) && s.date >= startDate && s.date <= endDate && !s.cancelled)
-                .forEach(s => allServices.push({ ...s, propId: c.propId || c.name, price: parseFloat(c.price) || 0, _cliId: c.id }));
+                .forEach(s => allServices.push({ ...s, propId: c.propId || c.name, price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(c.price) || 0), _cliId: c.id }));
         });
         if (allServices.length === 0) { alert('No hay servicios en ese período para pasar a Manual.'); return; }
         allServices.sort((a, b) => String(a.date).localeCompare(String(b.date)));
@@ -14355,7 +14364,7 @@ Motivo de cancelación (opcional):`);
                 }).map(s => ({
                     ...s,
                     propId: c.propId || c.name,
-                    price: parseFloat(c.price) || 0
+                    price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(c.price) || 0)
                 }));
                 allServices = allServices.concat(clientServices);
             });
@@ -14367,7 +14376,7 @@ Motivo de cancelación (opcional):`);
             }).map(s => ({
                 ...s,
                 propId: client.propId || client.name,
-                price: parseFloat(client.price) || 0
+                price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(client.price) || 0)
             }));
         }
         
@@ -14608,7 +14617,7 @@ Motivo de cancelación (opcional):`);
                 }).map(s => ({
                     ...s,
                     propId: c.propId || c.name,
-                    price: parseFloat(c.price) || 0
+                    price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(c.price) || 0)
                 }));
                 allServices = allServices.concat(clientServices);
             });
@@ -14620,7 +14629,7 @@ Motivo de cancelación (opcional):`);
                 return true;
             }).map(s => ({
                 ...s,
-                price: parseFloat(client.price) || 0
+                price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(client.price) || 0)
             }));
         }
         
