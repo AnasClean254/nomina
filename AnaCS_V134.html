@@ -9081,10 +9081,12 @@ Motivo de cancelación (opcional):`);
                     <button onclick="document.getElementById('combPreviewModal').remove()" style="background:#e74c3c;color:white;border:none;padding:9px 18px;border-radius:6px;cursor:pointer;font-weight:bold;">✕ Cerrar</button>
                 </div>
                 <iframe src="${url}" style="flex:1;border:none;"></iframe>
-                <div style="padding:16px 20px;border-top:2px solid #ddd;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
-                    <button onclick="app.printPDF('${url}')" style="background:#1A4FCC;color:white;padding:13px 26px;font-size:0.95rem;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">🖨️ Imprimir</button>
-                    <a href="${url}" download="Factura_Combinada_${String(d.invNum).padStart(4,'0')}.pdf" style="background:#e67e22;color:white;padding:13px 26px;font-size:0.95rem;border-radius:8px;font-weight:bold;text-decoration:none;">💾 Descargar</a>
-                    <button id="combBtnGuardar" onclick="app._guardarCombinadaDesdePreview()" ${yaGuardada ? 'disabled' : ''} style="background:${yaGuardada ? '#95a5a6' : '#27ae60'};color:white;padding:13px 26px;font-size:0.95rem;border:none;border-radius:8px;cursor:${yaGuardada ? 'default' : 'pointer'};font-weight:bold;">${yaGuardada ? '✅ Ya guardada en Enviadas' : '✅ Guardar como Enviada'}</button>
+                <div style="padding:16px 20px;border-top:2px solid #ddd;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+                    <button onclick="app.printPDF('${url}')" style="background:#1A4FCC;color:white;padding:13px 22px;font-size:0.9rem;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">🖨️ Imprimir</button>
+                    <button onclick="app._verCombinadaEnCalendario()" style="background:#16a085;color:white;padding:13px 22px;font-size:0.9rem;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">📅 Ver en Calendario</button>
+                    <button onclick="app._guardarDescargarCombinada('${url}')" style="background:#e67e22;color:white;padding:13px 22px;font-size:0.9rem;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar + Descargar</button>
+                    <button id="combBtnGuardar" onclick="app._guardarCombinadaDesdePreview()" ${yaGuardada ? 'disabled' : ''} style="background:${yaGuardada ? '#95a5a6' : '#27ae60'};color:white;padding:13px 22px;font-size:0.9rem;border:none;border-radius:8px;cursor:${yaGuardada ? 'default' : 'pointer'};font-weight:bold;">${yaGuardada ? '✅ Ya guardada' : '✅ Guardar como Enviada'}</button>
+                    <button onclick="document.getElementById('combPreviewModal').remove(); app.openFacturaCombinadaModal();" style="background:#95a5a6;color:white;padding:13px 22px;font-size:0.9rem;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">❌ Cancelar</button>
                 </div>
             </div>`;
         document.body.appendChild(m);
@@ -9098,6 +9100,29 @@ Motivo de cancelación (opcional):`);
         if (btn) { btn.textContent = '✅ Ya guardada en Enviadas'; btn.style.background = '#95a5a6'; btn.style.cursor = 'default'; btn.disabled = true; }
         try { if (typeof this.refreshGeneratedInvoices === 'function') this.refreshGeneratedInvoices(); } catch(e){}
         if (ok) { try { (this.toast ? this.toast('Factura combinada #' + String(d.invNum).padStart(4,'0') + ' guardada') : alert('Factura combinada #' + String(d.invNum).padStart(4,'0') + ' guardada en Enviadas.')); } catch(e){} }
+    }
+
+    // Ver en Calendario (combinada): resalta las visitas de TODAS las propiedades en el periodo
+    _verCombinadaEnCalendario() {
+        const d = window._combData;
+        if (!d) return;
+        const ids = (d.clientIds || []).map(String);
+        const fechas = (this.servs || [])
+            .filter(sv => ids.includes(String(sv.cliId)) && !sv.cancelled && sv.date >= d.startDate && sv.date <= d.endDate)
+            .map(sv => String(sv.date || '').split('T')[0]).filter(Boolean);
+        const json = encodeURIComponent(JSON.stringify(fechas));
+        this.verFacturaEnCalendario(d.clientName, d.startDate, d.endDate, json, 'preview');
+    }
+
+    // Guardar + Descargar (combinada): la guarda como Enviada y descarga el PDF
+    _guardarDescargarCombinada(url) {
+        const d = window._combData;
+        if (!d) { alert('No hay factura.'); return; }
+        this._guardarCombinadaData(d);
+        const btn = document.getElementById('combBtnGuardar');
+        if (btn) { btn.textContent = '✅ Ya guardada'; btn.style.background = '#95a5a6'; btn.style.cursor = 'default'; btn.disabled = true; }
+        try { if (typeof this.refreshGeneratedInvoices === 'function') this.refreshGeneratedInvoices(); } catch(e){}
+        try { const a = document.createElement('a'); a.href = url; a.download = 'Factura_Combinada_' + String(d.invNum).padStart(4,'0') + '.pdf'; document.body.appendChild(a); a.click(); a.remove(); } catch(e){}
     }
 
     // ── MODAL de Factura Combinada (Opción A: aislado, no toca el render de Pendientes) ──
