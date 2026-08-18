@@ -8906,11 +8906,15 @@ Motivo de cancelación (opcional):`);
         if (!props.length) { alert("No hay propiedades para ese cliente/grupo."); return; }
         const lineas = []; let granTotal = 0;
         props.forEach(p => {
-            const visitas = this.servs.filter(sv => String(sv.cliId) === String(p.id) && sv.date >= start && sv.date <= end && !sv.cancelled).length;
+            const serviciosMes = this.servs.filter(sv => String(sv.cliId) === String(p.id) && sv.date >= start && sv.date <= end && !sv.cancelled);
+            const visitas = serviciosMes.length;
             if (visitas === 0) return;   // sin servicios ese mes = NO se factura (aunque sea mensual)
             const esMensual = (p.precioTipo === 'mensual');
             const precioProp = parseFloat(p.price) || 0;
-            const importe = esMensual ? precioProp : precioProp * visitas;
+            const importe = esMensual ? precioProp : serviciosMes.reduce((sum, sv) => {
+                const _sp = (sv.price !== undefined && sv.price !== null && sv.price !== '' && !isNaN(parseFloat(sv.price))) ? parseFloat(sv.price) : precioProp;
+                return sum + _sp;
+            }, 0);
             granTotal += importe;
             // Prefiere la DIRECCIÓN de la propiedad; si no tiene, el IDpropiedad; si no, el nombre.
             const _addrProp = p.propAddress ? String(p.propAddress).trim() : '';
@@ -14379,6 +14383,15 @@ Motivo de cancelación (opcional):`);
                 price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(client.price) || 0)
             }));
         }
+
+        // fixed_monthly: repartir el precio fijo del mes entre las visitas (total = precio fijo, NO × visitas)
+        { const _itFM = (client && client.invoicingType) || 'monthly';
+          if (_itFM === 'fixed_monthly') {
+            const _fpFM = parseFloat(client.price) || 0;
+            const _ppvFM = allServices.length > 0 ? _fpFM / allServices.length : _fpFM;
+            allServices = allServices.map(s => ({ ...s, price: _ppvFM, _fixedMonthly: true }));
+          } }
+
         
         if (allServices.length === 0) {
             alert('⚠️ No hay servicios para este cliente en el período seleccionado');
@@ -14632,6 +14645,15 @@ Motivo de cancelación (opcional):`);
                 price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(client.price) || 0)
             }));
         }
+
+        // fixed_monthly: repartir el precio fijo del mes entre las visitas (total = precio fijo, NO × visitas)
+        { const _itFM = (client && client.invoicingType) || 'monthly';
+          if (_itFM === 'fixed_monthly') {
+            const _fpFM = parseFloat(client.price) || 0;
+            const _ppvFM = allServices.length > 0 ? _fpFM / allServices.length : _fpFM;
+            allServices = allServices.map(s => ({ ...s, price: _ppvFM, _fixedMonthly: true }));
+          } }
+
         
         if (allServices.length === 0) {
             alert('No hay servicios para este cliente en el rango seleccionado');
