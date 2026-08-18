@@ -2974,7 +2974,8 @@ class Scheduler {
                 div.style.textDecoration = 'line-through';
                 div.style.textDecorationColor = 'white';
                 div.style.textDecorationThickness = '2px';
-                const cancelLabel = `❌ ${prioPrefix}${c.name}${c.city ? ' - ' + c.city : ''}`;
+                const _addrCan = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : (showPropId ? '' : [c.address, c.city].filter(Boolean).join(', '));
+                const cancelLabel = `❌ ${prioPrefix}${c.name}${_addrCan ? ' - ' + _addrCan : ''}`;
                 const cancelProp  = showPropId && c.propId ? `<div class="ev-propid">${c.propId}</div>` : '';
                 div.innerHTML = `<div class="ev-prop">${cancelLabel}</div>${cancelProp}`;
             } else {
@@ -2985,7 +2986,8 @@ class Scheduler {
                 const textMode4 = this.getTextMode(typeKey4);
                 div.style.color = textMode4 === 'auto' ? getTextColor(bgColor4) : (textMode4 === 'white' ? '#fff' : '#000');
                 const propPart = showPropId && c.propId ? ` - ${c.propId}` : '';
-                const addrPart4 = [c.address, c.city].filter(Boolean).join(', ') ? ' - ' + [c.address, c.city].filter(Boolean).join(', ') : '';
+                const _addr4 = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : (showPropId ? '' : [c.address, c.city].filter(Boolean).join(', '));
+                const addrPart4 = _addr4 ? ' - ' + _addr4 : '';
                 // Muestra Nombre - Dirección - IDpropiedad (el tooltip div.title trae todo completo)
                 const mainLine = `${prioPrefix}${c.name}${addrPart4}${propPart}`;
                 const timeLine = (s.timeStart || s.timeEnd)
@@ -15623,7 +15625,7 @@ Motivo de cancelación (opcional):`);
                 }).map(s => ({
                     ...s,
                     propId: c.propId,  // Agregar PropID al servicio
-                    price: parseFloat(c.price) || 0  // Agregar precio específico
+                    price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(c.price) || 0)  // precio por visita si lo tiene, si no el de la propiedad
                 }));
                 
                 allServices = allServices.concat(clientServices);
@@ -15636,7 +15638,7 @@ Motivo de cancelación (opcional):`);
                 return true;
             }).map(s => ({
                 ...s,
-                price: parseFloat(client.price) || 0
+                price: (s.price !== undefined && s.price !== null && s.price !== '' && !isNaN(parseFloat(s.price))) ? parseFloat(s.price) : (parseFloat(client.price) || 0)
             }));
         }
         
