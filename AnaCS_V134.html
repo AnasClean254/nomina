@@ -9019,7 +9019,13 @@ Motivo de cancelación (opcional):`);
         if (email) { doc.setTextColor(80,80,80); doc.text(email, 20, byLine); }
 
         // Periodo facturado y fecha límite de pago (a la derecha del BILL TO)
-        const periodStr = `${meses[month]} 1 - ${lastDay}, ${year}`;
+        const _sp = String(start).split('-'), _ep = String(end).split('-');
+        const _sy = +_sp[0], _sm = +_sp[1], _sd = +_sp[2];
+        const _ey = +_ep[0], _em = +_ep[1], _ed = +_ep[2];
+        let periodStr;
+        if (_sy === _ey && _sm === _em) { periodStr = `${meses[_sm]} ${_sd} - ${_ed}, ${_sy}`; }
+        else if (_sy === _ey) { periodStr = `${meses[_sm]} ${_sd} - ${meses[_em]} ${_ed}, ${_sy}`; }
+        else { periodStr = `${meses[_sm]} ${_sd}, ${_sy} - ${meses[_em]} ${_ed}, ${_ey}`; }
         const _due = new Date(); _due.setDate(_due.getDate() + (diasPago || 7));   // 7 días (email/mensaje) o 15 (correo)
         const dueStr = _due.toLocaleDateString('en-US');
         doc.setFontSize(9); doc.setFont(undefined,'bold'); doc.setTextColor(80,80,80);
