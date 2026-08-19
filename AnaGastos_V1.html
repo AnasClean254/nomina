@@ -160,7 +160,7 @@ tbody tr:last-child td { border-bottom: none; }
             <div class="form-group"><label>Tipo de Pago</label>
                 <select id="gastoTipoPago">
                     <option value="Cash">💵 Cash</option>
-                    <option value="Debito">💳 Débito</option>
+                    <option value="Debito" selected>💳 Débito</option>
                     <option value="Credito">💳 Crédito</option>
                     <option value="Otro">Otro</option>
                 </select>
@@ -185,7 +185,7 @@ tbody tr:last-child td { border-bottom: none; }
         <div class="filter-bar">
             <div class="form-group"><label>Desde</label><input type="date" id="filterStart" onchange="refreshLista()"></div>
             <div class="form-group"><label>Hasta</label><input type="date" id="filterEnd" onchange="refreshLista()"></div>
-            <div class="form-group"><label>Categoría</label><select id="filterCat" onchange="refreshLista()"><option value="all">Todas</option></select></div>
+            <div class="form-group"><label>Categoría</label><select id="filterCat" onchange="updateFilterSubcat();refreshLista()"><option value="all">Todas</option></select></div>
             <div class="form-group"><label>Subcategoría</label><select id="filterSubcat" onchange="refreshLista()"><option value="all">Todas</option></select></div>
             <div class="form-group"><label>Buscar monto $</label><input type="number" id="filterMonto" min="0" step="0.01" placeholder="ej. 120" oninput="refreshLista()" style="width:110px;"></div>
             <button class="btn btn-blue" style="align-self:flex-end;" onclick="exportCSV()">📊 Exportar CSV</button>
@@ -470,15 +470,27 @@ function loadCatDropdowns() {
         filt.innerHTML+=`<option value="${c}">${c}</option>`;
     });
     if(prev)sel.value=prev;
-    const fsub=document.getElementById('filterSubcat');
-    if(fsub){const prevSub=fsub.value;const subs=new Set();gastos.forEach(g=>{if(g.subcategoria&&g.subcategoria!=='N/A')subs.add(g.subcategoria);});fsub.innerHTML='<option value="all">Todas</option>'+Array.from(subs).sort().map(x=>`<option value="${x}">${x}</option>`).join('');if(prevSub)fsub.value=prevSub;}
+    updateFilterSubcat();
     updateSubcategorias();
+}
+function updateFilterSubcat() {
+    const fcat=document.getElementById('filterCat').value;
+    const fsub=document.getElementById('filterSubcat');
+    if(!fsub)return;
+    const subs=new Set();
+    if(fcat && fcat!=='all'){
+        (cats[fcat]||[]).forEach(s=>subs.add(s));
+        gastos.forEach(g=>{if(g.categoria===fcat && g.subcategoria && g.subcategoria!=='N/A')subs.add(g.subcategoria);});
+    }
+    fsub.innerHTML='<option value="all">Todas</option>'+Array.from(subs).sort().map(x=>`<option value="${x}">${x}</option>`).join('');
+    fsub.value='all';
 }
 function updateSubcategorias() {
     const cat=document.getElementById('gastoCategoria').value;
     const sub=document.getElementById('gastoSubcategoria');
     sub.innerHTML='<option value="">-- Sin subcategoría --</option>';
     if(cat&&cats[cat])cats[cat].forEach(s=>sub.innerHTML+=`<option value="${s}">${s}</option>`);
+    if(cat&&cats[cat]&&cats[cat].includes('Gas'))sub.value='Gas'; // default Gas para categoría de vehículos/automóvil
 }
 function renderCategorias() {
     let html='';
@@ -610,7 +622,7 @@ function clearForm() {
     document.getElementById('gastoConcepto').value='';
     document.getElementById('gastoNotas').value='';
     document.getElementById('gastoVendor').value='';
-    document.getElementById('gastoTipoPago').value='Cash';
+    document.getElementById('gastoTipoPago').value='Debito';
     document.getElementById('gastoFoto').value='';
 }
 

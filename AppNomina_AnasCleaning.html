@@ -5631,7 +5631,9 @@
                         savedPayrollPeriods: this.savedPayrollPeriods,
                         adminPin: this.adminPin,
                         workConfig: this.workConfig,
-                        expenses: this.expenses || []
+                        expenses: this.expenses || [],
+                        checks: this.checks || [],
+                        vendors: this.vendors || []
                     };
                     await this.driveUploadFile('anas_nomina_sync.json', JSON.stringify(data, null, 2));
 
@@ -5801,6 +5803,25 @@
                                 this.expenses.push(remote); // Gasto nuevo
                             }
                             // Si ya existe, conservar local (no hay updatedAt en expenses)
+                        });
+                    }
+
+                    // FIX Ago19: Merge checks (cheques) — por id, agrega los nuevos de la otra PC
+                    if (data.checks) {
+                        this.checks = this.checks || [];
+                        data.checks.forEach(remote => {
+                            const idx = this.checks.findIndex(c => c.id === remote.id);
+                            if (idx < 0) this.checks.push(remote);
+                        });
+                    }
+
+                    // FIX Ago19: Merge vendors (proveedores) — agrega los nuevos (robusto: objeto o string)
+                    if (data.vendors) {
+                        this.vendors = this.vendors || [];
+                        data.vendors.forEach(remote => {
+                            const key = (remote && remote.id) || (remote && remote.name) || remote;
+                            const exists = this.vendors.some(v => (((v && v.id) || (v && v.name) || v) === key));
+                            if (!exists) this.vendors.push(remote);
                         });
                     }
 
@@ -6073,6 +6094,11 @@
                 localStorage.setItem('anas_adminPin', this.adminPin);
                 localStorage.setItem('anas_workConfig', JSON.stringify(this.workConfig));
                 localStorage.setItem('anas_checkConfig', JSON.stringify(this.checkConfig));
+                // FIX Ago19: persistir también cheques, gastos y proveedores en CADA guardado
+                // (antes solo se escribían al BAJAR de Drive → se perdían al recargar).
+                localStorage.setItem('anas_checks',   JSON.stringify(this.checks   || []));
+                localStorage.setItem('anas_expenses', JSON.stringify(this.expenses || []));
+                localStorage.setItem('anas_vendors',  JSON.stringify(this.vendors  || []));
             },
             
             loadData() {

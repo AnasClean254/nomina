@@ -1777,6 +1777,7 @@ class Scheduler {
         this.nominaTotales = JSON.parse(localStorage.getItem('v35_nominaTotales')) || [];
         this.gastosAna = JSON.parse(localStorage.getItem('v35_gastosAna')) || [];
         this.gastosAnaCats = JSON.parse(localStorage.getItem('v35_gastosAnaCats')) || {};
+        this.gastosCheque = JSON.parse(localStorage.getItem('v35_gastosCheque')) || []; // gastos con cheque de la App Nómina (espejo solo-lectura)
         this.gastosCategories = JSON.parse(localStorage.getItem('v35_gastosCategories')) || {
             "Vehículos": ["Gas", "Aseguranza", "Reparación", "Renovación de placas"],
             "Materiales y Equipo": ["Productos químicos", "Herramientas", "Equipo"],
@@ -3740,7 +3741,7 @@ class Scheduler {
         if (!sosp.length) {
             cuerpo = '<div style="padding:24px; text-align:center; color:#27ae60; font-size:1rem;">✅ Todo cuadra. No se encontraron servicios de más según la recurrencia de cada cliente.</div>';
         } else {
-            cuerpo = '<div style="padding:4px 0; font-size:0.85rem; color:#555; margin-bottom:8px;">Estos clientes tienen <b>más servicios de los que su recurrencia indica</b>. Revisa cada bloque para ver cuál sobra. Los servicios <b>únicos</b> y los que <b>ya tienen horas registradas</b> NO aparecen aquí (se respetan). Por ahora esto sólo muestra la lista — nada se borra.</div>';
+            cuerpo = '<div style="padding:4px 0; font-size:0.85rem; color:#555; margin-bottom:8px;">Estos clientes tienen <b>más servicios de los que su recurrencia indica</b>. Revisa cada bloque para ver cuál sobra. Los servicios <b>únicos</b> y los que <b>ya tienen horas registradas</b> NO aparecen aquí (se respetan). <b>Marca la casilla</b> de los que sobran y usa <b>🗑️ Borrar seleccionados</b> abajo.</div>';
             sosp.forEach(g => {
                 cuerpo += '<div style="border:1px solid #e0e0e0; border-radius:8px; margin-bottom:10px; overflow:hidden;">' +
                     '<div style="background:#fdecea; padding:8px 12px; font-weight:700; color:#c0392b; font-size:0.9rem;">' +
@@ -3748,7 +3749,9 @@ class Scheduler {
                         '<span style="float:right; font-weight:400;">esperado: ' + g.esperado + ' · encontrado: ' + g.encontrado + '</span>' +
                     '</div><div style="padding:4px 12px;">';
                 g.servicios.forEach(s => {
-                    cuerpo += '<div style="padding:5px 0; border-bottom:1px solid #f2f2f2; font-size:0.85rem;">📅 ' + s.date + ' · grupo: ' + (s.grupo || '-') + ' · $' + (s.price !== undefined ? s.price : '-') + ' <span style="color:#aaa; font-size:0.72rem;">id ' + s.id + '</span></div>';
+                    cuerpo += '<label style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid #f2f2f2; font-size:0.85rem; cursor:pointer;">' +
+                        '<input type="checkbox" class="dup-chk" value="' + String(s.id) + '">' +
+                        '<span>📅 ' + s.date + ' · grupo: ' + (s.grupo || '-') + ' · $' + (s.price !== undefined ? s.price : '-') + ' <span style="color:#aaa; font-size:0.72rem;">id ' + s.id + '</span></span></label>';
                 });
                 cuerpo += '</div></div>';
             });
@@ -3763,9 +3766,31 @@ class Scheduler {
                 '<h3 style="margin:0; font-size:1.1rem; color:#2c3e50;">🔍 Revisar servicios duplicados</h3>' +
                 '<button onclick="document.getElementById(\'revisarDupOverlay\').remove()" style="background:#ecf0f1; border:none; border-radius:6px; padding:6px 12px; cursor:pointer; font-size:0.9rem;">Cerrar</button>' +
             '</div>' +
-            '<div style="padding:14px 18px; overflow-y:auto;">' + cuerpo + '</div>' +
+            '<div style="padding:14px 18px; overflow-y:auto; flex:1;">' + cuerpo + '</div>' +
+            (sosp.length ? '<div style="padding:12px 18px; border-top:1px solid #eee; display:flex; justify-content:space-between; align-items:center; gap:10px;">' +
+                '<span style="font-size:0.8rem; color:#888;">Marca los que sobran y bórralos.</span>' +
+                '<button onclick="app._borrarDuplicadosSeleccionados()" style="background:#e74c3c; color:#fff; border:none; border-radius:6px; padding:8px 14px; cursor:pointer; font-size:0.9rem; font-weight:600;">🗑️ Borrar seleccionados</button>' +
+            '</div>' : '') +
         '</div>';
         document.body.appendChild(ov);
+    }
+
+    // Borra los servicios marcados en el panel de duplicados. Deja lápida (no reviven al
+    // sincronizar) y refresca calendario + el propio panel. Con confirmación.
+    _borrarDuplicadosSeleccionados() {
+        const chks = Array.from(document.querySelectorAll('#revisarDupOverlay .dup-chk:checked'));
+        if (!chks.length) { alert('Selecciona al menos un servicio para borrar.'); return; }
+        const ids = chks.map(c => c.value);
+        if (!confirm('🗑️ ¿Borrar ' + ids.length + ' servicio(s) seleccionado(s)?\n\nDeja lápida (no reviven al sincronizar) y NO se puede deshacer.')) return;
+        const idSet = new Set(ids.map(String));
+        ids.forEach(id => this._tombstone('servs', id));
+        this.servs = (this.servs || []).filter(s => !idSet.has(String(s.id)));
+        this.save();
+        this.render();
+        const fm = document.getElementById('financeModal');
+        if (fm && fm.style.display === 'block') this.refreshFinance();
+        alert('✅ ' + ids.length + ' servicio(s) borrado(s).');
+        this.openRevisarDuplicados();
     }
     setView(v) {
         this.view = v;
@@ -9808,8 +9833,11 @@ Motivo de cancelación (opcional):`);
             }
         });
         
-        // Filtrar gastos por período
-        const filteredGastos = (this.gastosAna || []).filter(g => g.fecha >= startStr && g.fecha <= endStr);
+        // Filtrar gastos por período (AnaGastos + gastos con cheque de la Nómina)
+        const filteredGastos = [
+            ...(this.gastosAna || []).filter(g => g.fecha >= startStr && g.fecha <= endStr),
+            ...(this.gastosCheque || []).filter(g => g.fecha >= startStr && g.fecha <= endStr)
+        ];
         
         // 💰 Calcular nómina del período
         let totalNomina = 0;
@@ -10770,8 +10798,11 @@ Motivo de cancelación (opcional):`);
                 }
             });
             
-            // Filtrar gastos
-            const filteredGastos = (this.gastosAna || []).filter(g => g.fecha >= startStr && g.fecha <= endStr);
+            // Filtrar gastos (AnaGastos + gastos con cheque de la Nómina)
+            const filteredGastos = [
+                ...(this.gastosAna || []).filter(g => g.fecha >= startStr && g.fecha <= endStr),
+                ...(this.gastosCheque || []).filter(g => g.fecha >= startStr && g.fecha <= endStr)
+            ];
             
             // Agrupar gastos
             const gastosPorCategoria = {};
@@ -18992,6 +19023,27 @@ Motivo de cancelación (opcional):`);
             console.log('ℹ️ Nóminas no disponibles (Drive no conectado o sin datos):', err.message);
         }
 
+        // ── Importar GASTOS CON CHEQUE de la App Nómina (espejo solo-lectura) ──
+        try {
+            let rawExp = (this._nominaSyncData && this._nominaSyncData.expenses) || null;
+            if (!rawExp) {
+                try { const t = await this.driveReadNominaTotales(); rawExp = (t && t.expenses) || null; } catch(e) {}
+            }
+            if (rawExp && rawExp.length) {
+                this.gastosCheque = rawExp.map(e => ({
+                    id:           e.id || ('chq_' + (e.checkNum || '') + '_' + (e.date || '')),
+                    fecha:        e.date || '',
+                    monto:        parseFloat(e.amount) || 0,
+                    categoria:    'Gastos con cheque (Nómina)',
+                    subcategoria: e.vendor || e.category || 'Cheque',
+                    vendor:       e.vendor || '',
+                    desc:         e.desc || '',
+                    checkNum:     e.checkNum || ''
+                })).filter(x => x.fecha);
+                localStorage.setItem('v35_gastosCheque', JSON.stringify(this.gastosCheque));
+            }
+        } catch(err) { console.log('ℹ️ Gastos con cheque no disponibles:', err.message); }
+
         // ── Resumen ──
         const msg = [];
         if (empsAdded > 0)   msg.push(`✅ ${empsAdded} empleado(s) nuevo(s) importado(s)`);
@@ -19280,7 +19332,12 @@ Motivo de cancelación (opcional):`);
 
             const winnerNomina = localWins ? (this.nominaTotales || []) : (data.nominaTotales || []);
             const loserNomina  = localWins ? (data.nominaTotales || []) : (this.nominaTotales || []);
-            this.nominaTotales = this.mergeArraysById(winnerNomina, loserNomina, ['id', 'periodo', 'weekStart']);
+            // LWW para nómina: la App Nómina es la ÚNICA que edita/borra períodos; el
+            // Scheduler solo LEE. Si uniéramos (mergeArraysById), un período borrado en la
+            // App Nómina revive desde la otra PC. Por eso gana el lado recién sincronizado
+            // (winner) COMPLETO; solo cae al perdedor si el ganador viene vacío (para no
+            // borrar los totales cuando esa PC aún no importó la nómina).
+            this.nominaTotales = (winnerNomina && winnerNomina.length) ? winnerNomina : loserNomina;
 
             // NÓMINA POR PORCENTAJE: precios = catálogo simple, gana el lado ganador (con
             // los del perdedor como base). Semanas = objeto anidado empleado→semana; se
