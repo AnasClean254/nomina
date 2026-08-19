@@ -8319,6 +8319,15 @@ Motivo de cancelación (opcional):`);
         lineas.forEach((ln, i) => {
             const _hasF = ln.fechas && ln.fechas.length;
             const _rh = _hasF ? 12 : 8;
+            if (y + _rh > (doc.internal.pageSize.getHeight() - 72)) {
+                doc.addPage(); y = 20;
+                doc.setFillColor(230,230,230); doc.rect(20, y, 170, 9, 'F');
+                doc.setTextColor(0,0,0); doc.setFontSize(9); doc.setFont(undefined,'bold');
+                doc.text('PROPERTY', 24, y+6);
+                doc.text('SERVICES', colServ, y+6, { align:'right' });
+                if (subt) doc.text('SUBTOTAL', 186, y+6, { align:'right' });
+                y += 9; doc.setFont(undefined,'normal');
+            }
             if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, _rh, 'F'); }
             doc.setFontSize(9); doc.setTextColor(50,50,50);
             doc.text(String(ln.description||'').substring(0, subt ? 55 : 72), 24, y+5);
@@ -9032,6 +9041,15 @@ Motivo de cancelación (opcional):`);
         lineas.forEach((ln, i) => {
             const _hasF = ln.fechas && ln.fechas.length;
             const _rh = _hasF ? 12 : 8;
+            if (y + _rh > (doc.internal.pageSize.getHeight() - 72)) {
+                doc.addPage(); y = 20;
+                doc.setFillColor(230,230,230); doc.rect(20, y, 170, 9, 'F');
+                doc.setTextColor(0,0,0); doc.setFontSize(9); doc.setFont(undefined,'bold');
+                doc.text('PROPERTY', 24, y+6);
+                doc.text('SERVICES', colServ, y+6, { align:'right' });
+                if (mostrarSubtotales) doc.text('SUBTOTAL', 186, y+6, { align:'right' });
+                y += 9; doc.setFont(undefined,'normal');
+            }
             if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, _rh, 'F'); }
             doc.setFontSize(9); doc.setTextColor(50,50,50);
             doc.text(String(ln.dir).substring(0, mostrarSubtotales ? 55 : 72), 24, y+5);
