@@ -9165,7 +9165,7 @@ Motivo de cancelación (opcional):`);
             .filter(sv => ids.includes(String(sv.cliId)) && !sv.cancelled && sv.date >= d.startDate && sv.date <= d.endDate)
             .map(sv => String(sv.date || '').split('T')[0]).filter(Boolean);
         const json = encodeURIComponent(JSON.stringify(fechas));
-        this.verFacturaEnCalendario(d.clientName, d.startDate, d.endDate, json, 'preview');
+        this.verFacturaEnCalendario(d.clientName, d.startDate, d.endDate, json, 'preview-comb');
     }
 
     // Guardar + Descargar (combinada): la guarda como Enviada y descarga el PDF
@@ -14946,6 +14946,10 @@ Motivo de cancelación (opcional):`);
         // Cerrar el preview del PDF
         const preview = document.getElementById('pdfPreviewModal');
         if (preview) preview.remove();
+        // También cerrar el preview de la COMBINADA y el de estado de cuenta; si no,
+        // quedan ENCIMA del calendario (mismo z-index) y no se ve nada.
+        document.getElementById('combPreviewModal')?.remove();
+        document.getElementById('statementPreviewModal')?.remove();
 
         // Recordar DE DÓNDE se abrió el calendario para poder regresar con el botón "Volver".
         // origen: 'enviadas' | 'pendientes' | undefined (preview del PDF, no regresa a lista).
@@ -14974,6 +14978,12 @@ Motivo de cancelación (opcional):`);
         // Filtrar el calendario a este cliente (reconoce todas sus propiedades).
         this._selectCalendarCli(clientName, clientName, '');
 
+        // Una factura combinada abarca VARIAS recurrencias y propiedades. Reseteamos
+        // los filtros de VISUALIZACIÓN (recurrencia + grupos) a "todos" para que se
+        // vean TODOS los servicios facturados y no solo una recurrencia.
+        const _rf = document.getElementById('recurrenceFilter'); if (_rf) _rf.value = 'all';
+        this.selectedGroups = ['all'];
+
         // Vista semanal si el período es corto, mensual si es largo.
         const start = new Date(startDate + 'T00:00:00');
         const end = new Date(endDate + 'T00:00:00');
@@ -15001,6 +15011,7 @@ Motivo de cancelación (opcional):`);
         btn.textContent = destino === 'enviadas' ? '⬅️ Volver a Enviadas'
                         : destino === 'pendientes' ? '⬅️ Volver a Pendientes'
                         : destino === 'preview' ? '⬅️ Volver a la Factura'
+                        : destino === 'preview-comb' ? '⬅️ Volver a la Combinada'
                         : '⬅️ Cerrar verificación';
         btn.style.cssText = 'position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:10050; background:#2c3e50; color:white; border:none; padding:10px 20px; border-radius:24px; font-size:0.95rem; font-weight:bold; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.3);';
         btn.onclick = () => this._volverDeFacturaCalendario();
@@ -15016,6 +15027,18 @@ Motivo de cancelación (opcional):`);
         this._facturaVolverA = null;
         if (destino === 'enviadas') this.openGeneratedInvoices();
         else if (destino === 'pendientes') this.openPendingInvoices();
+        else if (destino === 'preview-comb') {
+            // Igual que las facturas normales: regresar al PREVIEW del PDF (no al modal).
+            // El blob no se guarda, así que regeneramos la combinada con window._combData.
+            const dc = window._combData;
+            if (dc && dc.clientName && dc.startDate) {
+                try {
+                    const _y = parseInt(String(dc.startDate).substring(0,4));
+                    const _mo = parseInt(String(dc.startDate).substring(5,7));
+                    this.facturaCombinada(dc.clientName, '', _y, _mo, dc.mostrarSubtotales !== false, 7, false, dc.startDate, dc.endDate);
+                } catch(e) { try { this.openFacturaCombinadaModal(); } catch(e2){} }
+            } else { try { this.openFacturaCombinadaModal(); } catch(e){} }
+        }
         else if (destino === 'preview') {
             // Reconstruir el preview del PDF con los datos que quedaron guardados, para
             // que el usuario pueda enviar/imprimir de una vez tras verificar en calendario.
