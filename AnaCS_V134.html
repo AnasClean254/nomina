@@ -7978,12 +7978,30 @@ class Scheduler {
         if (mEmail) mEmail.value = '';
     }
 
+    // Editar factura combinada = abrir el MODAL combinado pre-llenado (no solo el preview)
+    _editarCombinada(inv) {
+        this.closeGeneratedInvoices();
+        this.openFacturaCombinadaModal();
+        setTimeout(() => {
+            const setV = (id, val) => { const el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+            setV('fcCliente', inv.clientName);
+            if (inv.startDate) {
+                setV('fcAnio', parseInt(inv.startDate.substring(0,4)));
+                setV('fcMes', parseInt(inv.startDate.substring(5,7)));
+                setV('fcDesde', inv.startDate);
+            }
+            if (inv.endDate) setV('fcHasta', inv.endDate);
+            const cb = document.getElementById('fcSubtotales');
+            if (cb && typeof inv.mostrarSubtotales !== 'undefined') cb.checked = !!inv.mostrarSubtotales;
+        }, 60);
+    }
+
     openInvoiceForEdit(id) {
         const invoice = (this.generatedInvoices || []).find(inv => 
             (inv.id && inv.id == id) || inv.invoiceNumber == id
         );
         if (!invoice) { alert('No se encontró la factura'); return; }
-        if (invoice.esCombinada) { this._regenerarCombinada(invoice); return; }
+        if (invoice.esCombinada) { this._editarCombinada(invoice); return; }
 
         this.closeGeneratedInvoices();
         this.openInvoice();
@@ -8299,11 +8317,20 @@ Motivo de cancelación (opcional):`);
         y += 9;
         doc.setTextColor(50,50,50); doc.setFont(undefined,'normal'); doc.setFontSize(9);
         lineas.forEach((ln, i) => {
-            if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, 8, 'F'); }
-            doc.text(String(ln.description||'').substring(0, subt ? 55 : 72), 24, y+5.5);
-            doc.text(String(ln.qty!=null?ln.qty:''), colServ, y+5.5, { align:'right' });
-            if (subt) doc.text(money(ln.total), 186, y+5.5, { align:'right' });
-            y += 8;
+            const _hasF = ln.fechas && ln.fechas.length;
+            const _rh = _hasF ? 12 : 8;
+            if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, _rh, 'F'); }
+            doc.setFontSize(9); doc.setTextColor(50,50,50);
+            doc.text(String(ln.description||'').substring(0, subt ? 55 : 72), 24, y+5);
+            doc.text(String(ln.qty!=null?ln.qty:''), colServ, y+5, { align:'right' });
+            if (subt) doc.text(money(ln.total), 186, y+5, { align:'right' });
+            if (_hasF) {
+                doc.setFontSize(7); doc.setTextColor(130,130,130);
+                const _fstr = ln.fechas.map(fx => { const pp = String(fx).split('-'); return pp.length===3 ? (pp[1]+'/'+pp[2]) : fx; }).join('   ');
+                doc.text(_fstr.substring(0, 100), 24, y+9.5);
+                doc.setFontSize(9); doc.setTextColor(50,50,50);
+            }
+            y += _rh;
         });
 
         y = Math.max(y + 6, doc.internal.pageSize.getHeight() - 60);
@@ -8920,7 +8947,7 @@ Motivo de cancelación (opcional):`);
             const _addrProp = p.propAddress ? String(p.propAddress).trim() : '';
             const _idProp = (p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase()) ? p.propId.trim() : '';
             const dir = _addrProp || _idProp || p.name;
-            lineas.push({ dir, visitas, importe, esMensual });
+            lineas.push({ dir, visitas, importe, esMensual, fechas: serviciosMes.map(sv => sv.date).sort() });
         });
         if (!lineas.length) { alert("No hay servicios en ese mes para esas propiedades."); return; }
 
@@ -9003,11 +9030,20 @@ Motivo de cancelación (opcional):`);
         y += 9;
         doc.setTextColor(50,50,50); doc.setFont(undefined,'normal'); doc.setFontSize(9);
         lineas.forEach((ln, i) => {
-            if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, 8, 'F'); }
-            doc.text(String(ln.dir).substring(0, mostrarSubtotales ? 55 : 72), 24, y+5.5);
-            doc.text(String(ln.visitas), colServ, y+5.5, { align:'right' });
-            if (mostrarSubtotales) doc.text(money(ln.importe), 186, y+5.5, { align:'right' });
-            y += 8;
+            const _hasF = ln.fechas && ln.fechas.length;
+            const _rh = _hasF ? 12 : 8;
+            if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, _rh, 'F'); }
+            doc.setFontSize(9); doc.setTextColor(50,50,50);
+            doc.text(String(ln.dir).substring(0, mostrarSubtotales ? 55 : 72), 24, y+5);
+            doc.text(String(ln.visitas), colServ, y+5, { align:'right' });
+            if (mostrarSubtotales) doc.text(money(ln.importe), 186, y+5, { align:'right' });
+            if (_hasF) {
+                doc.setFontSize(7); doc.setTextColor(130,130,130);
+                const _fstr = ln.fechas.map(fx => { const pp = String(fx).split('-'); return pp.length===3 ? (pp[1]+'/'+pp[2]) : fx; }).join('   ');
+                doc.text(_fstr.substring(0, 100), 24, y+9.5);
+                doc.setFontSize(9); doc.setTextColor(50,50,50);
+            }
+            y += _rh;
         });
 
         y = Math.max(y + 6, doc.internal.pageSize.getHeight() - 60);
@@ -9028,7 +9064,7 @@ Motivo de cancelación (opcional):`);
             serviceCount: totalVisitas,
             total: granTotal,
             periodKey: clientName + '-comb-' + year + '-' + mm,
-            items: lineas.map(ln => ({ description: ln.dir, qty: ln.visitas, total: ln.importe })),
+            items: lineas.map(ln => ({ description: ln.dir, qty: ln.visitas, total: ln.importe, fechas: ln.fechas })),
             mostrarSubtotales: mostrarSubtotales,
             dueDate: dueStr
         };
@@ -14391,6 +14427,85 @@ Motivo de cancelación (opcional):`);
             const hI = document.getElementById('invoiceEnd'); if (hI) hI.value = finStr;
         }
         alert('Se encontraron ' + sinFacturar.length + ' servicio(s) sin facturar.\nRango puesto: ' + desde + ' a ' + finStr + '.\n(No incluye el mes en curso.)');
+    }
+
+    // Panel: TODOS los clientes con servicios pasados SIN FACTURAR (hasta fin del mes pasado)
+    _sinFacturarFinMesPasado() {
+        const hoy = new Date();
+        const fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0);
+        return fin.toLocaleDateString('en-CA');
+    }
+    _yaFacturadoServicio(clientName, svcDate, propId) {
+        return (this.generatedInvoices || []).some(g => {
+            if (g.status === 'cancelada') return false;
+            if (g.clientName !== clientName) return false;
+            if (!(g.startDate <= svcDate && g.endDate >= svcDate)) return false;
+            if (g.clientIds && g.clientIds.length > 0) return g.clientIds.some(id => String(id) === String(propId));
+            return true;
+        });
+    }
+    _openServiciosSinFacturar() {
+        const finStr = this._sinFacturarFinMesPasado();
+        const byName = {};
+        this.clis.forEach(c => { const n = (c.name || '').trim(); if (!n) return; (byName[n] = byName[n] || []).push(c); });
+        const filas = [];
+        Object.keys(byName).forEach(name => {
+            const ids = byName[name].map(c => String(c.id));
+            const sf = (this.servs || []).filter(sv => ids.includes(String(sv.cliId)) && !sv.cancelled && sv.date <= finStr && !this._yaFacturadoServicio(name, sv.date, sv.cliId));
+            if (!sf.length) return;
+            const fechas = sf.map(sv => sv.date).sort();
+            let total = 0;
+            sf.forEach(sv => { const cp = this.clis.find(c => String(c.id) === String(sv.cliId)); const sp = (sv.price !== undefined && sv.price !== null && sv.price !== '' && !isNaN(parseFloat(sv.price))) ? parseFloat(sv.price) : (cp ? (parseFloat(cp.price) || 0) : 0); total += sp; });
+            filas.push({ name, count: sf.length, desde: fechas[0], total });
+        });
+        filas.sort((a, b) => a.desde.localeCompare(b.desde));
+        const money = n => '$' + parseFloat(n || 0).toFixed(2);
+        document.getElementById('sinFacturarModal')?.remove();
+        const m = document.createElement('div');
+        m.id = 'sinFacturarModal';
+        m.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10002;display:flex;align-items:center;justify-content:center;';
+        let rows;
+        if (!filas.length) {
+            rows = `<div style="padding:30px;text-align:center;color:#27ae60;font-weight:bold;">✅ No hay servicios pasados sin facturar (hasta ${finStr}).</div>`;
+        } else {
+            rows = filas.map(fa => `
+                <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid #eee;">
+                    <div style="flex:1;"><b>${fa.name}</b><br><span style="font-size:0.78rem;color:#888;">${fa.count} servicio(s) · desde ${fa.desde} · ≈ ${money(fa.total)}</span></div>
+                    <button data-cli="${encodeURIComponent(fa.name)}" onclick="app._facturarAtrasado(decodeURIComponent(this.dataset.cli))" style="background:#27ae60;color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:bold;font-size:0.85rem;">Facturar</button>
+                </div>`).join('');
+        }
+        m.innerHTML = `
+            <div style="background:white;width:90%;max-width:640px;max-height:85%;border-radius:12px;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.5);">
+                <div style="padding:16px 20px;border-bottom:2px solid #ddd;display:flex;justify-content:space-between;align-items:center;background:#c0392b;color:white;border-radius:12px 12px 0 0;">
+                    <h2 style="margin:0;font-size:1.1rem;">⚠️ Servicios Pasados Sin Facturar</h2>
+                    <button onclick="document.getElementById('sinFacturarModal').remove()" style="background:rgba(255,255,255,0.25);color:white;border:none;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:bold;">✕ Cerrar</button>
+                </div>
+                <div style="padding:8px 20px;font-size:0.8rem;color:#666;border-bottom:1px solid #eee;">Hasta fin del mes pasado (${finStr}). Al presionar Facturar se arma el preview con TODOS los pendientes del cliente.</div>
+                <div style="overflow-y:auto;">${rows}</div>
+            </div>`;
+        document.body.appendChild(m);
+    }
+    _facturarAtrasado(clientName) {
+        const finStr = this._sinFacturarFinMesPasado();
+        const props = this.clis.filter(c => (c.name || '').trim().toLowerCase() === String(clientName).trim().toLowerCase());
+        if (!props.length) { alert('Cliente no encontrado.'); return; }
+        const ids = props.map(c => String(c.id));
+        const sf = (this.servs || []).filter(sv => ids.includes(String(sv.cliId)) && !sv.cancelled && sv.date <= finStr && !this._yaFacturadoServicio(clientName, sv.date, sv.cliId));
+        if (!sf.length) { alert('Ya no hay servicios sin facturar para ' + clientName + '.'); return; }
+        const desde = sf.map(sv => sv.date).sort()[0];
+        const isMulti = props.length > 1 || props.some(p => this._hasProp(p));
+        document.getElementById('sinFacturarModal')?.remove();
+        if (isMulti) {
+            const y = parseInt(desde.substring(0, 4)), mo = parseInt(desde.substring(5, 7));
+            this.facturaCombinada(clientName, '', y, mo, true, 7, false, desde, finStr);
+        } else {
+            const cli = props[0];
+            const sel = document.getElementById('invoiceClient'); if (sel) sel.value = String(cli.id);
+            const dI = document.getElementById('invoiceStart'); if (dI) dI.value = desde;
+            const eI = document.getElementById('invoiceEnd'); if (eI) eI.value = finStr;
+            try { if (typeof this.autoSetPaymentTerms === 'function') this.autoSetPaymentTerms(); } catch (e) {}
+            this.previewInvoice();
+        }
     }
 
     previewInvoice() {
@@ -20106,6 +20221,7 @@ document.addEventListener('click', function(e) {
                 <input type="month" id="dashMonth" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:0.9rem;"
                     onchange="app.renderInvoiceDashboard()">
                 <button onclick="app.renderInvoiceDashboard()" class="btn" style="background:#2c3e50; color:white; padding:6px 14px; font-size:0.85rem;">🔄 Actualizar</button>
+                <button onclick="app._openServiciosSinFacturar()" class="btn" style="background:#c0392b; color:white; padding:6px 14px; font-size:0.85rem;">⚠️ Servicios Pasados Sin Facturar</button>
                 <span id="dashSummary" style="font-size:0.85rem; color:#666; margin-left:auto;"></span>
             </div>
             <!-- 3 columnas -->
