@@ -1798,13 +1798,14 @@ class Scheduler {
         // (una fusión parcial, un guardado a destiempo) un registro borrado alcanzó a
         // quedarse en localStorage, aquí se retira y se vuelve a guardar limpio.
         (() => {
-            const _antes = (this.clis || []).length + (this.servs || []).length + (this.emps || []).length;
+            const _antes = (this.clis || []).length + (this.servs || []).length + (this.emps || []).length + (this.generatedInvoices || []).length;
             this._applyTombstones();
-            const _despues = (this.clis || []).length + (this.servs || []).length + (this.emps || []).length;
+            const _despues = (this.clis || []).length + (this.servs || []).length + (this.emps || []).length + (this.generatedInvoices || []).length;
             if (_despues !== _antes) {
                 localStorage.setItem('v35_clis', JSON.stringify(this.clis || []));
                 localStorage.setItem('v35_servs', JSON.stringify(this.servs || []));
                 localStorage.setItem('v35_emps', JSON.stringify(this.emps || []));
+                localStorage.setItem('v35_generatedInvoices', JSON.stringify(this.generatedInvoices || []));
                 console.log('🪦 Lápidas aplicadas al arrancar: se retiraron', _antes - _despues, 'registro(s) borrado(s) que habían revivido.');
             }
         })();
@@ -11995,6 +11996,9 @@ Motivo de cancelación (opcional):`);
         this.gastos         = (this.gastos         || []).filter(g => !dead.has('gastos:'         + String(g.id)));
         this.estimates      = (this.estimates      || []).filter(e => !dead.has('estimates:'      + String(e.id)));
         this.serviceCatalog = (this.serviceCatalog || []).filter(s => !dead.has('serviceCatalog:' + String(s.id)));
+        // Facturas generadas: antes NO tenían lápida → al quitar una y sincronizar, la UNIÓN
+        // del merge la revivía desde Drive (le pasó a facturas huérfanas de Brazos 0001-0011, 0030).
+        this.generatedInvoices = (this.generatedInvoices || []).filter(i => !dead.has('generatedInvoices:' + String(i.id)));
     }
 
     delCli(id) {
