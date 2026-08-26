@@ -167,9 +167,24 @@
             if (!r.ok) return;
             const info = await r.json();
             if (!info || !info.version) return;
-            if (String(info.version) === String(window.ANACS_VERSION)) return;
+            if (String(info.version) === String(window.ANACS_VERSION)) {
+                sessionStorage.removeItem('anacs_recargando');   // llegó bien, se olvida el intento
+                return;
+            }
 
             if (alArrancar) {
+                // Protección contra bucle: si ya se recargó por esta misma versión
+                // y el archivo sigue siendo el viejo —porque se publicó el
+                // version.json antes que el HTML, o porque GitHub todavía no
+                // propaga— recargar otra vez dejaría la app girando sin fin. Se
+                // intenta UNA vez; si no sirvió, se avisa y se deja decidir.
+                var yaIntentado = sessionStorage.getItem('anacs_recargando');
+                if (yaIntentado === String(info.version)) {
+                    console.warn('⚠️ Ya se recargó por la versión ' + info.version +
+                                 ' y sigue llegando la anterior. Puede que el HTML aún no esté publicado.');
+                    ANACS_avisarActualizacion(info.version, info.notas || '');
+                    return;
+                }
                 // Nadie ha empezado a trabajar: se recarga de una vez. El
                 // parámetro obliga al navegador a pedir el archivo de nuevo en
                 // vez de servir el que tiene guardado.
