@@ -150,6 +150,63 @@
             }
         } catch (e) { console.warn('No se pudo reducir el logo guardado:', e); }
     };
+    /* ══════════════════════════════════════════════════════════════════════
+       ACTUALIZACIÓN AUTOMÁTICA  ·  v135
+       Sin esto, el navegador puede seguir sirviendo una copia vieja durante
+       horas y nadie se entera de que hay arreglos publicados.
+       ══════════════════════════════════════════════════════════════════════ */
+    window.ANACS_VERSION = '135';
+
+    window.ANACS_buscarActualizacion = async function (alArrancar) {
+        // Sólo tiene sentido servida por web; abierta como archivo local no hay
+        // de dónde bajar nada.
+        if (!/^https?:/.test(location.protocol)) return;
+        try {
+            const base = location.href.split('?')[0].replace(/[^/]*$/, '');
+            const r = await fetch(base + 'version.json?cb=' + Date.now(), { cache: 'no-store' });
+            if (!r.ok) return;
+            const info = await r.json();
+            if (!info || !info.version) return;
+            if (String(info.version) === String(window.ANACS_VERSION)) return;
+
+            if (alArrancar) {
+                // Nadie ha empezado a trabajar: se recarga de una vez. El
+                // parámetro obliga al navegador a pedir el archivo de nuevo en
+                // vez de servir el que tiene guardado.
+                console.log('⬆️ Versión nueva (' + info.version + '), recargando...');
+                sessionStorage.setItem('anacs_recargando', String(info.version));
+                location.replace(location.pathname + '?v=' + encodeURIComponent(info.version));
+            } else {
+                ANACS_avisarActualizacion(info.version, info.notas || '');
+            }
+        } catch (e) { /* sin conexión: se sigue trabajando con lo que hay */ }
+    };
+
+    window.ANACS_avisarActualizacion = function (version, notas) {
+        if (document.getElementById('anacsUpdateBanner')) return;
+        const b = document.createElement('div');
+        b.id = 'anacsUpdateBanner';
+        b.style.cssText = 'position:fixed;bottom:16px;right:16px;z-index:99998;background:#2c3e50;' +
+            'color:#fff;padding:12px 16px;border-radius:10px;font-size:0.86rem;' +
+            'box-shadow:0 6px 20px rgba(0,0,0,.3);display:flex;align-items:center;gap:12px;' +
+            'max-width:340px;font-family:inherit';
+        b.innerHTML =
+            '<span>Hay una versión nueva de la app' + (notas ? '<br><span style="opacity:.75;font-size:0.8rem">' + notas + '</span>' : '') + '</span>' +
+            '<button style="background:#27ae60;color:#fff;border:none;padding:7px 14px;' +
+            'border-radius:6px;font-weight:700;cursor:pointer;white-space:nowrap;font-family:inherit">Actualizar</button>' +
+            '<button style="background:none;color:#bbb;border:none;cursor:pointer;font-size:1.1rem;' +
+            'line-height:1;padding:0 2px" title="Después">✕</button>';
+        const [btnAct, btnCerrar] = b.querySelectorAll('button');
+        btnAct.onclick = function () {
+            location.replace(location.pathname + '?v=' + encodeURIComponent(version));
+        };
+        btnCerrar.onclick = function () { b.remove(); };
+        document.body.appendChild(b);
+    };
+
+    // Al arrancar, y luego cada 15 minutos por si se publica algo con la app abierta.
+    setTimeout(function () { ANACS_buscarActualizacion(true); }, 1500);
+    setInterval(function () { ANACS_buscarActualizacion(false); }, 900000);
     </script>
     <style>
         :root { 
@@ -18598,7 +18655,18 @@ Motivo de cancelación (opcional):`);
             document.getElementById('driveSyncLabel').textContent = 'Guardando...';
             document.getElementById('driveSyncBtn').style.background = '#f39c12';
             this.isSyncing = false;
-            this.driveSyncNow().then(() => this.descargarHorariosGrupos());
+            // Bajar ANTES de subir, igual que al conectar. Antes este botón sólo
+            // subía y borraba en silencio lo que se hubiera hecho en la otra
+            // computadora. Se revisa también el candado, por si la otra entró a
+            // trabajar después de que ésta abrió.
+            (async () => {
+                try { await this._candadoCheck(); } catch (e) { console.warn('candado', e); }
+                try { await this.driveDownloadData(); }
+                catch (e) { console.warn('⚠️ No se pudo bajar antes de sincronizar:', e); }
+                try { await this.driveSyncNow(); }
+                catch (e) { console.warn('⚠️ No se pudo subir:', e); }
+                try { await this.descargarHorariosGrupos(); } catch (e) {}
+            })();
         } else {
             this.driveConnect();
         }
@@ -18873,6 +18941,123 @@ Motivo de cancelación (opcional):`);
         }
     }
 
+
+    // ════════════════════════════════════════════════════════════════════════
+    //  CANDADO ENTRE COMPUTADORAS  (anaCS_lock.json en Drive)
+    //  Evita que dos equipos escriban a la vez. El segundo entra en SOLO
+    //  LECTURA hasta que el primero cierre. Portado de la app de Brazos, donde
+    //  lleva tiempo funcionando; a esta app se le había quedado fuera.
+    // ════════════════════════════════════════════════════════════════════════
+
+    _lockNombre() { return 'anaCS_lock.json'; }
+    _lockStaleMs() { return 150000; }   // 2.5 min sin latido => se suelta solo
+
+    async _lockLeer() {
+        try {
+            const r = await fetch(
+                `https://www.googleapis.com/drive/v3/files?q=name='${this._lockNombre()}'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                { headers: { Authorization: `Bearer ${this.driveToken}` } }
+            );
+            const d = await r.json();
+            if (!d.files || !d.files.length) return { fileId: null, data: null };
+            const fileId = d.files[0].id;
+            const fr = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+                { headers: { Authorization: `Bearer ${this.driveToken}` } });
+            let data = null; try { data = await fr.json(); } catch (e) { data = null; }
+            return { fileId, data };
+        } catch (e) { console.warn('_lockLeer error', e); return { fileId: null, data: null }; }
+    }
+
+    async _lockEscribir(fileId, owner) {
+        const cuerpo = {
+            owner,
+            heartbeat: new Date().toISOString(),
+            label: (localStorage.getItem('anaCS_pcLabel') || '')
+        };
+        const form = new FormData();
+        const metadata = { name: this._lockNombre(), parents: fileId ? undefined : [this.driveFolderId] };
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', new Blob([JSON.stringify(cuerpo)], { type: 'application/json' }));
+        try {
+            await fetch(
+                fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+                       : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                { method: fileId ? 'PATCH' : 'POST',
+                  headers: { Authorization: `Bearer ${this.driveToken}` }, body: form }
+            );
+        } catch (e) { console.warn('_lockEscribir error', e); }
+    }
+
+    async _candadoCheck() {
+        if (!this.driveToken || !this.driveFolderId) return;
+        const yo = localStorage.getItem('anaCS_deviceId') || 'unknown';
+        const { fileId, data } = await this._lockLeer();
+        const ahora = Date.now();
+        const hb = data && data.heartbeat ? new Date(data.heartbeat).getTime() : 0;
+        const fresco = hb && (ahora - hb) < this._lockStaleMs();
+        const duenoOtro = data && data.owner && data.owner !== yo;
+
+        if (fresco && duenoOtro) {
+            this._entrarSoloLectura(data.label || 'otra computadora');
+        } else {
+            this._lockFileId = fileId;
+            await this._lockEscribir(fileId, yo);
+            const veniaDeSoloLectura = this._lockReadOnly === true;
+            if (veniaDeSoloLectura) {
+                // Se liberó el candado: bajar lo último ANTES de dejar editar, para
+                // no empezar a trabajar sobre una copia vieja. La subida sigue
+                // bloqueada aquí (_lockReadOnly aún es true), así que solo baja.
+                try { await this.driveDownloadData(); }
+                catch (e) { console.warn('bajada al liberar candado', e); }
+                try {
+                    const _l = document.getElementById('driveSyncLabel');
+                    if (_l) {
+                        const _t = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                        _l.textContent = 'Sync ' + _t;
+                    }
+                } catch (e) {}
+            }
+            this._salirSoloLectura();
+            this._iniciarLatido();
+        }
+    }
+
+    _iniciarLatido() {
+        if (this._latidoInt) return;
+        const yo = localStorage.getItem('anaCS_deviceId') || 'unknown';
+        this._latidoInt = setInterval(async () => {
+            if (this._lockReadOnly) return;
+            const { fileId } = await this._lockLeer();
+            this._lockFileId = fileId;
+            await this._lockEscribir(fileId, yo);
+        }, 30000);
+    }
+
+    _entrarSoloLectura(quien) {
+        this._lockReadOnly = true;
+        let b = document.getElementById('anacsLockBanner');
+        if (!b) {
+            b = document.createElement('div');
+            b.id = 'anacsLockBanner';
+            b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#c0392b;' +
+                'color:#fff;padding:10px 16px;font-weight:700;text-align:center;font-size:0.95rem;' +
+                'box-shadow:0 2px 8px rgba(0,0,0,.3)';
+            document.body.appendChild(b);
+        }
+        b.textContent = '🔒 SOLO LECTURA — la app ya está abierta en ' + quien +
+            '. No hagas cambios aquí, no se guardarán. Se libera sola al cerrar la otra.';
+        if (!this._reintentoInt) {
+            this._reintentoInt = setInterval(() => { this._candadoCheck(); }, 45000);
+        }
+    }
+
+    _salirSoloLectura() {
+        this._lockReadOnly = false;
+        const b = document.getElementById('anacsLockBanner');
+        if (b) b.remove();
+        if (this._reintentoInt) { clearInterval(this._reintentoInt); this._reintentoInt = null; }
+    }
+
     async driveGetOrCreateFolder() {
         const res = await fetch(
             `https://www.googleapis.com/drive/v3/files?q=name='${this.FOLDER_NAME}'+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false`,
@@ -18890,6 +19075,7 @@ Motivo de cancelación (opcional):`);
             const folder = await createRes.json();
             this.driveFolderId = folder.id;
         }
+        try { await this._candadoCheck(); } catch (e) { console.warn('candado', e); }
     }
 
     // ── MERGE INTELIGENTE (Opción A: unión por id, gana el lado con timestamp global más reciente) ──
@@ -18987,6 +19173,11 @@ Motivo de cancelación (opcional):`);
 
     async driveSyncNow() {
         if (!this.driveConnected || !this.driveFolderId) return;
+        // CANDADO: la segunda computadora está en solo lectura y NO sube a Drive.
+        if (this._lockReadOnly) {
+            console.log('🔒 Subida omitida: la app está abierta en otra computadora');
+            return;
+        }
         // ── CANDADO: mientras se está facturando, Drive NO se toca ──────────────
         // Salvo que se pida explícitamente (la sincronización final de la Fase 4, que
         // llama a esta función con el candado ya soltado). Se ignoran aquí los tres
