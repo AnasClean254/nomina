@@ -155,7 +155,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '136';
+    window.ANACS_VERSION = '137';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -362,6 +362,11 @@
             padding: 3px 4px 2px 4px;
             font-weight: 600;
             letter-spacing: 0.01em;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .ev-addr {
+            font-size: 0.62rem; font-weight: 400; opacity: 0.82;
+            padding: 0 4px 2px 4px; margin-top: -1px;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .ev-row { display: flex; align-items: baseline; gap: 4px; min-width: 0; overflow: hidden; }
@@ -2633,13 +2638,15 @@ class Scheduler {
                             ev.style.color = '#aaa';
                             ev.style.border = '1px solid #ddd';
                             ev.style.textDecoration = 'line-through';
-                            ev.textContent = '❌ ' + prioPrefixM + this._calLabel(c);
+                            const _dirMC = this._calDireccion(c);
+                            ev.textContent = '❌ ' + prioPrefixM + this._calLabel(c) + (_dirMC ? ' · ' + _dirMC : '');
                         } else {
                             ev.style.backgroundColor = bgColor;
                             const textModeM = this.getTextMode(typeKeyM);
                             ev.style.color = textModeM === 'auto' ? getTextColor(bgColor) : (textModeM === 'white' ? '#fff' : '#000');
                             const showPropIdM = this._hasProp(c);
-                            const lblM = prioPrefixM + this._calLabel(c);
+                            const _dirM = this._calDireccion(c);
+                            const lblM = prioPrefixM + this._calLabel(c) + (_dirM ? ' · ' + _dirM : '');
                             // Badge de grupo
                             const evGrp = s.grupo || Object.keys(this.grupos).find(g => this.grupos[g].includes(s.empId.toString())) || '';
                             const evLetra = evGrp.replace(/Grupo /i,'').trim();
@@ -2764,7 +2771,25 @@ class Scheduler {
     }
 
     // Etiqueta corta para el calendario: 1ª palabra del nombre + dirección hasta la ciudad (sin estado/ZIP) + IDpropiedad
+    // Dirección del servicio, para el segundo renglón de la celda. Se recorta el
+    // ", TX ..." final porque en el calendario todo es Texas y sólo roba espacio.
+    _calDireccion(c) {
+        const propia = (c.propAddress && String(c.propAddress).trim())
+            ? String(c.propAddress).trim().replace(/,\s*TX\b.*$/i, '').trim() : '';
+        if (propia) return propia;
+        return [c.address, c.city].filter(Boolean).join(', ');
+    }
+
+    // Una línea con lo que identifica el servicio: quién y, si el cliente tiene
+    // varias propiedades, cuál. La dirección ya no va aquí — se repetía en cada
+    // celda del mismo edificio y empujaba la unidad fuera de la vista.
     _calLabel(c) {
+        const nom = String(c.name || '').trim().split(/\s+/)[0];
+        const prop = (this._hasProp(c) && c.propId) ? String(c.propId).trim() : '';
+        return [nom, prop].filter(Boolean).join(' · ');
+    }
+
+    _calLabelViejo(c) {
         const nom = String(c.name || '').trim().split(/\s+/)[0];
         const isMulti = this._hasProp(c);
         const addr = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim().replace(/,\s*TX\b.*$/i, '').trim() : (isMulti ? '' : [c.address, c.city].filter(Boolean).join(', '));
@@ -3203,7 +3228,7 @@ class Scheduler {
                 div.style.textDecorationThickness = '2px';
                 const _addrCan = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : (showPropId ? '' : [c.address, c.city].filter(Boolean).join(', '));
                 const cancelLabel = `❌ ${prioPrefix}${this._calLabel(c)}`;
-                const cancelProp  = showPropId && c.propId ? `<div class="ev-propid">${c.propId}</div>` : '';
+                const cancelProp = _addrCan ? `<div class="ev-addr">${_addrCan}</div>` : '';
                 div.innerHTML = `<div class="ev-prop">${cancelLabel}</div>${cancelProp}`;
             } else {
                 const typeKey4 = c.type.toLowerCase().replace(/ /g,'');
@@ -3264,7 +3289,9 @@ class Scheduler {
                     const pv = this._servicePrice(c, s);
                     priceLine = `<div class="ev-price" style="font-size:0.72rem;font-weight:700;color:#1b5e20;background:rgba(255,255,255,0.88);border-radius:3px;padding:0 5px;margin-top:2px;display:inline-block;">$${pv.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`;
                 }
-                div.innerHTML = `<div class="ev-prop">${mainLine}</div>${timeLine}${checkLine}${priceLine}`;
+                const _dirLinea = this._calDireccion(c);
+                const addrLine = _dirLinea ? `<div class="ev-addr">${_dirLinea}</div>` : '';
+                div.innerHTML = `<div class="ev-prop">${mainLine}</div>${addrLine}${timeLine}${checkLine}${priceLine}`;
             }
             // Mostrar nota si existe
             if(s.airbnbNote) {

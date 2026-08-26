@@ -1250,14 +1250,24 @@ function getSvcs(date){
     })
     .map(s=>{
       const c=S.clis.find(x=>String(x.id)===String(s.cliId))||{};
-      const showProp=(c.type==='airbnb'||c.type==='unico'||c.type==='construccion');
-      const clientName=(showProp&&(s.propId||c.propId))?c.name+' / '+(s.propId||c.propId):c.name||`Cliente ${s.cliId}`;
-      // Para construccion/airbnb/unico usar propId como dirección si existe
-      let address = [c.address,c.city].filter(Boolean).join(', ');
-      if(showProp){
-        const propAddr = s.propId||c.propId;
-        if(propAddr) address = propAddr;
-      }
+      // Renglón 1: quién y, si el cliente tiene varias propiedades, CUÁL.
+      // Se decide por si hay un identificador distinto del nombre, no por el
+      // tipo de cliente: una AirBnB mal marcada como "semanal" seguía siendo
+      // una unidad de un edificio y su número hace falta igual.
+      const _prop = String(s.propId || c.propId || '').trim();
+      const _esUnidad = _prop && _prop.toLowerCase() !== String(c.name || '').trim().toLowerCase();
+      const clientName = _esUnidad
+        ? `${c.name} · ${_prop}`
+        : (c.name || `Cliente ${s.cliId}`);
+
+      // Renglón 2: la calle de verdad. Antes aquí se repetía el identificador
+      // de la propiedad, así que la empleada nunca veía a dónde ir. Se prefiere
+      // la dirección de la propiedad y, si no tiene, la del cliente. Se recorta
+      // el ", TX ..." final porque en la pantalla del celular sólo roba espacio.
+      const _propAddr = String(c.propAddress || '').trim();
+      let address = _propAddr
+        ? _propAddr.replace(/,\s*TX\b.*$/i, '').trim()
+        : [c.address, c.city].filter(Boolean).join(', ');
       return{id:String(s.id),clientName,address,phone:c.tel||c.phone||'',scheduledStart:s.timeStart||'',scheduledEnd:s.timeEnd||'',priority:s.priority||'',airbnbNote:s.airbnbNote||''};
     });
 }
