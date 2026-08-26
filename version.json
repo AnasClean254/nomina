@@ -1,5 +1,5 @@
 {
-  "version": "137",
-  "notas": "El calendario muestra la unidad arriba y la direccion abajo.",
-  "publicado": "2026-08-26T21:55:41+00:00"
+  "version": "140",
+  "notas": "Sincronizacion mucho mas rapida: solo baja cuando hay cambios de otra PC.",
+  "publicado": "2026-08-26T22:36:30+00:00"
 }

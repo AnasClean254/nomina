@@ -155,7 +155,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '137';
+    window.ANACS_VERSION = '140';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -343,15 +343,15 @@
         /* Eventos */
         .service-event { 
             font-size: 0.74rem; 
-            padding: 3px 6px; 
+            padding: 2px 6px; 
             border-radius: 4px; 
             color: white; 
             font-weight: 600; 
             border-left: 3px solid rgba(0,0,0,0.25); 
-            margin-bottom: 3px; 
+            margin-bottom: 2px; 
             cursor: default;
             box-shadow: 0 1px 4px rgba(0,0,0,0.18); 
-            line-height: 1.3;
+            line-height: 1.2;
             text-shadow: 0 1px 1px rgba(0,0,0,0.2);
             min-width: 0;
             max-width: 100%;
@@ -359,14 +359,14 @@
         }
         .ev-prop { 
             font-size: 0.68rem; 
-            padding: 3px 4px 2px 4px;
+            padding: 1px 4px 0 4px;
             font-weight: 600;
             letter-spacing: 0.01em;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .ev-addr {
-            font-size: 0.62rem; font-weight: 400; opacity: 0.82;
-            padding: 0 4px 2px 4px; margin-top: -1px;
+            font-size: 0.60rem; font-weight: 400; opacity: 0.82;
+            padding: 0 4px 1px 4px; margin-top: -2px; line-height: 1.15;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
         }
         .ev-row { display: flex; align-items: baseline; gap: 4px; min-width: 0; overflow: hidden; }
@@ -18804,9 +18804,23 @@ Motivo de cancelación (opcional):`);
             // computadora. Se revisa también el candado, por si la otra entró a
             // trabajar después de que ésta abrió.
             (async () => {
-                try { await this._candadoCheck(); } catch (e) { console.warn('candado', e); }
-                try { await this.driveDownloadData(); }
-                catch (e) { console.warn('⚠️ No se pudo bajar antes de sincronizar:', e); }
+                // Bajar SÓLO si de verdad hay algo nuevo de otra computadora.
+                // _driveEstaMasNuevo consulta la fecha del archivo en el listado,
+                // sin descargarlo: cuesta una petición pequeña. Bajar el archivo
+                // completo en cada sincronización dejaba el botón "Guardando..."
+                // muchos segundos, y en el caso normal —nadie más tocó nada— era
+                // trabajo tirado.
+                //
+                // El candado no se revisa aquí: ya lo mantiene al día el latido
+                // cada 30 s, y driveSyncNow se niega a subir si esta computadora
+                // está en solo lectura. Revisarlo otra vez costaba tres
+                // peticiones más por cada clic.
+                try {
+                    if (await this._driveEstaMasNuevo()) {
+                        console.log('📥 Hay cambios de otra computadora, bajando antes de subir...');
+                        await this.driveDownloadData();
+                    }
+                } catch (e) { console.warn('⚠️ No se pudo revisar si hay cambios:', e); }
                 try { await this.driveSyncNow(); }
                 catch (e) { console.warn('⚠️ No se pudo subir:', e); }
                 try { await this.descargarHorariosGrupos(); } catch (e) {}
@@ -22247,6 +22261,13 @@ document.addEventListener('click', function(e) {
     } else if (msg.type === 'pong' && msg.to === TAB_ID) {
       /* Alguien respondi\u00F3 → YA hay otra ventana due\u00F1a → me bloqueo. */
       esDueno = false; mostrarBloqueo();
+    } else if (msg.type === 'aqui-estoy' && msg.from !== TAB_ID) {
+      /* Otra ventana se anuncia como due\u00F1a. Si yo tambi\u00E9n me cre\u00EDa due\u00F1a, hay
+         dos: gana la que lleva m\u00E1s tiempo abierta (el TAB_ID empieza con la
+         hora de apertura, as\u00ED que el menor es el m\u00E1s viejo) y la otra se bloquea.
+         Sin esta regla las dos se bloquear\u00EDan a la vez y nadie podr\u00EDa trabajar. */
+      if (esDueno && String(msg.from) < String(TAB_ID)) { esDueno = false; mostrarBloqueo(); }
+      else if (!esDueno) mostrarBloqueo();
     } else if (msg.type === 'takeover' && msg.from !== TAB_ID) {
       /* Otra ventana tom\u00F3 el control → cedo y me bloqueo. */
       esDueno = false; mostrarBloqueo();
@@ -22257,6 +22278,20 @@ document.addEventListener('click', function(e) {
   function preguntar() { try { canal.postMessage({ type: 'ping', from: TAB_ID }); } catch (e) {} }
   if (document.body) preguntar();
   else window.addEventListener('DOMContentLoaded', preguntar);
+
+  /* Preguntar UNA sola vez no basta: Chrome congela las pesta\u00F1as en segundo
+     plano y una pesta\u00F1a congelada no contesta el ping. Justo el caso t\u00EDpico —
+     la ventana vieja lleva rato oculta— quedaba sin detectar.
+     Por eso la due\u00F1a ahora ANUNCIA su presencia sola, y las dem\u00E1s vuelven a
+     preguntar al recuperar el foco. */
+  setInterval(function () {
+    if (esDueno) { try { canal.postMessage({ type: 'aqui-estoy', from: TAB_ID }); } catch (e) {} }
+  }, 3000);
+
+  window.addEventListener('focus', preguntar);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) preguntar();
+  });
 })();
 </script>
 <style>
