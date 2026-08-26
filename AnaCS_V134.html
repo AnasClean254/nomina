@@ -155,7 +155,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '135';
+    window.ANACS_VERSION = '136';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -8278,6 +8278,32 @@ class Scheduler {
             if (inv.endDate) setV('fcHasta', inv.endDate);
             const cb = document.getElementById('fcSubtotales');
             if (cb && typeof inv.mostrarSubtotales !== 'undefined') cb.checked = !!inv.mostrarSubtotales;
+
+            // La etiqueta de grupo es lo que decide QUÉ propiedades entran. Si no
+            // se repone, al regenerar entran todas y el cliente recibe una factura
+            // con servicios que no eran de ese grupo.
+            let _grupo = inv.grupoLabel || '';
+            if (!_grupo && Array.isArray(inv.clientIds) && inv.clientIds.length) {
+                // Factura anterior a este arreglo: se deduce mirando las
+                // propiedades que quedaron guardadas en ella. Sólo se acepta si
+                // TODAS coinciden en la misma etiqueta; si están mezcladas, no se
+                // adivina — se avisa y se deja que la persona la escriba.
+                const _etqs = new Set(
+                    inv.clientIds
+                        .map(id => (this.clis || []).find(c => String(c.id) === String(id)))
+                        .filter(Boolean)
+                        .map(c => (c.grupoFactura || '').trim())
+                );
+                if (_etqs.size === 1) {
+                    const _u = [..._etqs][0];
+                    if (_u) _grupo = _u;
+                }
+            }
+            setV('fcGrupo', _grupo);
+            if (!_grupo) {
+                const _g = document.getElementById('fcGrupo');
+                if (_g) _g.placeholder = '⚠️ Revisa la etiqueta antes de generar';
+            }
         }, 60);
     }
 
@@ -9240,12 +9266,26 @@ Motivo de cancelación (opcional):`);
             // Prefiere la DIRECCIÓN de la propiedad; si no tiene, el IDpropiedad; si no, el nombre.
             const _addrProp = p.propAddress ? String(p.propAddress).trim() : '';
             const _idProp = (p.propId && p.propId.trim() && p.propId.trim().toLowerCase() !== p.name.trim().toLowerCase()) ? p.propId.trim() : '';
-            const dir = _addrProp || _idProp || p.name;
+            // Dirección Y unidad. Cuando varias propiedades comparten
+            // dirección, la unidad es lo único que las distingue en la factura.
+            const dir = (_addrProp && _idProp) ? (_addrProp + ' — ' + _idProp)
+                      : (_addrProp || _idProp || p.name);
             lineas.push({ dir, visitas, importe, esMensual, fechas: serviciosMes.map(sv => sv.date).sort() });
         });
         if (!lineas.length) { alert("No hay servicios en ese mes para esas propiedades."); return; }
 
-        const client = props[0];
+        // BILL TO: en una combinada va SIEMPRE la dirección del CLIENTE, nunca
+        // la de una de sus propiedades — se le factura a quien administra.
+        //
+        // En estos datos son lo mismo: el formulario de cada propiedad sólo
+        // captura su dirección de SERVICIO (propAddress). La de facturación
+        // (address/city/zip) se captura a nivel cliente y se copia igual a todas
+        // sus propiedades. Así que basta con tomar la de cualquier registro del
+        // cliente que la traiga; no todas la tienen, porque al actualizar un
+        // cliente esos tres campos no se refrescan en las propiedades viejas.
+        const _conDireccion = (c) => c && String(c.address || '').trim() !== '';
+        const client = (this.clis || []).filter(c => c.name === clientName).find(_conDireccion)
+            || props[0];
         let config = JSON.parse(localStorage.getItem('companyConfig') || '{}');
         if (typeof config === 'string') { try { config = JSON.parse(config); } catch(e){ config = {}; } }
         const companyName = config.name || "Ana's Cleaning Services";
@@ -9343,7 +9383,7 @@ Motivo de cancelación (opcional):`);
             }
             if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, _rh, 'F'); }
             doc.setFontSize(9); doc.setTextColor(50,50,50);
-            doc.text(String(ln.dir).substring(0, mostrarSubtotales ? 55 : 72), 24, y+5);
+            doc.text(_recortarConUnidad(String(ln.dir), mostrarSubtotales ? 55 : 72), 24, y+5);
             doc.text(String(ln.visitas), colServ, y+5, { align:'right' });
             if (mostrarSubtotales) doc.text(money(ln.importe), 186, y+5, { align:'right' });
             if (_hasF) {
@@ -9368,6 +9408,7 @@ Motivo de cancelación (opcional):`);
         const _combData = {
             invNum: invNum,
             clientName: clientName,
+            grupoLabel: grupoLabel || '',   // sin esto, al reabrirla se pierde el filtro
             clientIds: props.map(p => p.id),
             startDate: start, endDate: end,
             serviceCount: totalVisitas,
@@ -9401,6 +9442,7 @@ Motivo de cancelación (opcional):`);
             periodKey: d.periodKey,
             items: d.items,
             mostrarSubtotales: d.mostrarSubtotales,
+            grupoLabel: d.grupoLabel || '',
             esCombinada: true, dueDate: d.dueDate,
             status: 'pendiente', sentAt: null, paidAt: null, paidAmount: null, notes: ''
         });
@@ -9412,6 +9454,21 @@ Motivo de cancelación (opcional):`);
     }
 
     // Preview de la combinada con botones (como el de las facturas normales)
+    // Recorta una descripción "dirección — unidad" sin perder la unidad:
+    // cortar por la derecha se llevaría el número de departamento, que es lo
+    // que permite al cliente saber qué se le está cobrando.
+    _recortarConUnidad(texto, max) {
+        if (texto.length <= max) return texto;
+        const i = texto.lastIndexOf(' — ');
+        if (i > 0) {
+            const unidad = texto.slice(i);          // ' — Depto 3'
+            const dir = texto.slice(0, i);
+            const espacio = max - unidad.length;
+            if (espacio > 8) return dir.slice(0, espacio - 1) + '…' + unidad;
+        }
+        return texto.slice(0, max);
+    }
+
     _previewCombinada(blob, d, yaGuardada) {
         document.getElementById('combPreviewModal')?.remove();
         const url = URL.createObjectURL(blob);

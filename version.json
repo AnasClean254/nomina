@@ -1,5 +1,5 @@
 {
-  "version": "135",
-  "notas": "Candado entre computadoras, sincronización en dos sentidos y cobro con tarjeta.",
-  "publicado": "2026-08-26T19:30:10+00:00"
+  "version": "136",
+  "notas": "Facturas combinadas: etiqueta de grupo, direccion del cliente y unidad de cada propiedad.",
+  "publicado": "2026-08-26T20:15:57+00:00"
 }
