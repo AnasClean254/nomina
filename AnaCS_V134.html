@@ -155,7 +155,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '140';
+    window.ANACS_VERSION = '141';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -2410,11 +2410,22 @@ class Scheduler {
                 // Ahora no lo pisamos: dejamos que driveSyncNow decida el color.
                 this.driveSyncNow();
             } else {
-                // No se pudo conectar (token vencido y no se pudo renovar en silencio):
-                // AVISAR en vez de quedar callado. Botón en rojo de alerta — el parpadeo se
-                // activa solo — para que se vea que este cambio NO subió a Drive.
-                if(btn) btn.style.background = '#e74c3c';
-                if(lbl) lbl.textContent = '⚠️ Sin subir — reconecta';
+                // No se pudo conectar. Hay que distinguir dos casos que antes se veían
+                // igual:
+                //   · Ya estuviste conectado y se perdió  → ALARMA. Tu cambio no subió y
+                //     tienes que enterarte: rojo + parpadeo.
+                //   · Acabas de abrir y aún no te conectas → INVITACIÓN, no emergencia.
+                //     Azul "Drive", como nace el botón en el HTML.
+                // Sin esta distinción el botón gritaba en rojo cada vez que se abría la
+                // app (el guardado de arranque entra por aquí), y un aviso que suena
+                // todos los días sin motivo se vuelve invisible cuando de verdad importa.
+                if (this._yaEstuvoConectadoADrive) {
+                    if(btn) btn.style.background = '#e74c3c';
+                    if(lbl) lbl.textContent = '⚠️ Sin subir — reconecta';
+                } else {
+                    if(btn) btn.style.background = '#4285f4';
+                    if(lbl) lbl.textContent = 'Drive';
+                }
             }
         });
         // Mostrar última importación de nómina si existe
@@ -18816,11 +18827,27 @@ Motivo de cancelación (opcional):`);
                 // está en solo lectura. Revisarlo otra vez costaba tres
                 // peticiones más por cada clic.
                 try {
-                    if (await this._driveEstaMasNuevo()) {
+                    // Se guarda la respuesta para que driveSyncNow no vuelva a pedirla un
+                    // instante después.
+                    //
+                    // OJO con el caso "true": si Drive SÍ cambió, la memo dice true y
+                    // driveSyncNow sí baja el archivo completo. Ahí adentro vive el rescate
+                    // de pagos de Stripe. La primera versión de este parche ponía false a
+                    // secas —dando por hecho que driveDownloadData ya traía todo— y con eso
+                    // una factura que el cliente YA pagó se quedaba como "enviada" en esta
+                    // computadora: el merge local le ganaba a la versión pagada de Drive.
+                    // Lo cazó /tmp/test_rescate.mjs.
+                    const _hayCambiosEnDrive = await this._driveEstaMasNuevo();
+                    this._revisadoDriveEn = Date.now();
+                    this._driveTeniaCambios = _hayCambiosEnDrive;
+                    if (_hayCambiosEnDrive) {
                         console.log('📥 Hay cambios de otra computadora, bajando antes de subir...');
                         await this.driveDownloadData();
                     }
-                } catch (e) { console.warn('⚠️ No se pudo revisar si hay cambios:', e); }
+                } catch (e) {
+                    this._revisadoDriveEn = 0;   // sin memo: que driveSyncNow revise por su cuenta
+                    console.warn('⚠️ No se pudo revisar si hay cambios:', e);
+                }
                 try { await this.driveSyncNow(); }
                 catch (e) { console.warn('⚠️ No se pudo subir:', e); }
                 try { await this.descargarHorariosGrupos(); } catch (e) {}
@@ -18906,6 +18933,7 @@ Motivo de cancelación (opcional):`);
                 if (response.error) { alert('❌ Error: ' + response.error); return; }
                 this.driveToken = response.access_token;
                 this.driveConnected = true;
+                this._yaEstuvoConectadoADrive = true;   // habilita la alarma roja real
                 this._fijarTokenExpiry(response);
                 document.getElementById('driveSyncLabel').textContent = 'Sincronizar';
                 document.getElementById('driveSyncBtn').style.background = '#27ae60';
@@ -18955,6 +18983,7 @@ Motivo de cancelación (opcional):`);
                         await this.refreshTokenIfNeeded();
                         if (this.driveToken && this.tokenExpiry && Date.now() < this.tokenExpiry) {
                             this.driveConnected = true;
+                this._yaEstuvoConectadoADrive = true;   // habilita la alarma roja real
                             // Reanudar el auto-sync de 5 min si se había detenido
                             if (!this._autoSyncInterval) this._startAutoSync();
                         } else {
@@ -19086,6 +19115,7 @@ Motivo de cancelación (opcional):`);
                         this.driveToken = response.access_token;
                         this._fijarTokenExpiry(response);
                         this.driveConnected = true;
+                this._yaEstuvoConectadoADrive = true;   // habilita la alarma roja real
                     }
                     finish();
                 };
@@ -19353,8 +19383,25 @@ Motivo de cancelación (opcional):`);
             document.getElementById('driveSyncLabel').textContent = 'Guardando...';
 
             // Antes de subir, verificar si Drive tiene facturas pagadas que no están en local
-            // (pagadas por el Worker de Stripe) y preservarlas
-            try {
+            // (pagadas por el Worker de Stripe) y preservarlas.
+            //
+            // Esta revisión baja el archivo COMPLETO, así que sólo se hace cuando de
+            // verdad puede haber algo que rescatar: si en Drive no ha cambiado nada
+            // desde nuestra última subida, no hay pago nuevo posible. Antes se bajaba
+            // siempre, y con una base grande eso era el grueso del tiempo de cada clic.
+            let _revisarPagosStripe = true;
+            if (this._revisadoDriveEn && (Date.now() - this._revisadoDriveEn) < 15000) {
+                // driveSync() acaba de averiguarlo hace un momento: se reutiliza.
+                _revisarPagosStripe = !!this._driveTeniaCambios;
+            } else {
+                // Ante cualquier duda o error, revisar (es lento, pero nunca pierde un pago).
+                try { _revisarPagosStripe = await this._driveEstaMasNuevo(); }
+                catch (e) { _revisarPagosStripe = true; }
+            }
+            this._revisadoDriveEn = 0;   // la memo vale para una sola subida
+            if (!_revisarPagosStripe) console.log('⏩ Drive sin cambios: se omite la bajada completa');
+
+            if (_revisarPagosStripe) try {
                 const fileName2 = 'anaCS_sync.json';
                 const searchRes2 = await fetch(
                     `https://www.googleapis.com/drive/v3/files?q=name='${fileName2}'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,

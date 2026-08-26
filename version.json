@@ -1,5 +1,5 @@
 {
-  "version": "140",
-  "notas": "Sincronizacion mucho mas rapida: solo baja cuando hay cambios de otra PC.",
-  "publicado": "2026-08-26T22:36:30+00:00"
+  "version": "141",
+  "notas": "Sync mas rapida (ya no baja el archivo completo en cada clic) y el boton vuelve a azul Drive al abrir.",
+  "publicado": "2026-08-26T23:24:22+00:00"
 }
