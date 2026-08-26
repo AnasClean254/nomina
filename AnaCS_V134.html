@@ -11792,7 +11792,12 @@ Motivo de cancelación (opcional):`);
         this.save(); this.renderCat(); this.refreshSels();
     }
 
-    addPropField(value='', price='', billing='weekly', cliId='', tipo='semanal', grupo='', precioTipo='visita', direccion='') {
+    addPropField(value='', price='', billing='weekly', cliId='', tipo='', grupo='', precioTipo='visita', direccion='') {
+        // Sin tipo explícito —el botón "+" llama sin argumentos— se hereda el del
+        // cliente que se está editando. Antes caía siempre en 'semanal', así que
+        // en un cliente AirBnB las propiedades nuevas nacían con el tipo
+        // equivocado y el color equivocado en el calendario.
+        if (!tipo) tipo = document.getElementById('ntype')?.value || 'semanal';
         const list = document.getElementById('propFieldsList');
         if (!list) return;
         const row = document.createElement('div');
@@ -11832,11 +11837,50 @@ Motivo de cancelación (opcional):`);
     }
 
     _toggleClientPriceRecur(isMulti) {
-        // Multipropiedad: el precio y la recurrencia los lleva CADA propiedad, no el cliente.
+        // Multipropiedad: precio, recurrencia, tipo de servicio, frecuencia de
+        // facturación y diseño de factura los lleva CADA propiedad en su fila.
+        // Dejarlos visibles a nivel cliente hacía creer que ahí se editaban.
         const pc = document.getElementById('pc');
         const ntype = document.getElementById('ntype');
         if (pc) pc.style.display = isMulti ? 'none' : '';
         if (ntype) ntype.style.display = isMulti ? 'none' : '';
+
+        // Estos tres van con su etiqueta al lado: se esconden los dos juntos, o
+        // quedaría el rótulo suelto sin su campo.
+        [['cliServiceType', null],
+         ['cliBillingPeriod', '📆 Frecuencia de Facturación'],
+         ['cliInvoicingType', '🎨 Diseño o Estilo de Factura']].forEach(([id, textoEtiqueta]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.display = isMulti ? 'none' : '';
+            if (textoEtiqueta) {
+                // La etiqueta es el elemento anterior; se comprueba el texto para
+                // no esconder otra cosa si algún día cambia el orden del formulario.
+                const lbl = el.previousElementSibling;
+                if (lbl && lbl.tagName === 'LABEL' && lbl.textContent.trim() === textoEtiqueta) {
+                    lbl.style.display = isMulti ? 'none' : '';
+                }
+            }
+        });
+    }
+
+    // Al convertir un cliente existente a multipropiedad, la primera fila debe
+    // traer los datos de la propiedad que YA existe. Si se agrega vacía, al
+    // guardar no se empareja con nada y el registro original sobrevive como una
+    // propiedad fantasma, con el nombre del cliente y sus valores viejos.
+    _primeraFilaDeConversion(tipo) {
+        const lista = document.getElementById('propFieldsList');
+        if (!lista || lista.children.length > 0) return;
+        const id = document.getElementById('editCliId')?.value;
+        const cli = id ? (this.clis || []).find(c => String(c.id) === String(id)) : null;
+        if (cli) {
+            this.addPropField(cli.propId || cli.name || '', cli.price || '',
+                cli.billingPeriod || 'weekly', cli.id,
+                tipo || cli.type || 'semanal', cli.grupoFactura || '',
+                cli.precioTipo || 'visita', cli.propAddress || '');
+        } else {
+            this.addPropField('', '', 'weekly', '', tipo || 'semanal', '');
+        }
     }
 
     toggleMultiProp(checked) {
@@ -11844,9 +11888,7 @@ Motivo de cancelación (opcional):`);
         if (!wrap) return;
         wrap.style.display = checked ? 'block' : 'none';
         this._toggleClientPriceRecur(checked);
-        if (checked && document.getElementById('propFieldsList').children.length === 0) {
-            this.addPropField('', '', 'weekly', '', document.getElementById('ntype')?.value || 'semanal', '');
-        }
+        if (checked) this._primeraFilaDeConversion(document.getElementById('ntype')?.value);
     }
 
     togglePropIdWrap(type) {
@@ -11858,9 +11900,7 @@ Motivo de cancelación (opcional):`);
         const isMulti = (cb && cb.checked) || type === 'airbnb' || type === 'construccion';
         wrap.style.display = isMulti ? 'block' : 'none';
         this._toggleClientPriceRecur(isMulti);
-        if (isMulti && document.getElementById('propFieldsList').children.length === 0) {
-            this.addPropField('', '', 'weekly', '', type || 'semanal', '');
-        }
+        if (isMulti) this._primeraFilaDeConversion(type);
     }
 
     _deriveSvcType(t) {
@@ -12310,9 +12350,14 @@ Motivo de cancelación (opcional):`);
                 this._toggleClientPriceRecur(isMulti);
                 if(isMulti) {
                     if(allProps.length > 0) {
-                        allProps.forEach(p => this.addPropField(p.propId || '', p.price || '', p.billingPeriod || 'weekly', p.id, p.type || 'semanal', p.grupoFactura || '', p.precioTipo || 'visita', p.propAddress || ''));
+                        // p.type || cli.type || 'semanal': una propiedad sin
+                        // recurrencia propia hereda la del cliente. Antes caía
+                        // directo en "semanal" y al guardar convertía las AirBnB.
+                        allProps.forEach(p => this.addPropField(p.propId || '', p.price || '', p.billingPeriod || 'weekly', p.id, p.type || cli.type || 'semanal', p.grupoFactura || '', p.precioTipo || 'visita', p.propAddress || ''));
                     } else if(cli.propId) {
-                        this.addPropField(cli.propId, '', cli.billingPeriod || 'weekly', cli.id, cli.type || 'semanal', cli.grupoFactura || '');
+                        // Los ocho datos, no seis: sin los dos últimos la fila se
+                        // dibujaba vacía y al guardar borraba dirección y tipo de precio.
+                        this.addPropField(cli.propId, cli.price || '', cli.billingPeriod || 'weekly', cli.id, cli.type || 'semanal', cli.grupoFactura || '', cli.precioTipo || 'visita', cli.propAddress || '');
                     }
                 }
             }
@@ -17454,7 +17499,7 @@ Motivo de cancelación (opcional):`);
                         const row = {
                             name, address: clean[1] || '', city: clean[2] || '', zip: clean[3] || '',
                             phone: clean[4] || '', email: clean[5] || '', propId,
-                            price: parseFloat(clean[7]) || 0, type: clean[8] || 'semanal'
+                            price: parseFloat(clean[7]) || 0, type: (clean[8] || '').trim()
                         };
                         const existing = this.clis.find(c =>
                             (c.name||'').trim().toLowerCase() === name.trim().toLowerCase() &&
@@ -17497,8 +17542,8 @@ Motivo de cancelación (opcional):`);
                                 id: `cli_bra_${Date.now()}_${Math.floor(Math.random()*1000000)}`,
                                 name: r.name, address: r.address, city: r.city, state: 'TX',
                                 zip: r.zip, phone: r.phone, email: r.email,
-                                price: r.price, fee: r.price, type: r.type,
-                                serviceType: deriveSvc(r.type), billingPeriod: deriveBill(r.type),
+                                price: r.price, fee: r.price, type: r.type || 'semanal',
+                                serviceType: deriveSvc(r.type || 'semanal'), billingPeriod: deriveBill(r.type || 'semanal'),
                                 propId: r.propId, active: true, notes: '',
                                 propAddress: composePropAddr(r)
                             });
