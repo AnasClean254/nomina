@@ -7478,6 +7478,25 @@ class Scheduler {
         doc.setLineWidth(0.2);
     }
 
+    // ── Subida forzada, saltándose el candado de facturación ────────────────
+    // Levanta la pausa lo justo para escribir en Drive y la vuelve a poner. Se
+    // usa antes de cobrar con tarjeta: el Worker necesita encontrar la factura
+    // en Drive en cuanto el cliente pague, y eso puede ocurrir en segundos.
+    async _sincronizarAntesDeCobrar() {
+        if (!this.driveConnected) return false;
+        const estabaPausado = this._syncPausado;
+        this._syncPausado = false;
+        try {
+            await this.driveSyncNow();
+            return true;
+        } catch (e) {
+            console.warn('⚠️ No se pudo sincronizar antes del cobro:', e);
+            return false;
+        } finally {
+            this._syncPausado = estabaPausado;   // se devuelve como estaba
+        }
+    }
+
     async cobrarConTarjeta(id) {
         const inv = (this.generatedInvoices||[]).find(i => String(i.id) === String(id));
         if (!inv) { alert('No se encontró la factura.'); return; }
@@ -7497,6 +7516,19 @@ class Scheduler {
 
         try {
             ANACS_CONFIG.exigirStripe();
+            // Sin esto, una factura recién creada todavía no está en Drive y el
+            // Worker no la encuentra al llegar el pago.
+            if (btn) btn.innerHTML = '⏳ Sincronizando...';
+            const _sincronizado = await this._sincronizarAntesDeCobrar();
+            if (this.driveConnected && !_sincronizado) {
+                if (!confirm('No se pudo guardar la factura en Drive.\n\n' +
+                             'Si cobras ahora, el pago entrará en Stripe pero la factura ' +
+                             'podría quedarse marcada como pendiente.\n\n¿Cobrar de todos modos?')) {
+                    if (btn) { btn.innerHTML = originalText || '💳 Cobrar'; btn.disabled = false; }
+                    return;
+                }
+            }
+            if (btn) btn.innerHTML = '⏳ Generando...';
             const res = await fetch(`${this.STRIPE_WORKER_URL}/create-payment-link`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -7559,6 +7591,7 @@ class Scheduler {
 
         try {
             ANACS_CONFIG.exigirStripe();
+            await this._sincronizarAntesDeCobrar();   // misma razón que en 💳 Cobrar
             const res = await fetch(`${this.STRIPE_WORKER_URL}/charge-saved-card`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
