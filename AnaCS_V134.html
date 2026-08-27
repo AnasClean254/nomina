@@ -155,7 +155,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '141';
+    window.ANACS_VERSION = '142';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -18941,13 +18941,15 @@ Motivo de cancelación (opcional):`);
                 console.log('📁 Folder ID:', this.driveFolderId);
                 // Al conectar: primero descargar, luego subir. Se muestra un overlay
                 // bloqueante mientras baja, para que nadie trabaje sobre datos viejos.
+                // La pantalla existe para que nadie trabaje sobre datos VIEJOS. En
+                // cuanto termina la bajada, los datos ya están frescos: la subida puede
+                // correr sola. Antes la subida iba dentro de este try, así que la
+                // pantalla decía "Bajando..." durante toda la subida y dejaba al usuario
+                // encerrado mirando una rueda —minutos, cuando Drive estaba rechazando.
                 this._mostrarOverlayBajando();
-                try {
-                    await this.driveDownloadData();
-                    await this.driveSyncNow();
-                } finally {
-                    this._ocultarOverlayBajando();
-                }
+                try { await this.driveDownloadData(); }
+                finally { this._ocultarOverlayBajando(); }
+                try { await this.driveSyncNow(); } catch (e) { console.warn('subida al conectar', e); }
                 // Descargar horarios de Calendar al conectar
                 // Si esto falla, ANTES se tragaba el error en silencio y los horarios se
                 // quedaban viejos sin que nadie se enterara — así se perdió una semana de
@@ -19015,12 +19017,18 @@ Motivo de cancelación (opcional):`);
                                 this.render();
                             }
                         } catch(e) { console.warn('No se pudo verificar frescura de Drive:', e); }
-                        // Ahora sí sincronizar (subir) con lo local ya puesto al día
+                        // Volver a la ventana NO es un cambio. Si no hay nada pendiente,
+                        // no se sube nada: antes cada cambio de ventana disparaba una
+                        // subida completa del archivo, y eso pasaba decenas de veces al día.
+                        if (!this.localDirty) {
+                            console.log('⏩ Sin cambios pendientes: no se sube nada');
+                            return;
+                        }
+                        // driveSyncNow ya pinta el botón: verde con la hora si subió,
+                        // rojo "⚠️ Error" si falló. Antes aquí se pintaba verde SIEMPRE,
+                        // borrando el aviso rojo un instante después de ponerlo. El botón
+                        // decía "Sync 10:34 PM" mientras el archivo llevaba horas sin subir.
                         try { await this.driveSyncNow(); } catch(e) {}
-                        const now = new Date();
-                        const t = now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0');
-                        const lbl = document.getElementById('driveSyncLabel');
-                        if (lbl) lbl.textContent = 'Sync ' + t;
                     }
                 });
             }
@@ -19075,14 +19083,17 @@ Motivo de cancelación (opcional):`);
                 }
             }
             if (!this.driveToken) return;
+            // Igual que en el foco: si no hay nada pendiente, no se sube. El reloj
+            // subía el archivo entero cada 5 minutos aunque nadie hubiera tocado nada.
+            if (!this.localDirty) {
+                try { await this.descargarHorariosGrupos(); } catch(e) {}
+                return;
+            }
             await this.driveSyncNow();
             try { await this.descargarHorariosGrupos(); } catch(e) {}
-            const now = new Date();
-            const t = now.getHours() + ':' + String(now.getMinutes()).padStart(2,'0');
-            const lbl = document.getElementById('driveSyncLabel');
-            const btn = document.getElementById('driveSyncBtn');
-            if (lbl) lbl.textContent = 'Sync ' + t;
-            if (btn) btn.style.background = '#27ae60';
+            // El color lo decide driveSyncNow según si la subida funcionó de verdad.
+            // Antes se pintaba verde aquí sin preguntar, y eso ocultó durante horas
+            // que el archivo de datos no estaba llegando a Drive.
         }, 5 * 60 * 1000);
     }
 
@@ -19213,12 +19224,27 @@ Motivo de cancelación (opcional):`);
     _iniciarLatido() {
         if (this._latidoInt) return;
         const yo = localStorage.getItem('anaCS_deviceId') || 'unknown';
+        let _vueltas = 0;
         this._latidoInt = setInterval(async () => {
             if (this._lockReadOnly) return;
-            const { fileId } = await this._lockLeer();
-            this._lockFileId = fileId;
-            await this._lockEscribir(fileId, yo);
-        }, 30000);
+            _vueltas++;
+            // Cada latido sólo ESCRIBE, reusando el fileId que ya conocemos. Antes
+            // releía el archivo completo cada vez: tres peticiones por latido, cada
+            // 30 s. Eso topaba la cuota de escritura de Drive y tumbaba las subidas
+            // del archivo de datos con un error que parecía de CORS.
+            //
+            // Cada 4 latidos (6 min) sí se hace la revisión completa, por si otra
+            // computadora se adueñó del candado mientras tanto.
+            if (_vueltas % 4 === 0) {
+                try { await this._candadoCheck(); } catch (e) { console.warn('latido/check', e); }
+                return;
+            }
+            if (!this._lockFileId) {
+                const { fileId } = await this._lockLeer();
+                this._lockFileId = fileId;
+            }
+            await this._lockEscribir(this._lockFileId, yo);
+        }, 90000);
     }
 
     _entrarSoloLectura(quien) {
@@ -19494,7 +19520,10 @@ Motivo de cancelación (opcional):`);
             const form = new FormData();
             const metadata = { name: fileName, parents: fileId ? undefined : [this.driveFolderId] };
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-            form.append('file', new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+            // Sin sangrías: este archivo lo lee la app, no una persona. El `null, 2`
+            // inflaba 756 KB de datos a 1.19 MB en cada subida — 460 KB de espacios,
+            // en cada una de las decenas de subidas por hora.
+            form.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
             await fetch(
                 fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
                        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
