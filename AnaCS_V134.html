@@ -24,7 +24,8 @@
             emailPublicKey: '',
             emailServiceId: '',
             emailTemplateId: '',
-            stripeWorkerUrl: ''
+            stripeWorkerUrl: '',
+            appKey: ''
         };
         try {
             var guardado = JSON.parse(localStorage.getItem(LLAVE) || '{}');
@@ -45,13 +46,17 @@
         };
         cfg.guardar = function (nuevos) {
             Object.keys(nuevos || {}).forEach(function (k) {
-                if (k in cfg && typeof nuevos[k] === 'string') cfg[k] = nuevos[k].trim().replace(/\/+$/, '');
+                if (!(k in cfg) || typeof nuevos[k] !== 'string') return;
+                // A la URL se le quita la barra final; a la clave NO, que podría
+                // terminar en '/' y se la estaría comiendo en silencio.
+                cfg[k] = (k === 'appKey') ? nuevos[k].trim() : nuevos[k].trim().replace(/\/+$/, '');
             });
             localStorage.setItem(LLAVE, JSON.stringify({
                 emailPublicKey: cfg.emailPublicKey,
                 emailServiceId: cfg.emailServiceId,
                 emailTemplateId: cfg.emailTemplateId,
-                stripeWorkerUrl: cfg.stripeWorkerUrl
+                stripeWorkerUrl: cfg.stripeWorkerUrl,
+                appKey: cfg.appKey
             }));
             cfg.iniciarEmailJS();
             // No hace falta avisarle a la app: su STRIPE_WORKER_URL es un getter
@@ -61,6 +66,13 @@
             if (window.emailjs && puesto(cfg.emailPublicKey)) {
                 try { emailjs.init(cfg.emailPublicKey); } catch (e) { console.warn('emailjs.init:', e); }
             }
+        };
+        // Cabeceras para las rutas del Worker que mueven dinero. Si no hay clave
+        // capturada se manda vacía a propósito: el Worker responde 401 y la app
+        // muestra el aviso de "captura la clave", que es más claro que fallar aquí
+        // con un error genérico.
+        cfg.cabecerasWorker = function () {
+            return { 'Content-Type': 'application/json', 'X-App-Key': cfg.appKey || '' };
         };
         cfg.exigirStripe = function () {
             if (!cfg.stripeListo()) {
@@ -155,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '142';
+    window.ANACS_VERSION = '143';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -7641,7 +7653,7 @@ class Scheduler {
             if (btn) btn.innerHTML = '⏳ Generando...';
             const res = await fetch(`${this.STRIPE_WORKER_URL}/create-payment-link`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: ANACS_CONFIG.cabecerasWorker(),
                 body: JSON.stringify({
                     invoiceId: inv.id,
                     invoiceNumber: inv.invoiceNumber,
@@ -7704,7 +7716,7 @@ class Scheduler {
             await this._sincronizarAntesDeCobrar();   // misma razón que en 💳 Cobrar
             const res = await fetch(`${this.STRIPE_WORKER_URL}/charge-saved-card`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: ANACS_CONFIG.cabecerasWorker(),
                 body: JSON.stringify({
                     invoiceId: inv.id,
                     invoiceNumber: inv.invoiceNumber,
@@ -21251,6 +21263,11 @@ document.addEventListener('click', function(e) {
                             style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:ui-monospace,Menlo,Consolas,monospace; transition:border 0.2s;"
                             onfocus="this.style.borderColor='#16a085'" onblur="this.style.borderColor='#e0e0e0'">
                         <div style="font-size:0.68rem; color:#999; margin-top:3px;">Sin barra al final. La da Cloudflare al desplegar el Worker.</div>
+                        <label style="font-size:0.75rem; font-weight:600; color:#555; display:block; margin:10px 0 4px;">Clave de la app</label>
+                        <input type="password" id="anacsAppKey" placeholder="la misma que APP_KEY en el Worker" spellcheck="false" autocomplete="off"
+                            style="width:100%; padding:9px 11px; border:1.5px solid #e0e0e0; border-radius:7px; font-size:0.9rem; font-family:ui-monospace,Menlo,Consolas,monospace; transition:border 0.2s;"
+                            onfocus="this.style.borderColor='#16a085'" onblur="this.style.borderColor='#e0e0e0'">
+                        <div style="font-size:0.68rem; color:#999; margin-top:3px;">Se captura una vez en cada computadora. Sin ella el boton Cobrar no funciona.</div>
                     </div>
                     <div style="display:flex; align-items:flex-end;">
                         <button onclick="ANACS_probarWorker()" class="btn" style="background:#635bff; color:white; padding:9px 14px; font-size:0.82rem; width:100%;">
@@ -22414,7 +22431,8 @@ function ANACS_cargarConfigPagos() {
         anacsEmailPublicKey: c.emailPublicKey,
         anacsEmailServiceId: c.emailServiceId,
         anacsEmailTemplateId: c.emailTemplateId,
-        anacsStripeWorkerUrl: c.stripeWorkerUrl
+        anacsStripeWorkerUrl: c.stripeWorkerUrl,
+        anacsAppKey: c.appKey
     };
     Object.keys(pares).forEach(function (id) {
         var el = document.getElementById(id);
@@ -22428,12 +22446,14 @@ function ANACS_pintarEstado() {
     if (!el) return;
     var c = window.ANACS_CONFIG;
     var email = c.emailListo(), stripe = c.stripeListo();
+    var clave = !!(c.appKey && c.appKey.trim());
     var partes = [
         (email ? '🟢' : '🔴') + ' Email',
-        (stripe ? '🟢' : '🔴') + ' Stripe'
+        (stripe ? '🟢' : '🔴') + ' Stripe',
+        (clave ? '🟢' : '🔴') + ' Clave'
     ];
     el.innerHTML = partes.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
-    el.style.color = (email && stripe) ? '#27ae60' : '#e67e22';
+    el.style.color = (email && stripe && clave) ? '#27ae60' : '#e67e22';
 }
 
 function ANACS_guardarConfigPagos() {
@@ -22442,7 +22462,8 @@ function ANACS_guardarConfigPagos() {
         emailPublicKey: v('anacsEmailPublicKey'),
         emailServiceId: v('anacsEmailServiceId'),
         emailTemplateId: v('anacsEmailTemplateId'),
-        stripeWorkerUrl: v('anacsStripeWorkerUrl')
+        stripeWorkerUrl: v('anacsStripeWorkerUrl'),
+        appKey: v('anacsAppKey')
     });
     ANACS_cargarConfigPagos();
     var aviso = document.getElementById('anacsAvisoConfig');
