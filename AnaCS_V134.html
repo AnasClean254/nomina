@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '143';
+    window.ANACS_VERSION = '144';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -2150,8 +2150,11 @@ class Scheduler {
             console.log(`✅ ${feeFixed} clientes migrados fee→price`);
         }
 
-        // Guardar cambios si hubo migración
-        this.save();
+        // Guardar cambios si hubo migración.
+        // Se marca como "de arranque": persiste en el navegador, pero no reclama
+        // ser lo más reciente. Antes esta línea —que corre SIEMPRE, haya migración
+        // o no— bastaba para que esta computadora ganara la siguiente fusión.
+        this.save({ arranque: true });
         
         // ✅ Detectar facturas pendientes automáticamente
         this.detectPendingInvoices();
@@ -2390,7 +2393,7 @@ class Scheduler {
         return `${year}-${month}-${day}`;
     }
     
-    save() {
+    save(opciones) {
         localStorage.setItem('v35_emps', JSON.stringify(this.emps));
         localStorage.setItem('v35_clis', JSON.stringify(this.clis));
         localStorage.setItem('v35_servs', JSON.stringify(this.servs));
@@ -2406,6 +2409,15 @@ class Scheduler {
         localStorage.setItem('v35_collectionNotes', JSON.stringify(this.collectionNotes || {}));
         localStorage.setItem('v35_estimates', JSON.stringify(this.estimates || []));
         localStorage.setItem('v35_serviceCatalog', JSON.stringify(this.serviceCatalog || []));
+        // ── ¿Este guardado cuenta como trabajo del usuario? ─────────────────
+        // Al abrir, init() llama a save() para persistir migraciones de formato.
+        // Eso NO es trabajo de nadie: no debe sellar la fecha ni prender la
+        // bandera de "tengo cambios", porque con eso esta computadora ganaba la
+        // siguiente fusión y borraba lo que otra sí había trabajado.
+        if (opciones && opciones.arranque) {
+            console.log('💾 Guardado de arranque: no cuenta para la fusión');
+            return;
+        }
         localStorage.setItem('anaCS_lastSavedAt', new Date().toISOString());
         this.localDirty = true;
         const btn = document.getElementById('driveSyncBtn');

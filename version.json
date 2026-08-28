@@ -1,5 +1,5 @@
 {
-  "version": "143",
-  "notas": "Seguridad: el Worker ahora exige una clave para cobrar. Capturala en Configuracion > Correo y Pagos en CADA computadora.",
-  "publicado": "2026-08-28T15:37:26+00:00"
+  "version": "144",
+  "notas": "ARREGLO DE FONDO: abrir la app ya no hace que esa computadora pise el trabajo hecho en otra.",
+  "publicado": "2026-08-28T18:39:47+00:00"
 }
