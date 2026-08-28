@@ -596,6 +596,22 @@
                         <button class="btn btn-secondary" onclick="app.resetCheckConfig()">
                             🔄 Restaurar valores por defecto
                         </button>
+                        <span style="width:1px; height:30px; background:#ddd;"></span>
+                        <button class="btn" onclick="app.respaldarConfigCheques()"
+                            style="background:#00695c; color:white;"
+                            title="Guarda en Drive la posicion de los campos, la firma y la imagen de fondo">
+                            ☁️ Respaldar en Drive
+                        </button>
+                        <button class="btn" onclick="app.restaurarConfigCheques()"
+                            style="background:#fff; color:#00695c; border:1.5px solid #00695c;"
+                            title="Trae de Drive el ultimo respaldo guardado">
+                            ⤵️ Restaurar de Drive
+                        </button>
+                        <div style="flex-basis:100%; font-size:0.8rem; color:#888; margin-top:2px;">
+                            El respaldo es manual y va en su propio archivo, asi que no pesa en la
+                            sincronizacion de cada rato. Guardalo desde la computadora donde se
+                            imprimen los cheques, cada vez que ajustes algo.
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1739,6 +1755,92 @@
                 this.refreshAttendances();
             },
             
+            // ── Respaldo manual de la configuración de cheques ──────────────
+            async respaldarConfigCheques() {
+                if (!this.driveToken || !this.driveFolderId) {
+                    alert('Primero conéctate a Google Drive (botón ☁️ arriba).');
+                    return;
+                }
+                const paquete = {
+                    tipo: 'anas_config_cheques',
+                    guardadoEn: new Date().toISOString(),
+                    dispositivo: this.deviceName || this.deviceId || 'sin nombre',
+                    checkConfig: this.checkConfig || {},
+                    firma:  localStorage.getItem('anas_checkSignature') || '',
+                    fondo:  localStorage.getItem('anas_checkBgImage')   || ''
+                };
+                const texto = JSON.stringify(paquete);
+                const kb = Math.round(texto.length / 1024);
+
+                // Avisar del tamaño ANTES de subir: la imagen de fondo puede pesar
+                // varios megas y en una conexión lenta eso se siente.
+                if (!confirm(
+                    'Se va a guardar en Drive la configuración de cheques de ESTA computadora:\n\n' +
+                    '  · Posición de los campos en la hoja\n' +
+                    (paquete.firma ? '  · La firma\n' : '  · (sin firma cargada)\n') +
+                    (paquete.fondo ? '  · La imagen de fondo del cheque\n' : '  · (sin imagen de fondo)\n') +
+                    '\nTamaño: ' + kb + ' KB\n\n¿Continuar?')) return;
+
+                try {
+                    await this.driveUploadFile('anas_config_cheques.json', texto);
+                    alert('✅ Configuración de cheques respaldada en Drive (' + kb + ' KB).\\n\\n' +
+                          'Si algún día se pierde, se restaura con el botón de al lado.');
+                } catch (e) {
+                    console.error('respaldarConfigCheques', e);
+                    alert('❌ No se pudo guardar el respaldo: ' + (e.message || e));
+                }
+            },
+
+            async restaurarConfigCheques() {
+                if (!this.driveToken || !this.driveFolderId) {
+                    alert('Primero conéctate a Google Drive (botón ☁️ arriba).');
+                    return;
+                }
+                try {
+                    const busca = await fetch(
+                        `https://www.googleapis.com/drive/v3/files?q=name='anas_config_cheques.json'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } });
+                    const lista = await busca.json();
+                    if (!lista.files || !lista.files.length) {
+                        alert('No hay ningún respaldo guardado todavía.\\n\\n' +
+                              'Guarda uno primero desde la computadora que imprime los cheques.');
+                        return;
+                    }
+                    const res = await fetch(
+                        `https://www.googleapis.com/drive/v3/files/${lista.files[0].id}?alt=media`,
+                        { headers: { Authorization: `Bearer ${this.driveToken}` } });
+                    const p = await res.json();
+                    if (!p || p.tipo !== 'anas_config_cheques') {
+                        alert('El archivo de respaldo no tiene el formato esperado.');
+                        return;
+                    }
+
+                    // Se muestra DE CUÁNDO es y de qué computadora antes de pisar lo
+                    // que haya aquí. Restaurar un respaldo viejo sin saberlo sería
+                    // volver a descuadrar el cheque que ya estaba bien.
+                    const f = new Date(p.guardadoEn);
+                    if (!confirm(
+                        'Respaldo encontrado:\\n\\n' +
+                        '  Guardado: ' + f.toLocaleString() + '\\n' +
+                        '  Desde: ' + (p.dispositivo || '—') + '\\n\\n' +
+                        'Esto REEMPLAZA la configuración, la firma y la imagen de fondo\\n' +
+                        'de esta computadora. ¿Continuar?')) return;
+
+                    if (p.checkConfig && Object.keys(p.checkConfig).length) {
+                        this.checkConfig = p.checkConfig;
+                        localStorage.setItem('anas_checkConfig', JSON.stringify(p.checkConfig));
+                    }
+                    if (p.firma) localStorage.setItem('anas_checkSignature', p.firma);
+                    if (p.fondo) localStorage.setItem('anas_checkBgImage',  p.fondo);
+
+                    alert('✅ Configuración restaurada.\\n\\nLa página se va a recargar para aplicarla.');
+                    location.reload();
+                } catch (e) {
+                    console.error('restaurarConfigCheques', e);
+                    alert('❌ No se pudo restaurar: ' + (e.message || e));
+                }
+            },
+
             saveCheckConfig() {
                 this.checkConfig = {
                     number_top:    parseFloat(document.getElementById('check_number_top').value),
@@ -4215,6 +4317,14 @@
                             <label style="font-weight:bold;color:#1565c0;">Número inicial:</label>
                             <input type="number" id="autoFillStart" value="${nextNum}" style="width:100px;padding:6px;border:1px solid #90caf9;border-radius:6px;font-size:1rem;text-align:center;">
                             <button onclick="app.autoFillCheckNumbers()" style="background:#1565c0;color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:bold;">⚡ Autollenar</button>
+                            <span style="width:1px;height:26px;background:#90caf9;"></span>
+                            <button onclick="app._marcarTodosLosCheques(true)" style="background:#fff;color:#1565c0;border:1.5px solid #1565c0;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:bold;">☑️ Marcar todos</button>
+                            <button onclick="app._marcarTodosLosCheques(false)" style="background:#fff;color:#c62828;border:1.5px solid #c62828;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:bold;">☐ Desmarcar todos</button>
+                        <label style="display:flex;align-items:center;gap:6px;font-size:0.85rem;color:#1565c0;cursor:pointer;white-space:nowrap;">
+                            <input type="checkbox" id="chkOrdenInverso" style="width:16px;height:16px;cursor:pointer;"
+                                   onchange="localStorage.setItem('anas_ordenInversoCheques', this.checked ? '1' : '0')">
+                            Imprimir en orden inverso
+                        </label>
                         </div>
                         <div style="overflow-x:auto;">
                             <table style="width:100%;border-collapse:collapse;">
@@ -4274,6 +4384,10 @@
                     </div>`;
 
                 document.body.appendChild(modal);
+                // Dejar la casilla como quedó la última vez: se configura una sola vez
+                // por impresora y no tiene por qué volver a preguntarse cada quincena.
+                const _inv = document.getElementById('chkOrdenInverso');
+                if (_inv) _inv.checked = localStorage.getItem('anas_ordenInversoCheques') === '1';
                 modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
             },
 
@@ -4294,6 +4408,18 @@
 
             printChecksOnly() { this.confirmAndPrintChecks(true, false); },
             printDigitalStubsOnly() { this.confirmAndPrintChecks(false, true); },
+
+            // Marca o desmarca TODAS las casillas de impresión. Cuenta sola cuántas
+            // hay, para no depender de que quien la llame le pase el número correcto.
+            _marcarTodosLosCheques(marcar) {
+                const total = (this.currentPayrollCalc || []).length;
+                let tocadas = 0;
+                for (let i = 0; i < total; i++) {
+                    const cb = document.getElementById('chkprint_' + i);
+                    if (cb) { cb.checked = marcar; tocadas++; }
+                }
+                return tocadas;
+            },
 
             toggleAllChecks(checked, count) {
                 for (let i = 0; i < count; i++) {
@@ -4408,13 +4534,21 @@
                 <style>
                     body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
                     .emp-group { max-width: 800px; margin: 0 auto 30px; }
-                    .stub-wrap { border: 2px solid #6a1b9a; border-radius: 8px; overflow: hidden; margin-bottom: 30px; }
-                    .stub-divider { border-top: 3px dashed #6a1b9a; margin: 10px 0 30px 0; }
-                    .stub-header { background: #6a1b9a; color: white; padding: 10px 16px; display: flex; justify-content: space-between; font-weight: bold; }
-                    .stub-label { text-align: center; font-size: 0.75rem; color: #888; letter-spacing: 2px; padding: 4px; border-bottom: 1px dashed #ddd; background: #f9f9f9; }
-                    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-                    td { padding: 6px 12px; border: 1px solid #e0e0e0; }
-                    .total-row { background: #e8f5e9; font-weight: bold; }
+                    /* Mismo aspecto que el talón que va con el cheque impreso: fondo blanco,
+                       corte punteado gris y el neto resaltado en verde. Antes esto era un
+                       recuadro morado y el comprobante de Zelle no se parecía al de cheque. */
+                    .stub-wrap { background:#fff; border-top: 2px dashed #aaa; overflow: hidden; margin-bottom: 30px; }
+                    .stub-divider { border-top: 2px dashed #aaa; margin: 10px 0 30px 0; }
+                    .stub-header { background: #fff; color: #000; padding: 6px 14px 4px;
+                                   border-bottom: 1px solid #ddd; display: flex;
+                                   justify-content: space-between; font-size: 0.85rem; font-weight: bold; }
+                    .stub-header span:last-child { color:#666; font-weight:normal; }
+                    .stub-label { text-align: center; font-size: 0.7rem; color: #aaa; letter-spacing: 2px; padding: 2px; }
+                    table { width: calc(100% - 20px); margin: 4px 10px; border-collapse: collapse; font-size: 0.8rem; }
+                    td { padding: 3px 6px; border: 1px solid #e0e0e0; }
+                    tr:nth-child(odd) td { background: #f5f5f5; }
+                    .total-row td { background: #e8f5e9; font-weight: bold; font-size: 0.9rem;
+                                    border: 2px solid #27ae60; }
                     @media print { .emp-group { page-break-after: always; } }
                 </style></head><body>`;
 
@@ -4465,7 +4599,11 @@
 
                 const safeBg = bgImage ? bgImage.replace(/"/g, "'") : '';
 
-                const pages = checks.map((check) => {
+                // Orden de impresión. Ver la nota de arriba: según la impresora, el
+                // montón sale al derecho o al revés, y esto evita voltearlo a mano.
+                const alReves = localStorage.getItem('anas_ordenInversoCheques') === '1';
+                const enOrden = alReves ? checks.slice().reverse() : checks;
+                const pages = enOrden.map((check) => {
                     const dateParts = check.date.split('T')[0].split('-');
                     const dateUSA = dateParts[1] + '/' + dateParts[2] + '/' + dateParts[0];
                     const netAmount  = self.formatMoney(check.net || check.gross || 0);
@@ -6335,6 +6473,10 @@
                     (exp.desc ? `<div style="position:absolute;top:${px(cfg.memo_top||2.9)}px;left:${px(cfg.memo_left||0.5)}px;font-size:8.5pt;">${exp.desc}</div>` : '') +
                     // Firma
                     (sigUrl ? `<img src="${sigUrl}" style="position:absolute;top:${px(cfg.signature_top||2.6)}px;right:${px(cfg.signature_right||1.5)}px;width:${px(cfg.signature_width||1.5)}px;pointer-events:none;">` : '') +
+                    // El mismo talón que va a salir impreso: se arma con el mismo
+                    // generador, sólo que midiendo en píxeles para la pantalla.
+                    `<style>${this._tallonGastoCss()}</style>` +
+                    this._tallonGastoHtml(exp, { px }) +
                     `</div>`;
 
                 // Mostrar en modal de preview
@@ -6363,6 +6505,83 @@
                 modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
             },
 
+
+            // ── TALÓN DE LOS CHEQUES DE GASTO ────────────────────────────────
+            // Dos copias en la parte baja de la MISMA hoja del cheque: una se
+            // entrega con el pago y otra se queda en el archivo. Antes el cheque
+            // de gasto salía solo, sin comprobante de qué se pagó ni por qué.
+            _tallonGastoHtml(exp, opciones) {
+                const o = opciones || {};
+                const enPixeles = !!o.px;              // preview usa px; impresión usa pulgadas
+                const u = v => enPixeles ? (o.px(v) + 'px') : (v + 'in');
+                const cfg = this.checkConfig || {};
+
+                const d = new Date(exp.date + 'T12:00:00');
+                const fecha = (d.getMonth()+1).toString().padStart(2,'0') + '/' +
+                              d.getDate().toString().padStart(2,'0') + '/' + d.getFullYear();
+                const letras = this.numberToWords(Number(exp.amount).toFixed(2));
+
+                const CATS = {
+                    supplies:'Insumos', gas:'Gasolina', equipment:'Equipo', office:'Oficina',
+                    maintenance:'Mantenimiento', insurance:'Seguro', rent:'Renta',
+                    utilities:'Servicios', other:'Otro'
+                };
+                const cat = CATS[exp.category] || exp.category || '—';
+
+                // Escapar: una descripción con < o & rompería el HTML de la hoja.
+                const esc = t => String(t == null ? '' : t)
+                    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+                const fila = (a, b, c, e) =>
+                    `<tr><td class="tg-k">${a}</td><td class="tg-v">${b}</td>` +
+                    `<td class="tg-k">${c}</td><td class="tg-v">${e}</td></tr>`;
+
+                const bloque = (titulo) => `
+                    <div class="tg-caja">
+                      <div class="tg-head">
+                        <span><strong>Ana's Cleaning Service</strong></span>
+                        <span>Cheque # ${esc(exp.checkNum || '—')}</span>
+                      </div>
+                      <div class="tg-label">${titulo}</div>
+                      <table class="tg-tabla">
+                        ${fila('Pagado a', '<strong>' + esc(exp.vendor || exp.desc || '—') + '</strong>', 'Fecha', fecha)}
+                        ${fila('Categoría', esc(cat), '# Cheque', esc(exp.checkNum || '—'))}
+                        <tr><td class="tg-k">Descripción</td><td class="tg-v" colspan="3">${esc(exp.desc) || '—'}</td></tr>
+                        <tr><td class="tg-k">Nota</td><td class="tg-v" colspan="3">${esc(exp.notes) || '—'}</td></tr>
+                        <tr><td class="tg-k">Monto en letras</td><td class="tg-v" colspan="3">${esc(letras)}</td></tr>
+                        <tr class="tg-total"><td colspan="2">TOTAL</td><td colspan="2">$${this.formatMoney(exp.amount)}</td></tr>
+                      </table>
+                    </div>`;
+
+                return `<div class="tg-zona" style="top:${u(cfg.stub_top || 4.0)};` +
+                       `left:${u(cfg.stub_left || 0.5)};right:${u(cfg.stub_left || 0.5)};">` +
+                       bloque('TALÓN PARA EL PROVEEDOR') +
+                       `<div class="tg-corte"></div>` +
+                       bloque("TALÓN PARA ANA'S CLEANING SERVICE") +
+                       `</div>`;
+            },
+
+            // Los estilos van aparte para poder inyectarlos tanto en la ventana
+            // de impresión como dentro del modal de vista previa.
+            _tallonGastoCss() {
+                return `
+                .tg-zona   { position:absolute; font-family:Arial,Helvetica,sans-serif; }
+                .tg-caja   { border:2px solid #6a1b9a; border-radius:8px; overflow:hidden;
+                             background:#fff; }
+                .tg-head   { background:#6a1b9a; color:#fff; padding:5px 10px;
+                             display:flex; justify-content:space-between; font-size:8.5pt; }
+                .tg-label  { text-align:center; font-size:7.5pt; color:#666; letter-spacing:2px;
+                             padding:3px; border-bottom:1px dashed #ccc; background:#f7f4fa; }
+                .tg-tabla  { width:100%; border-collapse:collapse; font-size:8.5pt; }
+                .tg-tabla td { padding:4px 8px; border-bottom:1px solid #eee; vertical-align:top; }
+                .tg-k      { color:#666; width:16%; white-space:nowrap; }
+                .tg-v      { color:#000; }
+                .tg-total td { background:#f7f4fa; font-weight:bold; font-size:10pt;
+                               border-top:2px solid #6a1b9a; border-bottom:none; }
+                .tg-total td:last-child { text-align:right; }
+                .tg-corte  { border-top:2px dashed #6a1b9a; margin:10px 0; }
+                `;
+            },
             _printExpenseCheckNow(id) {
                 const exp = this.expenses.find(e => e.id === id);
                 if (!exp) return;
@@ -6390,6 +6609,7 @@
                     .cf-words    { position:absolute; top:${cfg.words_top||1.6}in; left:${cfg.words_left||0.5}in; font-size:8.5pt; }
                     .cf-memo     { position:absolute; top:${cfg.memo_top||2.9}in; left:${cfg.memo_left||0.5}in; font-size:9pt; }
                     .cf-signature{ position:absolute; top:${cfg.signature_top||2.6}in; right:${cfg.signature_right||1.5}in; width:${cfg.signature_width||1.5}in; }
+                    ${this._tallonGastoCss()}
                 </style></head><body>
                 <div class="sheet" ${bgImage ? `style="background-image:url(${bgImage});background-size:100% 100%;background-repeat:no-repeat;"` : ''}>
                     <div class="cf-number">${exp.checkNum}</div>
@@ -6399,6 +6619,7 @@
                     <div class="cf-words">${amountWords}</div>
                     ${exp.desc ? `<div class="cf-memo">${exp.desc}</div>` : ''}
                     ${sigUrl ? `<img src="${sigUrl}" class="cf-signature">` : ''}
+                    ${this._tallonGastoHtml(exp)}
                 </div>
                 <script>window.onload=()=>{window.print();}<\/script>
                 </body></html>`);
