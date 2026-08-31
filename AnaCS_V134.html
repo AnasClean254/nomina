@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '144';
+    window.ANACS_VERSION = '145';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -9445,7 +9445,7 @@ Motivo de cancelación (opcional):`);
             }
             if (i % 2 === 1) { doc.setFillColor(245,247,250); doc.rect(20, y, 170, _rh, 'F'); }
             doc.setFontSize(9); doc.setTextColor(50,50,50);
-            doc.text(_recortarConUnidad(String(ln.dir), mostrarSubtotales ? 55 : 72), 24, y+5);
+            doc.text(this._recortarConUnidad(String(ln.dir), mostrarSubtotales ? 55 : 72), 24, y+5);
             doc.text(String(ln.visitas), colServ, y+5, { align:'right' });
             if (mostrarSubtotales) doc.text(money(ln.importe), 186, y+5, { align:'right' });
             if (_hasF) {

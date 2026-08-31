@@ -1,5 +1,5 @@
 {
-  "version": "144",
-  "notas": "ARREGLO DE FONDO: abrir la app ya no hace que esa computadora pise el trabajo hecho en otra.",
-  "publicado": "2026-08-28T18:39:47+00:00"
+  "version": "145",
+  "notas": "Arreglo: el preview de la factura combinada reventaba y regresaba a Enviadas.",
+  "publicado": "2026-08-31T15:19:59+00:00"
 }
