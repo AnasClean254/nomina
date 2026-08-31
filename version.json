@@ -1,5 +1,5 @@
 {
-  "version": "146",
-  "notas": "ARREGLO DE FONDO: la sincronizacion ya fusiona registro por registro. Dos computadoras pueden editar clientes distintos sin pisarse.",
-  "publicado": "2026-08-31T19:12:41+00:00"
+  "version": "147",
+  "notas": "Filtro por propiedad en el calendario. La fusion ya rellena los campos vacios en vez de descartar el registro del otro.",
+  "publicado": "2026-08-31T21:56:07+00:00"
 }

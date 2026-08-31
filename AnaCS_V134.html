@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '146';
+    window.ANACS_VERSION = '147';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -1084,6 +1084,9 @@
                     <option value="all">TODOS LOS CLIENTES</option>
                 </select>
                 <input type="hidden" id="searchCliIds" value="all">
+                <select id="searchPropId" onchange="app._selectCalendarProp(this.value)" class="filter-select-final" style="display:none;">
+                    <option value="all">TODAS LAS PROPIEDADES</option>
+                </select>
             </div>
         </div>
         
@@ -3621,6 +3624,9 @@ class Scheduler {
             dropdown.style.display = 'none';
             hiddenSelect.value = 'all';
             if(hiddenIds) hiddenIds.value = 'all';
+            const _sp = document.getElementById('searchPropId');
+            if (_sp) { _sp.style.display = 'none'; _sp.value = 'all'; }
+            this._propIdsCliente = [];
             this.render();
             return;
         }
@@ -3663,13 +3669,48 @@ class Scheduler {
         dropdown.style.display = 'block';
     }
 
+    // ── Filtro por propiedad (clientes multipropiedad) ──────────────────────
+    // `_propIdsCliente` guarda la lista completa del cliente elegido para poder
+    // volver a "todas" sin tener que recalcularla.
+    _llenarSelectorPropiedades(name) {
+        const sel = document.getElementById('searchPropId');
+        if (!sel) return;
+        const props = (this.clis || []).filter(c => c.name.trim().toLowerCase() === String(name).trim().toLowerCase());
+        this._propIdsCliente = props.map(c => String(c.id));
+        if (props.length < 2) { sel.style.display = 'none'; sel.innerHTML = '<option value="all">TODAS LAS PROPIEDADES</option>'; return; }
+        const etiqueta = (c, i) => {
+            const u = (c.propId && c.propId.trim() && c.propId.trim().toLowerCase() !== (c.name||'').trim().toLowerCase()) ? c.propId.trim() : '';
+            const d = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : '';
+            return [d, u].filter(Boolean).join(' — ') || ('Propiedad ' + (i + 1));
+        };
+        let html = '<option value="all">TODAS LAS PROPIEDADES (' + props.length + ')</option>';
+        props.forEach((c, i) => {
+            const t = etiqueta(c, i).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+            html += '<option value="' + String(c.id) + '">' + t + '</option>';
+        });
+        sel.innerHTML = html;
+        sel.value = 'all';
+        sel.style.display = '';
+    }
+
+    _selectCalendarProp(valor) {
+        const hiddenIds = document.getElementById('searchCliIds');
+        if (!hiddenIds) return;
+        const todas = this._propIdsCliente || [];
+        hiddenIds.value = (valor === 'all') ? (todas.length ? todas.join(',') : 'all') : String(valor);
+        this.render();
+    }
+
     _selectCalendarCli(id, name, searchVal) {
         const input = document.getElementById('searchCliText');
         const hiddenIds = document.getElementById('searchCliIds');
         const dropdown = document.getElementById('searchCliDropdown');
+        const selProp = document.getElementById('searchPropId');
         if (id === 'all') {
             input.value = '';
             if(hiddenIds) hiddenIds.value = 'all';
+            if (selProp) { selProp.style.display = 'none'; selProp.value = 'all'; }
+            this._propIdsCliente = [];
         } else {
             input.value = name;
             // Buscar todos los IDs del mismo cliente (múltiples propiedades)
@@ -3677,6 +3718,7 @@ class Scheduler {
                 .filter(c => c.name.trim().toLowerCase() === name.trim().toLowerCase())
                 .map(c => String(c.id));
             if(hiddenIds) hiddenIds.value = allIds.length > 0 ? allIds.join(',') : id;
+            try { this._llenarSelectorPropiedades(name); } catch (e) { console.warn('selector de propiedades:', e); }
         }
         dropdown.style.display = 'none';
         this.render();
@@ -19405,9 +19447,31 @@ Motivo de cancelación (opcional):`);
             // El MISMO registro en las dos computadoras: gana el tocado más tarde,
             // no el de la computadora que guardó al último. Ésta es la diferencia.
             const i = posPorClave.get(key);
-            if (cuando(item) > cuando(merged[i])) merged[i] = item;
+            const tSuyo = cuando(item), tMio = cuando(merged[i]);
+            const gana = (tSuyo > tMio) ? item : merged[i];
+            const pierde = (tSuyo > tMio) ? merged[i] : item;
+            merged[i] = this._rellenarHuecos(gana, pierde);
         });
         return merged;
+    }
+
+    // Cuando dos versiones del MISMO registro empatan en fecha —o cuando ninguna
+    // trae fecha, que es el caso de todo lo capturado antes de la v146— quedarse
+    // con una y tirar la otra pierde datos: así desaparecieron las direcciones de
+    // Jessie Reid. Aquí el ganador conserva TODO lo suyo y sólo se le copian del
+    // otro los campos que él trae VACÍOS. Nunca se pisa un dato con otro distinto;
+    // en el peor caso no se gana nada.
+    _rellenarHuecos(base, otro) {
+        if (!base || !otro || typeof base !== 'object' || typeof otro !== 'object') return base;
+        const vacio = (v) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
+        let copia = null;
+        Object.keys(otro).forEach(k => {
+            if (k === 'updatedAt') return;
+            if (!vacio(base[k]) || vacio(otro[k])) return;
+            if (!copia) copia = Object.assign({}, base);
+            copia[k] = otro[k];
+        });
+        return copia || base;
     }
 
     // Huella barata de un registro, para saber si cambió desde el último guardado.
