@@ -4270,8 +4270,9 @@
                     else digitalEmps.push({ p, i, emp, method });
                 });
 
-                const usedNums = this.checks.map(c => c.checkNumber).filter(n => !isNaN(n));
-                const nextNum = usedNums.length > 0 ? Math.max(...usedNums) + 1 : 1001;
+                // Antes: `this.checks.map(...)` — sólo nómina. Si el último cheque de
+                // la chequera había sido un gasto, aquí se proponía un folio repetido.
+                const nextNum = this._siguienteNumeroCheque();
 
                 const existing = document.getElementById('checkAssignModal');
                 if (existing) existing.remove();
@@ -4419,6 +4420,20 @@
                     if (cb) { cb.checked = marcar; tocadas++; }
                 }
                 return tocadas;
+            },
+
+            // Siguiente folio de la chequera. Es UNA chequera: los cheques de nómina
+            // y los de gasto salen del mismo talonario, así que el número siguiente
+            // tiene que mirar los dos lados. Antes cada pantalla lo calculaba por su
+            // cuenta y la de nómina se olvidaba de los gastos.
+            _siguienteNumeroCheque() {
+                const deNomina = (this.checks || [])
+                    .map(c => parseInt(c.checkNumber, 10)).filter(n => !isNaN(n));
+                const deGastos = (this.expenses || [])
+                    .filter(e => e.checkNum)
+                    .map(e => parseInt(e.checkNum, 10)).filter(n => !isNaN(n));
+                const usados = [...deNomina, ...deGastos];
+                return usados.length ? Math.max(...usados) + 1 : 1001;
             },
 
             toggleAllChecks(checked, count) {
@@ -6396,11 +6411,7 @@
                 // Si no tiene número de cheque, mostrar mini modal para asignarlo
                 if (!exp.checkNum) {
                     // Sugerir el siguiente número disponible
-                    const usedNums = [
-                        ...this.checks.map(c => parseInt(c.checkNumber)).filter(n => !isNaN(n)),
-                        ...this.expenses.filter(e => e.checkNum).map(e => parseInt(e.checkNum)).filter(n => !isNaN(n))
-                    ];
-                    const nextNum = usedNums.length > 0 ? Math.max(...usedNums) + 1 : 1001;
+                    const nextNum = this._siguienteNumeroCheque();
 
                     const existing = document.getElementById('expCheckNumModal');
                     if (existing) existing.remove();
@@ -6553,12 +6564,24 @@
                       </table>
                     </div>`;
 
-                return `<div class="tg-zona" style="top:${u(cfg.stub_top || 4.0)};` +
-                       `left:${u(cfg.stub_left || 0.5)};right:${u(cfg.stub_left || 0.5)};">` +
-                       bloque('TALÓN PARA EL PROVEEDOR') +
-                       `<div class="tg-corte"></div>` +
-                       bloque("TALÓN PARA ANA'S CLEANING SERVICE") +
-                       `</div>`;
+                // Cada talón va en SU PROPIA posición, no apilados. El papel de cheque
+                // trae las perforaciones en puntos fijos (normalmente a 3.5" y 7"), así
+                // que si el segundo talón empieza donde termina el primero, cae encima
+                // de la línea de corte. Se ajustan con stub_top y stub2_top.
+                // Sin márgenes laterales, igual que el talón de nómina: `left:0` y
+                // ancho completo. El mío traía media pulgada de cada lado y por eso no
+                // coincidía con el de nómina aunque el papel fuera el mismo.
+                const zona = (arriba, contenido) =>
+                    `<div class="tg-zona" style="top:${u(arriba)}; left:0; right:0;">` +
+                    contenido + `</div>`;
+
+                // Las MISMAS medidas que usa el cheque de nómina, que ya imprime bien:
+                // la hoja partida en tres secciones iguales de 3.667" (11 / 3), con el
+                // cheque arriba y un talón en cada tercio. Antes puse 3.7 y 7.2 a ojo y
+                // el segundo caía encima de la perforación.
+                const SECCION = 11 / 3;                       // 3.667 pulgadas
+                return zona(cfg.stub_top  || SECCION,     bloque('TALÓN PARA EL PROVEEDOR')) +
+                       zona(cfg.stub2_top || SECCION * 2, bloque("TALÓN PARA ANA'S CLEANING SERVICE"));
             },
 
             // Los estilos van aparte para poder inyectarlos tanto en la ventana
@@ -6566,18 +6589,19 @@
             _tallonGastoCss() {
                 return `
                 .tg-zona   { position:absolute; font-family:Arial,Helvetica,sans-serif; }
-                .tg-caja   { border:2px solid #6a1b9a; border-radius:8px; overflow:hidden;
-                             background:#fff; }
-                .tg-head   { background:#6a1b9a; color:#fff; padding:5px 10px;
+                .tg-caja   { background:#fff; border-top:2px dashed #aaa; overflow:hidden; }
+                .tg-head   { background:#fff; color:#000; padding:6px 14px 4px;
+                             border-bottom:1px solid #ddd; font-weight:bold;
                              display:flex; justify-content:space-between; font-size:8.5pt; }
+                .tg-head span:last-child { color:#666; font-weight:normal; }
                 .tg-label  { text-align:center; font-size:7.5pt; color:#666; letter-spacing:2px;
                              padding:3px; border-bottom:1px dashed #ccc; background:#f7f4fa; }
-                .tg-tabla  { width:100%; border-collapse:collapse; font-size:8.5pt; }
+                .tg-tabla  { width:calc(100% - 20px); margin:4px 10px; border-collapse:collapse; font-size:8pt; }
                 .tg-tabla td { padding:4px 8px; border-bottom:1px solid #eee; vertical-align:top; }
                 .tg-k      { color:#666; width:16%; white-space:nowrap; }
                 .tg-v      { color:#000; }
-                .tg-total td { background:#f7f4fa; font-weight:bold; font-size:10pt;
-                               border-top:2px solid #6a1b9a; border-bottom:none; }
+                .tg-total td { background:#e8f5e9; font-weight:bold; font-size:9pt;
+                               border:2px solid #27ae60; }
                 .tg-total td:last-child { text-align:right; }
                 .tg-corte  { border-top:2px dashed #6a1b9a; margin:10px 0; }
                 `;
