@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '145';
+    window.ANACS_VERSION = '146';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -2394,6 +2394,11 @@ class Scheduler {
     }
     
     save(opciones) {
+        // Antes de escribir: marcar con la hora los registros que cambiaron, para
+        // que puedan defenderse solos en la próxima fusión. En el guardado de
+        // arranque no se sella nada (no cambió nada de verdad), sólo se refresca
+        // la huella.
+        try { this._sellarCambios(!!(opciones && opciones.arranque)); } catch (e) { console.warn('sellar:', e); }
         localStorage.setItem('v35_emps', JSON.stringify(this.emps));
         localStorage.setItem('v35_clis', JSON.stringify(this.clis));
         localStorage.setItem('v35_servs', JSON.stringify(this.servs));
@@ -19383,13 +19388,83 @@ Motivo de cancelación (opcional):`);
             }
             return null; // sin id reconocible -> se conserva igual, sin deduplicar
         };
-        const winnerKeys = new Set(winnerArr.map(getKey).filter(k => k !== null));
+        // Fecha propia del registro. Sin sello vale 0, así que dos registros sin
+        // sellar empatan y se queda el del ganador global — igual que antes.
+        const cuando = (o) => (o && o.updatedAt) ? (new Date(o.updatedAt).getTime() || 0) : 0;
+
         const merged = winnerArr.slice();
+        const posPorClave = new Map();
+        merged.forEach((item, i) => {
+            const k = getKey(item);
+            if (k !== null && !posPorClave.has(k)) posPorClave.set(k, i);
+        });
         loserArr.forEach(item => {
             const key = getKey(item);
-            if (key === null || !winnerKeys.has(key)) merged.push(item);
+            if (key === null) { merged.push(item); return; }
+            if (!posPorClave.has(key)) { posPorClave.set(key, merged.length); merged.push(item); return; }
+            // El MISMO registro en las dos computadoras: gana el tocado más tarde,
+            // no el de la computadora que guardó al último. Ésta es la diferencia.
+            const i = posPorClave.get(key);
+            if (cuando(item) > cuando(merged[i])) merged[i] = item;
         });
         return merged;
+    }
+
+    // Huella barata de un registro, para saber si cambió desde el último guardado.
+    _hashRegistro(o) {
+        const s = JSON.stringify(o);
+        let h = 0;
+        for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+        return h;
+    }
+
+    // Sella con la hora SÓLO los registros que de verdad cambiaron.
+    //
+    // Va en un solo lugar a propósito. Sellar en cada punto de edición serían
+    // ~80 sitios, y bastaría olvidar uno —o agregar una función nueva sin
+    // acordarse— para que el problema volviera en silencio, justo en el registro
+    // que no se selló.
+    //
+    // `soloSombra` refresca la huella SIN sellar: se usa después de bajar de
+    // Drive, porque los registros que acaban de llegar de la otra computadora
+    // se verían como "cambiados aquí" y reclamarían una hora que no les toca.
+    _sellarCambios(soloSombra) {
+        let sombra = null;
+        try { sombra = JSON.parse(localStorage.getItem('anaCS_sombra') || 'null'); } catch (e) {}
+        const primeraVez = !sombra;
+        sombra = sombra || {};
+        const ahora = new Date().toISOString();
+        const listas = {
+            clis: this.clis, servs: this.servs, emps: this.emps,
+            generatedInvoices: this.generatedInvoices, estimates: this.estimates,
+            serviceCatalog: this.serviceCatalog
+        };
+        let sellados = 0;
+        Object.keys(listas).forEach(nombre => {
+            const arr = listas[nombre];
+            if (!Array.isArray(arr)) return;
+            const previo = sombra[nombre] || {};
+            const nuevo = {};
+            arr.forEach(r => {
+                if (!r || r.id === undefined || r.id === null || r.id === '') return;
+                const id = String(r.id);
+                // El sello no entra en la huella: si no, cambiaría en cada guardado
+                // y todo se vería siempre como modificado.
+                const sinSello = Object.assign({}, r);
+                delete sinSello.updatedAt;
+                const h = this._hashRegistro(sinSello);
+                const conocido = previo[id] !== undefined;
+                if (!soloSombra && !primeraVez && conocido && previo[id] !== h) {
+                    r.updatedAt = ahora;
+                    sellados++;
+                }
+                nuevo[id] = h;
+            });
+            sombra[nombre] = nuevo;
+        });
+        try { localStorage.setItem('anaCS_sombra', JSON.stringify(sombra)); } catch (e) {}
+        if (sellados) console.log('🕐 ' + sellados + ' registro(s) sellados con la hora del cambio');
+        return sellados;
     }
 
     mergeGrupos(winnerGrupos = {}, loserGrupos = {}) {
@@ -20055,6 +20130,10 @@ Motivo de cancelación (opcional):`);
             // Subir el resultado fusionado para que ambos lados (Drive y este dispositivo)
             // queden con la misma información unificada, sin importar quién "ganó".
             this.localDirty = false;
+            // Los registros que acaban de llegar de la otra computadora se verían
+            // como "cambiados aquí" en el próximo guardado y reclamarían una hora
+            // que no les corresponde. Se refresca la huella sin sellar.
+            try { this._sellarCambios(true); } catch (e) { console.warn('sombra tras fusión:', e); }
             console.log('📤 Subiendo resultado fusionado a Drive...');
             await this.driveSyncNow();
         } catch(err) {

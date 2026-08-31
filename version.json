@@ -1,5 +1,5 @@
 {
-  "version": "145",
-  "notas": "Arreglo: el preview de la factura combinada reventaba y regresaba a Enviadas.",
-  "publicado": "2026-08-31T15:19:59+00:00"
+  "version": "146",
+  "notas": "ARREGLO DE FONDO: la sincronizacion ya fusiona registro por registro. Dos computadoras pueden editar clientes distintos sin pisarse.",
+  "publicado": "2026-08-31T19:12:41+00:00"
 }
