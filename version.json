@@ -1,5 +1,5 @@
 {
-  "version": "147",
-  "notas": "Filtro por propiedad en el calendario. La fusion ya rellena los campos vacios en vez de descartar el registro del otro.",
-  "publicado": "2026-08-31T21:56:07+00:00"
+  "version": "150",
+  "notas": "Arregla los botones Dia/Semana/Mes tras Ver en Calendario. Filtro por propiedad, respaldo de claves y arrastre en la vista mensual.",
+  "publicado": "2026-08-31T22:41:09+00:00"
 }
