@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aumento de Precios — Ana's Cleaning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+/* ── TOKENS ── */
+:root {
+  --bg: #f8f9fa;
+  --surface: #ffffff;
+  --surface2: #f2f5f3;
+  --border: #d8e3dc;
+  --text: #1a2e23;
+  --text2: #4a6358;
+  --accent: #2a7d5f;
+  --accent-light: #e4f2eb;
+  --accent-dark: #1d5e46;
+  --warn: #b85c00;
+  --warn-light: #fff4e8;
+  --danger: #c0392b;
+  --success: #1a7a4a;
+  --success-light: #e6f4ed;
+  --shadow: 0 2px 8px rgba(42,125,95,.10);
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1e17;
+    --surface: #172a1f;
+    --surface2: #1e3429;
+    --border: #2a4538;
+    --text: #e8f2ec;
+    --text2: #8db8a0;
+    --accent: #3daa7e;
+    --accent-light: #1a3528;
+    --accent-dark: #5ecfa0;
+    --warn: #e07a20;
+    --warn-light: #2a1f10;
+    --danger: #e05a4a;
+    --success: #3daa7e;
+    --success-light: #142a1e;
+    --shadow: 0 2px 8px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1e17;
+  --surface: #172a1f;
+  --surface2: #1e3429;
+  --border: #2a4538;
+  --text: #e8f2ec;
+  --text2: #8db8a0;
+  --accent: #3daa7e;
+  --accent-light: #1a3528;
+  --accent-dark: #5ecfa0;
+  --warn: #e07a20;
+  --warn-light: #2a1f10;
+  --danger: #e05a4a;
+  --success: #3daa7e;
+  --success-light: #142a1e;
+  --shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* ── HEADER ── */
+header {
+  background: var(--accent);
+  color: #fff;
+  padding: 20px 32px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 2px 12px rgba(0,0,0,.2);
+}
+.logo-circle {
+  width: 44px; height: 44px;
+  background: rgba(255,255,255,.2);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; flex-shrink: 0;
+}
+header h1 { font-size: 20px; font-weight: 700; letter-spacing: -.3px; }
+header p { font-size: 13px; opacity: .85; }
+.header-badge {
+  margin-left: auto;
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.35);
+  border-radius: 20px;
+  padding: 5px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ── TABS ── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  padding: 16px 32px 0;
+  border-bottom: 2px solid var(--border);
+  background: var(--surface);
+}
+.tab {
+  padding: 10px 22px;
+  border-radius: 8px 8px 0 0;
+  border: none;
+  background: none;
+  color: var(--text2);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  position: relative;
+  bottom: -2px;
+  border: 2px solid transparent;
+  border-bottom: none;
+}
+.tab:hover { color: var(--accent); background: var(--accent-light); }
+.tab.active {
+  color: var(--accent-dark);
+  background: var(--bg);
+  border-color: var(--border);
+  border-bottom-color: var(--bg);
+  font-weight: 600;
+}
+
+/* ── CONTENT ── */
+.content { padding: 28px 32px 60px; max-width: 960px; margin: 0 auto; }
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ── CONTROLS BAR ── */
+.controls-bar {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 20px;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  box-shadow: var(--shadow);
+}
+.controls-bar label { font-size: 13px; font-weight: 600; color: var(--text2); white-space: nowrap; }
+.controls-bar .field { display: flex; align-items: center; gap: 8px; }
+input[type="number"], input[type="text"], textarea {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 7px 10px;
+  transition: border-color .15s;
+}
+input[type="number"]:focus, input[type="text"]:focus, textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+input[type="number"] { width: 90px; font-variant-numeric: tabular-nums; }
+.controls-bar .field input[type="number"] { width: 80px; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 18px;
+  border-radius: 7px;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-dark); }
+.btn-ghost {
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text2);
+}
+.btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+.btn-copy {
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  border: 1px solid var(--border);
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+}
+.btn-copy:hover { background: var(--accent); color: #fff; }
+.btn-copy.copied { background: var(--success-light); color: var(--success); border-color: var(--success); }
+.preset-btn {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  color: var(--text2);
+  padding: 5px 13px;
+  font-size: 13px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.preset-btn.active-preset { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+/* ── CLIENT TABLE ── */
+.client-table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+thead { background: var(--surface2); }
+th {
+  padding: 11px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--text2);
+  text-align: left;
+  border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--accent-light); }
+.client-name { font-weight: 600; font-size: 14px; }
+.price-cell { font-variant-numeric: tabular-nums; }
+.new-price {
+  font-weight: 700;
+  color: var(--accent-dark);
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.new-price.empty { color: var(--text2); font-weight: 400; font-size: 13px; }
+.pct-input { width: 72px; text-align: center; }
+.price-input { width: 88px; }
+.diff-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--warn-light);
+  color: var(--warn);
+  font-variant-numeric: tabular-nums;
+}
+.diff-badge.empty { background: none; color: transparent; }
+
+/* ── MESSAGE PREVIEW ── */
+.msg-row td { background: var(--surface2) !important; }
+.msg-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text);
+  white-space: pre-wrap;
+  font-family: 'Inter', sans-serif;
+  min-height: 80px;
+}
+.msg-actions { display: flex; gap: 8px; margin-top: 8px; }
+
+/* ── FORMAL LETTER ── */
+.letter-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.letter-toolbar {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 20px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.letter-toolbar span { font-size: 13px; color: var(--text2); font-weight: 500; }
+.letter-body {
+  padding: 40px 52px;
+  font-family: 'Lora', Georgia, serif;
+  font-size: 15px;
+  line-height: 1.9;
+}
+.letter-date { text-align: right; color: var(--text2); margin-bottom: 32px; font-size: 14px; }
+.letter-greeting { margin-bottom: 20px; }
+.letter-body p { margin-bottom: 16px; text-align: justify; }
+.letter-closing { margin-top: 28px; }
+.letter-sig { margin-top: 40px; }
+.letter-sig strong { display: block; font-weight: 600; }
+.letter-sig span { font-size: 13px; color: var(--text2); }
+.editable-field {
+  display: inline-block;
+  border-bottom: 2px dashed var(--accent);
+  min-width: 80px;
+  padding: 0 4px;
+  cursor: text;
+  border-radius: 2px;
+  transition: background .15s;
+}
+.editable-field:focus {
+  outline: none;
+  background: var(--accent-light);
+  border-radius: 4px;
+  border-bottom-style: solid;
+}
+.letter-note {
+  background: var(--warn-light);
+  border-left: 3px solid var(--warn);
+  padding: 10px 14px;
+  font-size: 13px;
+  color: var(--warn);
+  border-radius: 0 6px 6px 0;
+  margin-bottom: 20px;
+  font-family: 'Inter', sans-serif;
+}
+
+/* ── SECTION HEADER ── */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.section-header h2 { font-size: 17px; font-weight: 700; }
+.section-header p { font-size: 13px; color: var(--text2); margin-top: 2px; }
+.count-badge {
+  background: var(--accent-light);
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 12px;
+}
+
+/* ── EXPAND TOGGLE ── */
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.expand-btn:hover { background: var(--accent-light); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed;
+  bottom: 28px;
+  right: 28px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 11px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 4px 20px rgba(0,0,0,.25);
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all .25s;
+  z-index: 999;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+
+/* ── PRINT STYLES ── */
+@media print {
+  header, .tabs, .controls-bar, .section-header button, .msg-actions, .letter-toolbar { display: none !important; }
+  body { background: white; color: black; }
+  .letter-body { padding: 20px; }
+  table { box-shadow: none; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-circle">🧹</div>
+  <div>
+    <h1>Ana's Cleaning Services</h1>
+    <p>Herramienta de Aumento de Precios</p>
+  </div>
+  <span class="header-badge">Vigente: 21 de Septiembre, 2025</span>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('mensajes')">📋 Mensajes por Cliente</button>
+  <button class="tab" onclick="switchTab('carta')">📄 Carta Formal</button>
+</div>
+
+<!-- ═══════════════ PANEL: MENSAJES ═══════════════ -->
+<div class="content">
+<div id="panel-mensajes" class="panel active">
+
+  <div class="controls-bar">
+    <div class="field">
+      <label>% Aumento global:</label>
+      <input type="number" id="globalPct" value="15" min="0" max="100" step="0.5"
+        oninput="applyGlobalPct()" title="Se aplica a todos los clientes que no tengan % propio">
+      <span style="font-size:13px;color:var(--text2)">%</span>
+    </div>
+    <div class="field" style="gap:6px">
+      <label style="font-size:12px">Presets:</label>
+      <button class="btn preset-btn active-preset" onclick="setPreset(15)" id="p15">15%</button>
+      <button class="btn preset-btn" onclick="setPreset(25)" id="p25">25%</button>
+      <button class="btn preset-btn" onclick="setPreset(30)" id="p30">30%</button>
+    </div>
+    <button class="btn btn-ghost" onclick="toggleAllMessages()">💬 Ver / ocultar mensajes</button>
+    <button class="btn btn-ghost" onclick="copyAllMessages()">📋 Copiar todos</button>
+    <div style="margin-left:auto;font-size:12px;color:var(--text2)">
+      El % por cliente sobreescribe el global
+    </div>
+  </div>
+
+  <div class="section-header">
+    <div>
+      <h2>Lista de Clientes</h2>
+      <p>Ingresa el precio actual · ajusta el % por cliente · copia cada mensaje</p>
+    </div>
+    <span class="count-badge">21 clientes</span>
+  </div>
+
+  <div class="client-table-wrap">
+  <table id="clientTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Cliente</th>
+        <th>Precio actual ($)</th>
+        <th>% Aumento</th>
+        <th>Precio nuevo ($)</th>
+        <th>Diferencia</th>
+        <th>Mensaje</th>
+      </tr>
+    </thead>
+    <tbody id="clientBody"></tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ═══════════════ PANEL: CARTA ═══════════════ -->
+<div id="panel-carta" class="panel">
+
+  <div class="section-header">
+    <div>
+      <h2>Carta Personalizada por Cliente</h2>
+      <p>Selecciona un cliente — la carta se llena automáticamente con su nombre y precios</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
+      <button class="btn btn-primary" onclick="copyLetter()">📋 Copiar carta</button>
+    </div>
+  </div>
+
+  <!-- Client selector for letter -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;box-shadow:var(--shadow)">
+    <label style="font-size:13px;font-weight:600;color:var(--text2);white-space:nowrap">Cliente:</label>
+    <select id="letterClient" onchange="renderLetter()"
+      style="flex:1;min-width:200px;background:var(--surface2);border:1.5px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:14px;padding:8px 12px;cursor:pointer">
+    </select>
+    <div id="letterPriceSummary" style="font-size:13px;color:var(--text2);margin-left:auto"></div>
+    <div id="letterNav" style="display:flex;gap:6px">
+      <button class="btn btn-ghost" style="padding:6px 12px;font-size:13px" onclick="prevClient()">← Anterior</button>
+      <button class="btn btn-ghost" style="padding:6px 12px;font-size:13px" onclick="nextClient()">Siguiente →</button>
+    </div>
+  </div>
+
+  <div class="letter-container">
+    <div class="letter-toolbar" style="justify-content:space-between">
+      <span>✉️ Carta lista para copiar y enviar a cada cliente</span>
+      <span id="letterClientBadge" style="font-size:12px;font-weight:700;color:var(--accent)"></span>
+    </div>
+    <div class="letter-body" id="letterBody">
+      <!-- populated by renderLetter() -->
+    </div>
+  </div>
+</div>
+</div><!-- /content -->
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── DATA ──────────────────────────────────────────────
+const CLIENTS = [
+  { name: "Annie Ginty",           price: 150  },
+  { name: "Loyet Stewart",         price: 140  },
+  { name: "Sue Garret",            price: 120  },
+  { name: "Rebecca Guess",         price: 165  },
+  { name: "Sandra Morris",         price: 165  },
+  { name: "Kay Lee",               price: 150  },
+  { name: "Christie Chase",        price: 150  },
+  { name: "Gail Southall",         price: 135  },
+  { name: "Ashley Murray",         price: 800  },
+  { name: "Chelsea Brooks",        price: 150  },
+  { name: "Elaine Guerra",         price: 150  },
+  { name: "Tresse McPherson",      price: 135  },
+  { name: "Alyce Lively",          price: 120  },
+  { name: "Victoria Cooper",       price: 150  },
+  { name: "Jessica Snider",        price: 150  },
+  { name: "Linda Stahl",           price: 165  },
+  { name: "Linda Reasoner",        price: 125  },
+  { name: "Catherine Clausewitz",  price: 120  },
+  { name: "Rachel Lee",            price: 150  },
+  { name: "Laura Upenieks",        price: 120  },
+  { name: "Laura Bearden",         price: 175  },
+];
+
+// State
+const state = CLIENTS.map((c, i) => ({
+  id: i, name: c.name,
+  currentPrice: String(c.price),
+  pct: '',          // individual override; '' = use global
+  expanded: false
+}));
+
+// ── RENDER ────────────────────────────────────────────
+function getGlobalPct() {
+  return parseFloat(document.getElementById('globalPct').value) || 0;
+}
+
+function calcNew(s) {
+  const cur = parseFloat(s.currentPrice);
+  if (isNaN(cur) || cur <= 0) return null;
+  const pct = s.pct !== '' ? parseFloat(s.pct) : getGlobalPct();
+  if (isNaN(pct)) return null;
+  return Math.round(cur * (1 + pct / 100) * 100) / 100;
+}
+
+function buildMessage(s) {
+  const cur = parseFloat(s.currentPrice);
+  const newP = calcNew(s);
+  if (!newP || isNaN(cur)) return '— Ingresa el precio actual para generar el mensaje —';
+  const pct = s.pct !== '' ? parseFloat(s.pct) : getGlobalPct();
+  const diff = (newP - cur).toFixed(2);
+  const firstName = s.name.split(' ')[0];
+
+  return `Hi ${firstName}! 😊
+
+I wanted to personally reach out to let you know about a small change to your cleaning service rate, effective September 21, 2025.
+
+Your new rate will be $${fmt(newP)} per visit (previously $${fmt(cur)}).
+
+This adjustment reflects the rising costs of supplies and operations, and allows us to continue providing you with the same quality service you're used to.
+
+Thank you so much for your continued trust — it means everything to us! Please feel free to reach out if you have any questions.
+
+With appreciation,
+Ana 🧹✨`;
+}
+
+function fmt(n) {
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function renderTable() {
+  // Refresh letter dropdown if carta tab is active
+  if (document.getElementById('panel-carta')?.classList.contains('active')) {
+    initLetterSelector(); renderLetter();
+  }
+  const tbody = document.getElementById('clientBody');
+  tbody.innerHTML = '';
+
+  state.forEach(s => {
+    const newP = calcNew(s);
+    const cur = parseFloat(s.currentPrice);
+    const diff = (newP && !isNaN(cur)) ? (newP - cur).toFixed(2) : null;
+    const pctDisplay = s.pct !== '' ? s.pct : getGlobalPct();
+
+    // Main row
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="color:var(--text2);font-size:12px;font-weight:600">${s.id+1}</td>
+      <td class="client-name">${s.name}</td>
+      <td class="price-cell">
+        <input type="number" class="price-input" value="${s.currentPrice}"
+          placeholder="0.00" min="0" step="0.50"
+          onchange="setPriceFor(${s.id}, this.value)"
+          oninput="setPriceFor(${s.id}, this.value)"
+          title="Precio actual de ${s.name}">
+      </td>
+      <td>
+        <input type="number" class="pct-input" value="${s.pct}"
+          placeholder="${getGlobalPct()}"
+          min="0" max="100" step="0.5"
+          onchange="setPctFor(${s.id}, this.value)"
+          oninput="setPctFor(${s.id}, this.value)"
+          title="% de aumento para ${s.name} (vacío = usa el global)">
+        <span style="font-size:11px;color:var(--text2)">%</span>
+      </td>
+      <td class="price-cell">
+        <span class="${newP ? 'new-price' : 'new-price empty'}">
+          ${newP ? '$' + fmt(newP) : '—'}
+        </span>
+      </td>
+      <td>
+        <span class="diff-badge ${diff ? '' : 'empty'}">
+          ${diff ? '+$' + diff : '—'}
+        </span>
+      </td>
+      <td style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <button class="expand-btn" onclick="toggleMsg(${s.id})">
+          ${s.expanded ? '▲ Ocultar' : '▼ Mensaje'}
+        </button>
+        <button class="expand-btn" style="color:var(--warn);border:1px solid var(--warn);border-radius:4px;padding:3px 8px" onclick="openLetter(${s.id})">
+          📄 Carta
+        </button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+
+    // Message row (shown/hidden)
+    if (s.expanded) {
+      const msgTr = document.createElement('tr');
+      msgTr.className = 'msg-row';
+      const msg = buildMessage(s);
+      msgTr.innerHTML = `
+        <td colspan="7" style="padding:8px 20px 16px">
+          <div class="msg-box" id="msgbox-${s.id}">${escHtml(msg)}</div>
+          <div class="msg-actions">
+            <button class="btn btn-copy" id="copybtn-${s.id}" onclick="copyMsg(${s.id})">📋 Copiar mensaje</button>
+            <span style="font-size:12px;color:var(--text2);align-self:center">Para: ${s.name}</span>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(msgTr);
+    }
+  });
+}
+
+// ── INTERACTIONS ──────────────────────────────────────
+function setPriceFor(id, val) {
+  state[id].currentPrice = val;
+  renderTable();
+}
+
+function setPctFor(id, val) {
+  state[id].pct = val;
+  renderTable();
+}
+
+function applyGlobalPct() {
+  const v = parseFloat(document.getElementById('globalPct').value);
+  [15, 25, 30].forEach(p => {
+    const btn = document.getElementById('p' + p);
+    if (btn) btn.classList.toggle('active-preset', Math.abs(v - p) < 0.01);
+  });
+  renderTable();
+}
+
+function setPreset(pct) {
+  document.getElementById('globalPct').value = pct;
+  [15, 25, 30].forEach(p => {
+    const btn = document.getElementById('p' + p);
+    if (btn) btn.classList.toggle('active-preset', p === pct);
+  });
+  renderTable();
+}
+
+function toggleMsg(id) {
+  state[id].expanded = !state[id].expanded;
+  renderTable();
+}
+
+let allExpanded = false;
+function toggleAllMessages() {
+  allExpanded = !allExpanded;
+  state.forEach(s => s.expanded = allExpanded);
+  renderTable();
+}
+
+function copyMsg(id) {
+  const msg = buildMessage(state[id]);
+  navigator.clipboard.writeText(msg).then(() => {
+    const btn = document.getElementById('copybtn-' + id);
+    if (btn) {
+      btn.textContent = '✓ Copiado';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = '📋 Copiar mensaje'; btn.classList.remove('copied'); renderTable(); }, 2000);
+    }
+    showToast('Mensaje de ' + state[id].name + ' copiado ✓');
+  });
+}
+
+function copyAllMessages() {
+  const all = state.map((s, i) => {
+    const msg = buildMessage(s);
+    return `──── ${s.name} ────\n${msg}`;
+  }).join('\n\n\n');
+  navigator.clipboard.writeText(all).then(() => {
+    showToast('Todos los mensajes copiados ✓');
+  });
+}
+
+function copyLetter() {
+  const body = document.getElementById('letterBody');
+  navigator.clipboard.writeText(body.innerText).then(() => {
+    showToast('Carta copiada al portapapeles ✓');
+  });
+}
+
+function buildLetterText(s) {
+  const newP = calcNew(s);
+  const cur = parseFloat(s.currentPrice);
+  const firstName = s.name.split(' ')[0];
+  const today = 'September 3, 2025';
+  const newPStr = newP ? '$' + fmt(newP) : '[precio nuevo]';
+  const curPStr = !isNaN(cur) ? '$' + fmt(cur) : '[precio actual]';
+  return {firstName, newPStr, curPStr, newP, cur};
+}
+
+function renderLetter() {
+  const sel = document.getElementById('letterClient');
+  const id = parseInt(sel.value);
+  const s = state[id];
+  const {firstName, newPStr, curPStr, newP, cur} = buildLetterText(s);
+  const badge = document.getElementById('letterClientBadge');
+  const summary = document.getElementById('letterPriceSummary');
+  if (badge) badge.textContent = s.name;
+  if (summary && newP) {
+    const diff = (newP - cur).toFixed(2);
+    summary.innerHTML = `<span style="color:var(--text2)">${curPStr}</span> → <strong style="color:var(--accent-dark)">${newPStr}</strong> <span style="color:var(--warn)">(+$${diff})</span>`;
+  } else if (summary) {
+    summary.textContent = 'Ingresa el precio actual en la tabla para ver el cálculo';
+  }
+
+  const body = document.getElementById('letterBody');
+  body.innerHTML = `
+    <div class="letter-date">Robinson, Texas, September 3, 2025</div>
+
+    <div class="letter-greeting">Dear ${firstName},</div>
+
+    <p>
+      I hope this message finds you well. I sincerely want to thank you for your continued trust in
+      <strong>Ana's Cleaning Services</strong>. It has truly been a pleasure serving you, and your
+      loyalty means the world to us.
+    </p>
+
+    <p>
+      I am writing to let you know that, effective <strong>September 21, 2025</strong>, there will be
+      a small adjustment to the rate for your cleaning service. Your new rate will be
+      <strong>${newPStr} per visit</strong>${!isNaN(cur) && newP ? ` (your current rate is ${curPStr})` : ''}.
+    </p>
+
+    <p>
+      This decision was not made lightly. Over the past year, the cost of supplies, fuel, and labor
+      has increased significantly. In order to continue delivering the high-quality, reliable service
+      you deserve, this adjustment has become necessary.
+    </p>
+
+    <p>
+      I remain fully committed to providing you with the same exceptional cleaning experience you have
+      come to expect — thorough, professional, and done with care. I will continue to go above and
+      beyond to make sure your home feels truly clean and refreshed after every visit.
+    </p>
+
+    <p>
+      If you have any questions or concerns, please don't hesitate to reach out. I am always happy to
+      speak with you directly.
+    </p>
+
+    <p>
+      Thank you again for being such a wonderful client. I truly value your business and look
+      forward to continuing to serve you.
+    </p>
+
+    <div class="letter-closing">With warm appreciation,</div>
+
+    <div class="letter-sig" style="margin-top:28px">
+      <strong>Ana</strong>
+      <span>Ana's Cleaning Services</span><br>
+      <span>(254) 733-4577</span><br>
+      <span style="color:var(--text2);font-size:13px">Robinson, Texas</span>
+    </div>
+  `;
+}
+
+function openLetter(id) {
+  // Switch to carta tab and select the client
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-carta').classList.add('active');
+  document.querySelector('.tab:nth-child(2)').classList.add('active');
+  const sel = document.getElementById('letterClient');
+  sel.value = id;
+  renderLetter();
+  window.scrollTo({top: 0, behavior: 'smooth'});
+}
+
+function prevClient() {
+  const sel = document.getElementById('letterClient');
+  const id = parseInt(sel.value);
+  if (id > 0) { sel.value = id - 1; renderLetter(); }
+}
+
+function nextClient() {
+  const sel = document.getElementById('letterClient');
+  const id = parseInt(sel.value);
+  if (id < state.length - 1) { sel.value = id + 1; renderLetter(); }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'carta') renderLetter();
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+
+// ── INIT ─────────────────────────────────────────────
+function initLetterSelector() {
+  const sel = document.getElementById('letterClient');
+  sel.innerHTML = '';
+  state.forEach(s => {
+    const opt = document.createElement('option');
+    opt.value = s.id;
+    const newP = calcNew(s);
+    opt.textContent = s.name + (newP ? ' → $' + fmt(newP) : '');
+    sel.appendChild(opt);
+  });
+}
+
+renderTable();
+initLetterSelector();
+renderLetter();
+</script>
+</body>
+</html>
