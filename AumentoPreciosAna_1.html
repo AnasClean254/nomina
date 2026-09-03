@@ -440,7 +440,8 @@ tr:hover td { background: var(--accent-light); }
     <h1>Ana's Cleaning Services</h1>
     <p>Herramienta de Aumento de Precios</p>
   </div>
-  <span class="header-badge">Vigente: 21 de Septiembre, 2025</span>
+  <span class="header-badge">Vigente: 21 de Septiembre, 2026</span>
+  <button onclick="clearStorage()" title="Borrar todos los cambios guardados" style="margin-left:12px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:5px 12px;font-size:12px;cursor:pointer;font-family:inherit">🗑 Resetear</button>
 </header>
 
 <div class="tabs">
@@ -1027,6 +1028,55 @@ function escHtml(str) {
   return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 
+// ── LOCAL STORAGE ─────────────────────────────────────
+const STORAGE_KEY = 'anaCS_precios_v1';
+
+function saveToStorage() {
+  try {
+    const data = {
+      globalPct: document.getElementById('globalPct')?.value || '',
+      clients: state.map(s => ({
+        id: s.id,
+        currentPrice: s.currentPrice,
+        pct: s.pct,
+        letterHtml: s.letterHtml
+      }))
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch(e) {}
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.globalPct) {
+      const el = document.getElementById('globalPct');
+      if (el) el.value = data.globalPct;
+    }
+    (data.clients || []).forEach(saved => {
+      const s = state[saved.id];
+      if (!s) return;
+      if (saved.currentPrice !== undefined) s.currentPrice = saved.currentPrice;
+      if (saved.pct !== undefined) s.pct = saved.pct;
+      if (saved.letterHtml) s.letterHtml = saved.letterHtml;
+    });
+  } catch(e) {}
+}
+
+function clearStorage() {
+  try { localStorage.removeItem(STORAGE_KEY); } catch(e) {}
+  state.forEach(s => { s.letterHtml = null; s.pct = ''; });
+  const el = document.getElementById('globalPct');
+  if (el) el.value = '15';
+  renderTable();
+  initLetterSelector();
+  _currentLetterId = null;
+  renderLetter();
+  showToast('🗑 Datos borrados — volvió al estado original');
+}
+
 // ── INIT ─────────────────────────────────────────────
 function initLetterSelector() {
   const sel = document.getElementById('letterClient');
@@ -1040,12 +1090,21 @@ function initLetterSelector() {
   });
 }
 
+// Load saved data first, then render
+loadFromStorage();
 renderTable();
 initLetterSelector();
 renderLetter();
 
-// Auto-save edits per client on every keystroke
-document.getElementById('letterBody').addEventListener('input', saveLetter);
+// Auto-save on letter edit
+document.getElementById('letterBody').addEventListener('input', () => { saveLetter(); saveToStorage(); });
+
+// Auto-save on price/pct changes (patch into existing functions via storage hook)
+const _origSetPrice = setPriceFor;
+window.setPriceFor = (id, val) => { _origSetPrice(id, val); saveToStorage(); };
+const _origSetPct = setPctFor;
+window.setPctFor = (id, val) => { _origSetPct(id, val); saveToStorage(); };
+document.getElementById('globalPct')?.addEventListener('change', saveToStorage);
 </script>
 </body>
 </html>
