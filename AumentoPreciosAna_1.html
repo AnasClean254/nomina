@@ -327,19 +327,17 @@ tr:hover td { background: var(--accent-light); }
   font-family: 'Lora', Georgia, serif;
   font-size: 15px;
   line-height: 1.9;
-  outline: none;
-}
-.letter-body [contenteditable]:hover {
-  background: var(--accent-light);
-  border-radius: 4px;
   cursor: text;
-  transition: background .15s;
 }
-.letter-body [contenteditable]:focus {
-  background: var(--accent-light);
-  border-radius: 4px;
+.letter-body[contenteditable]:focus {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 6px;
+  border-radius: 4px;
+}
+.letter-body[contenteditable]:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 6px;
+  border-radius: 4px;
 }
 .letter-date { text-align: right; color: var(--text2); margin-bottom: 32px; font-size: 14px; }
 .letter-greeting { margin-bottom: 20px; }
@@ -615,7 +613,7 @@ function buildMessage(s) {
 
   return `Hi ${firstName}! 😊
 
-I wanted to personally reach out to let you know about a small change to your cleaning service rate, effective September 21, 2025.
+I wanted to personally reach out to let you know about a small change to your cleaning service rate, effective ${effectiveDate()}.
 
 Your new rate will be $${fmt(newP)} per visit (previously $${fmt(cur)}).
 
@@ -793,6 +791,13 @@ function copyLetter() {
   });
 }
 
+function todayFormatted() {
+  return new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+function effectiveDate() {
+  return `September 21, ${new Date().getFullYear()}`;
+}
+
 function buildLetterText(s) {
   const newP = calcNew(s);
   const cur = parseFloat(s.currentPrice);
@@ -805,19 +810,19 @@ function buildLetterText(s) {
 function buildLetterPlainText(s) {
   const {firstName, newPStr, curPStr, newP, cur} = buildLetterText(s);
   const curNote = (!isNaN(cur) && newP) ? ` (your current rate is ${curPStr})` : '';
-  return `Robinson, Texas, September 3, 2025
+  return `Robinson, Texas, ${todayFormatted()}
 
 Dear ${firstName},
 
 I hope this message finds you well. I sincerely want to thank you for your continued trust in Ana's Cleaning Services. It has truly been a pleasure serving you, and your loyalty means the world to us.
 
-I am writing to let you know that, effective September 21, 2025, there will be a small adjustment to the rate for your cleaning service. Your new rate will be ${newPStr} per visit${curNote}.
+I am writing to let you know that, effective ${effectiveDate()}, there will be a small adjustment to the rate for your cleaning service. Your new rate will be ${newPStr} per visit${curNote}.
 
 This decision was not made lightly. Over the past year, the cost of supplies, fuel, and labor has increased significantly. In order to continue delivering the high-quality, reliable service you deserve, this adjustment has become necessary.
 
 I remain fully committed to providing you with the same exceptional cleaning experience you have come to expect — thorough, professional, and done with care. I will continue to go above and beyond to make sure your home feels truly clean and refreshed after every visit.
 
-I kindly ask that you confirm your acceptance of this new rate by replying to this message within 7 days of receipt. If I do not hear back from you within that time, I will unfortunately need to suspend your cleaning service beginning with the first scheduled visit after September 21, 2025.
+I kindly ask that you confirm your acceptance of this new rate by replying to this message within 7 days of receipt. If I do not hear back from you within that time, I will unfortunately need to suspend your cleaning service beginning with the first scheduled visit after ${effectiveDate()}.
 
 If you have any questions or concerns, please don't hesitate to reach out. I am always happy to speak with you directly.
 
@@ -878,54 +883,54 @@ function renderLetter() {
   }
   body.setAttribute('contenteditable', 'true');
   body.innerHTML = `
-    <div class="letter-date" contenteditable="true">Robinson, Texas, September 3, 2025</div>
+    <div class="letter-date">Robinson, Texas, ${todayFormatted()}</div>
 
-    <div class="letter-greeting" contenteditable="true">Dear ${firstName},</div>
+    <div class="letter-greeting">Dear ${firstName},</div>
 
-    <p contenteditable="true">
+    <p>
       I hope this message finds you well. I sincerely want to thank you for your continued trust in
       <strong>Ana's Cleaning Services</strong>. It has truly been a pleasure serving you, and your
       loyalty means the world to us.
     </p>
 
-    <p contenteditable="true">
-      I am writing to let you know that, effective <strong>September 21, 2025</strong>, there will be
+    <p>
+      I am writing to let you know that, effective <strong>${effectiveDate()}</strong>, there will be
       a small adjustment to the rate for your cleaning service. Your new rate will be
       <strong>${newPStr} per visit</strong>${!isNaN(cur) && newP ? ` (your current rate is ${curPStr})` : ''}.
     </p>
 
-    <p contenteditable="true">
+    <p>
       This decision was not made lightly. Over the past year, the cost of supplies, fuel, and labor
       has increased significantly. In order to continue delivering the high-quality, reliable service
       you deserve, this adjustment has become necessary.
     </p>
 
-    <p contenteditable="true">
+    <p>
       I remain fully committed to providing you with the same exceptional cleaning experience you have
       come to expect — thorough, professional, and done with care. I will continue to go above and
       beyond to make sure your home feels truly clean and refreshed after every visit.
     </p>
 
-    <p contenteditable="true" style="border-left:3px solid var(--accent);padding-left:14px;background:var(--accent-light);border-radius:0 6px 6px 0;padding-top:8px;padding-bottom:8px">
+    <p style="border-left:3px solid var(--accent);padding-left:14px;background:var(--accent-light);border-radius:0 6px 6px 0;padding-top:8px;padding-bottom:8px">
       I kindly ask that you confirm your acceptance of this new rate by replying to this message
       within <strong>7 days</strong> of receipt. If I do not hear back from you within that time,
       I will unfortunately need to suspend your cleaning service beginning with the first scheduled
-      visit after September 21, 2025.
+      visit after ${effectiveDate()}.
     </p>
 
-    <p contenteditable="true">
+    <p>
       If you have any questions or concerns, please don't hesitate to reach out. I am always happy to
       speak with you directly.
     </p>
 
-    <p contenteditable="true">
+    <p>
       Thank you again for being such a wonderful client. I truly value your business and look
       forward to continuing to serve you.
     </p>
 
-    <div class="letter-closing" contenteditable="true">With warm appreciation,</div>
+    <div class="letter-closing">With warm appreciation,</div>
 
-    <div class="letter-sig" style="margin-top:28px" contenteditable="true">
+    <div class="letter-sig" style="margin-top:28px">
       <strong>Ana</strong>
       <span>Ana's Cleaning Services</span><br>
       <span>(254) 733-4577</span><br>
