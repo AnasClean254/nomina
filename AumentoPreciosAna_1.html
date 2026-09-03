@@ -327,6 +327,19 @@ tr:hover td { background: var(--accent-light); }
   font-family: 'Lora', Georgia, serif;
   font-size: 15px;
   line-height: 1.9;
+  outline: none;
+}
+.letter-body [contenteditable]:hover {
+  background: var(--accent-light);
+  border-radius: 4px;
+  cursor: text;
+  transition: background .15s;
+}
+.letter-body [contenteditable]:focus {
+  background: var(--accent-light);
+  border-radius: 4px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .letter-date { text-align: right; color: var(--text2); margin-bottom: 32px; font-size: 14px; }
 .letter-greeting { margin-bottom: 20px; }
@@ -498,6 +511,7 @@ tr:hover td { background: var(--accent-light); }
     </div>
     <div style="display:flex;gap:10px;align-items:center">
       <button class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
+      <button class="btn btn-ghost" style="color:var(--warn);border-color:var(--warn)" onclick="resetLetter()" title="Restaurar carta original de este cliente">↺ Restaurar</button>
       <button class="btn btn-primary" onclick="copyLetter()">📋 Copiar carta</button>
     </div>
   </div>
@@ -517,7 +531,7 @@ tr:hover td { background: var(--accent-light); }
 
   <div class="letter-container">
     <div class="letter-toolbar" style="justify-content:space-between">
-      <span>✉️ Carta lista para copiar y enviar a cada cliente</span>
+      <span>✉️ Carta lista para copiar y enviar &nbsp;<span style="font-size:11px;background:var(--accent-light);color:var(--accent-dark);padding:2px 8px;border-radius:20px;font-weight:600">✏️ Editable — haz clic en cualquier párrafo para modificarlo</span></span>
       <span id="letterClientBadge" style="font-size:12px;font-weight:700;color:var(--accent)"></span>
     </div>
     <div class="letter-body" id="letterBody">
@@ -574,7 +588,8 @@ const state = CLIENTS.map((c, i) => ({
   currentPrice: String(c.price),
   phone: c.phone || '',
   pct: '',          // individual override; '' = use global
-  expanded: false
+  expanded: false,
+  letterHtml: null  // saved edits per client
 }));
 
 // ── RENDER ────────────────────────────────────────────
@@ -587,7 +602,7 @@ function calcNew(s) {
   if (isNaN(cur) || cur <= 0) return null;
   const pct = s.pct !== '' ? parseFloat(s.pct) : getGlobalPct();
   if (isNaN(pct)) return null;
-  return Math.round(cur * (1 + pct / 100) * 100) / 100;
+  return Math.round(cur * (1 + pct / 100)); // rounded to whole dollar
 }
 
 function buildMessage(s) {
@@ -613,7 +628,11 @@ Ana 🧹✨`;
 }
 
 function fmt(n) {
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // If whole number, show no decimals; otherwise show 2
+  const num = Number(n);
+  return num % 1 === 0
+    ? num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+    : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function formatPhone(e164) {
@@ -798,6 +817,8 @@ This decision was not made lightly. Over the past year, the cost of supplies, fu
 
 I remain fully committed to providing you with the same exceptional cleaning experience you have come to expect — thorough, professional, and done with care. I will continue to go above and beyond to make sure your home feels truly clean and refreshed after every visit.
 
+I kindly ask that you confirm your acceptance of this new rate by replying to this message within 7 days of receipt. If I do not hear back from you within that time, I will unfortunately need to suspend your cleaning service beginning with the first scheduled visit after September 21, 2025.
+
 If you have any questions or concerns, please don't hesitate to reach out. I am always happy to speak with you directly.
 
 Thank you again for being such a wonderful client. I truly value your business and look forward to continuing to serve you.
@@ -810,64 +831,101 @@ Ana's Cleaning Services
 Robinson, Texas`;
 }
 
+let _currentLetterId = null;
+
+function saveLetter() {
+  if (_currentLetterId !== null) {
+    state[_currentLetterId].letterHtml = document.getElementById('letterBody').innerHTML;
+  }
+}
+
+function resetLetter() {
+  if (_currentLetterId === null) return;
+  state[_currentLetterId].letterHtml = null;
+  const sel = document.getElementById('letterClient');
+  // Force re-render by temporarily clearing id
+  _currentLetterId = null;
+  renderLetter();
+  showToast('↺ Carta restaurada al original');
+}
+
 function renderLetter() {
+  // Save current client's edits before switching
+  saveLetter();
+
   const sel = document.getElementById('letterClient');
   const id = parseInt(sel.value);
+  _currentLetterId = id;
   const s = state[id];
   const {firstName, newPStr, curPStr, newP, cur} = buildLetterText(s);
   const badge = document.getElementById('letterClientBadge');
   const summary = document.getElementById('letterPriceSummary');
   if (badge) badge.textContent = s.name;
   if (summary && newP) {
-    const diff = (newP - cur).toFixed(2);
-    summary.innerHTML = `<span style="color:var(--text2)">${curPStr}</span> → <strong style="color:var(--accent-dark)">${newPStr}</strong> <span style="color:var(--warn)">(+$${diff})</span>`;
+    const diff = newP - cur;
+    summary.innerHTML = `<span style="color:var(--text2)">${curPStr}</span> → <strong style="color:var(--accent-dark)">${newPStr}</strong> <span style="color:var(--warn)">(+$${Math.round(diff)})</span>`;
   } else if (summary) {
     summary.textContent = 'Ingresa el precio actual en la tabla para ver el cálculo';
   }
 
   const body = document.getElementById('letterBody');
+
+  // If client has saved edits, restore them
+  if (s.letterHtml) {
+    body.setAttribute('contenteditable', 'true');
+    body.innerHTML = s.letterHtml;
+    return;
+  }
+  body.setAttribute('contenteditable', 'true');
   body.innerHTML = `
-    <div class="letter-date">Robinson, Texas, September 3, 2025</div>
+    <div class="letter-date" contenteditable="true">Robinson, Texas, September 3, 2025</div>
 
-    <div class="letter-greeting">Dear ${firstName},</div>
+    <div class="letter-greeting" contenteditable="true">Dear ${firstName},</div>
 
-    <p>
+    <p contenteditable="true">
       I hope this message finds you well. I sincerely want to thank you for your continued trust in
       <strong>Ana's Cleaning Services</strong>. It has truly been a pleasure serving you, and your
       loyalty means the world to us.
     </p>
 
-    <p>
+    <p contenteditable="true">
       I am writing to let you know that, effective <strong>September 21, 2025</strong>, there will be
       a small adjustment to the rate for your cleaning service. Your new rate will be
       <strong>${newPStr} per visit</strong>${!isNaN(cur) && newP ? ` (your current rate is ${curPStr})` : ''}.
     </p>
 
-    <p>
+    <p contenteditable="true">
       This decision was not made lightly. Over the past year, the cost of supplies, fuel, and labor
       has increased significantly. In order to continue delivering the high-quality, reliable service
       you deserve, this adjustment has become necessary.
     </p>
 
-    <p>
+    <p contenteditable="true">
       I remain fully committed to providing you with the same exceptional cleaning experience you have
       come to expect — thorough, professional, and done with care. I will continue to go above and
       beyond to make sure your home feels truly clean and refreshed after every visit.
     </p>
 
-    <p>
+    <p contenteditable="true" style="border-left:3px solid var(--accent);padding-left:14px;background:var(--accent-light);border-radius:0 6px 6px 0;padding-top:8px;padding-bottom:8px">
+      I kindly ask that you confirm your acceptance of this new rate by replying to this message
+      within <strong>7 days</strong> of receipt. If I do not hear back from you within that time,
+      I will unfortunately need to suspend your cleaning service beginning with the first scheduled
+      visit after September 21, 2025.
+    </p>
+
+    <p contenteditable="true">
       If you have any questions or concerns, please don't hesitate to reach out. I am always happy to
       speak with you directly.
     </p>
 
-    <p>
+    <p contenteditable="true">
       Thank you again for being such a wonderful client. I truly value your business and look
       forward to continuing to serve you.
     </p>
 
-    <div class="letter-closing">With warm appreciation,</div>
+    <div class="letter-closing" contenteditable="true">With warm appreciation,</div>
 
-    <div class="letter-sig" style="margin-top:28px">
+    <div class="letter-sig" style="margin-top:28px" contenteditable="true">
       <strong>Ana</strong>
       <span>Ana's Cleaning Services</span><br>
       <span>(254) 733-4577</span><br>
@@ -980,6 +1038,9 @@ function initLetterSelector() {
 renderTable();
 initLetterSelector();
 renderLetter();
+
+// Auto-save edits per client on every keystroke
+document.getElementById('letterBody').addEventListener('input', saveLetter);
 </script>
 </body>
 </html>
