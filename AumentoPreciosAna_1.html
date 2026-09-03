@@ -202,6 +202,29 @@ input[type="number"] { width: 90px; font-variant-numeric: tabular-nums; }
 }
 .btn-copy:hover { background: var(--accent); color: #fff; }
 .btn-copy.copied { background: var(--success-light); color: var(--success); border-color: var(--success); }
+.btn-sms {
+  background: #e8f4ff;
+  color: #1a6ab3;
+  border: 1px solid #b3d4f5;
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background .15s;
+}
+.btn-sms:hover { background: #1a6ab3; color: #fff; border-color: #1a6ab3; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .btn-sms { background: #0d2540; color: #5ba3e0; border-color: #1a4a7a; }
+  :root:not([data-theme="light"]) .btn-sms:hover { background: #1a6ab3; color: #fff; }
+}
+:root[data-theme="dark"] .btn-sms { background: #0d2540; color: #5ba3e0; border-color: #1a4a7a; }
+:root[data-theme="dark"] .btn-sms:hover { background: #1a6ab3; color: #fff; }
 .preset-btn {
   background: var(--surface2);
   border: 1.5px solid var(--border);
@@ -412,6 +435,7 @@ tr:hover td { background: var(--accent-light); }
 <div class="tabs">
   <button class="tab active" onclick="switchTab('mensajes')">📋 Mensajes por Cliente</button>
   <button class="tab" onclick="switchTab('carta')">📄 Carta Formal</button>
+  <button class="tab" onclick="switchTab('todos')" style="background:linear-gradient(135deg,#1a6ab3,#1a9e7a);color:#fff;font-weight:700">📱 Todos los SMS</button>
 </div>
 
 <!-- ═══════════════ PANEL: MENSAJES ═══════════════ -->
@@ -501,6 +525,19 @@ tr:hover td { background: var(--accent-light); }
     </div>
   </div>
 </div>
+</div>
+
+<!-- ═══════════════ PANEL: TODOS LOS SMS ═══════════════ -->
+<div id="panel-todos" class="panel">
+  <div class="section-header">
+    <div>
+      <h2>📱 Todos los Mensajes — Listos para Enviar</h2>
+      <p style="font-size:13px;color:var(--text2);margin-top:4px">Ana: haz clic en <strong>📱 Abrir Mensajes</strong> → el número y el mensaje ya están listos → solo presiona Enviar.</p>
+    </div>
+    <button class="btn btn-ghost" onclick="copyAllMessages()" style="white-space:nowrap">📋 Copiar Todos</button>
+  </div>
+  <div id="allMsgsContainer" style="display:flex;flex-direction:column;gap:16px;margin-top:8px"></div>
+</div>
 </div><!-- /content -->
 
 <div class="toast" id="toast"></div>
@@ -508,33 +545,34 @@ tr:hover td { background: var(--accent-light); }
 <script>
 // ── DATA ──────────────────────────────────────────────
 const CLIENTS = [
-  { name: "Annie Ginty",           price: 150  },
-  { name: "Loyet Stewart",         price: 140  },
-  { name: "Sue Garret",            price: 120  },
-  { name: "Rebecca Guess",         price: 165  },
-  { name: "Sandra Morris",         price: 165  },
-  { name: "Kay Lee",               price: 150  },
-  { name: "Christie Chase",        price: 150  },
-  { name: "Gail Southall",         price: 135  },
-  { name: "Ashley Murray",         price: 800  },
-  { name: "Chelsea Brooks",        price: 150  },
-  { name: "Elaine Guerra",         price: 150  },
-  { name: "Tresse McPherson",      price: 135  },
-  { name: "Alyce Lively",          price: 120  },
-  { name: "Victoria Cooper",       price: 150  },
-  { name: "Jessica Snider",        price: 150  },
-  { name: "Linda Stahl",           price: 165  },
-  { name: "Linda Reasoner",        price: 125  },
-  { name: "Catherine Clausewitz",  price: 120  },
-  { name: "Rachel Lee",            price: 150  },
-  { name: "Laura Upenieks",        price: 120  },
-  { name: "Laura Bearden",         price: 175  },
+  { name: "Annie Ginty",           price: 150,  phone: "+12162996145" },
+  { name: "Loyet Stewart",         price: 140,  phone: "+19728979160" },
+  { name: "Sue Garret",            price: 120,  phone: "+12547448008" },
+  { name: "Rebecca Guess",         price: 165,  phone: "+12547226831" },
+  { name: "Sandra Morris",         price: 165,  phone: "+13253400718" },
+  { name: "Kay Lee",               price: 150,  phone: "+12144444492" },
+  { name: "Christie Chase",        price: 150,  phone: "+12547449114" },
+  { name: "Gail Southall",         price: 135,  phone: "+18179942181" },
+  { name: "Ashley Murray",         price: 800,  phone: "+17062542500" },
+  { name: "Chelsea Brooks",        price: 150,  phone: "+12547150566" },
+  { name: "Elaine Guerra",         price: 150,  phone: "+12547150187" },
+  { name: "Tresse McPherson",      price: 135,  phone: "+12547222474" },
+  { name: "Alyce Lively",          price: 120,  phone: "+12548557553" },
+  { name: "Victoria Cooper",       price: 150,  phone: "+19288462624" },
+  { name: "Jessica Snider",        price: 150,  phone: "+12817020887" },
+  { name: "Linda Stahl",           price: 165,  phone: "+18583866197" },
+  { name: "Linda Reasoner",        price: 125,  phone: "+12547152636" },
+  { name: "Catherine Clausewitz",  price: 120,  phone: "+12104130772" },
+  { name: "Rachel Lee",            price: 150,  phone: "+12547447441" },
+  { name: "Laura Upenieks",        price: 120,  phone: "+12107015820" },
+  { name: "Laura Bearden",         price: 175,  phone: "+12547096051" },
 ];
 
 // State
 const state = CLIENTS.map((c, i) => ({
   id: i, name: c.name,
   currentPrice: String(c.price),
+  phone: c.phone || '',
   pct: '',          // individual override; '' = use global
   expanded: false
 }));
@@ -576,6 +614,15 @@ Ana 🧹✨`;
 
 function fmt(n) {
   return Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatPhone(e164) {
+  // +12547449114 → (254) 744-9114
+  const d = e164.replace(/\D/g,'');
+  if (d.length === 11 && d[0] === '1') {
+    return `(${d.slice(1,4)}) ${d.slice(4,7)}-${d.slice(7)}`;
+  }
+  return e164;
 }
 
 function renderTable() {
@@ -644,7 +691,10 @@ function renderTable() {
           <div class="msg-box" id="msgbox-${s.id}">${escHtml(msg)}</div>
           <div class="msg-actions">
             <button class="btn btn-copy" id="copybtn-${s.id}" onclick="copyMsg(${s.id})">📋 Copiar mensaje</button>
-            <span style="font-size:12px;color:var(--text2);align-self:center">Para: ${s.name}</span>
+            ${s.phone ? `<a class="btn btn-sms" href="sms:${s.phone}?body=${encodeURIComponent(msg)}" title="Abrir Mensajes con ${s.name}">📱 Abrir en Mensajes</a>` : ''}
+            <span style="font-size:12px;color:var(--text2);align-self:center;margin-left:auto">
+              ${s.phone ? `📞 ${formatPhone(s.phone)}` : s.name}
+            </span>
           </div>
         </td>
       `;
@@ -830,6 +880,51 @@ function switchTab(name) {
   document.getElementById('panel-' + name).classList.add('active');
   event.target.classList.add('active');
   if (name === 'carta') renderLetter();
+  if (name === 'todos') renderAllMessages();
+}
+
+function renderAllMessages() {
+  const container = document.getElementById('allMsgsContainer');
+  container.innerHTML = '';
+  state.forEach((s, idx) => {
+    const msg = buildMessage(s);
+    const newP = calcNew(s);
+    const card = document.createElement('div');
+    card.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)';
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
+        <span style="font-size:12px;font-weight:700;color:var(--text2);min-width:24px">${idx+1}</span>
+        <span style="font-weight:600;color:var(--text);flex:1">${s.name}</span>
+        ${newP ? `<span style="font-size:13px;font-weight:700;color:var(--accent)">$${fmt(calcNew(s))}</span>` : ''}
+        ${s.phone ? `<span style="font-size:12px;color:var(--text2)">${formatPhone(s.phone)}</span>` : ''}
+      </div>
+      <div style="padding:12px 16px;white-space:pre-wrap;font-size:13px;color:var(--text);line-height:1.6;font-family:'Lora',serif">${escHtml(msg)}</div>
+      <div style="display:flex;gap:8px;padding:10px 16px;background:var(--surface2);border-top:1px solid var(--border)">
+        <button class="btn btn-copy" id="allcopy-${s.id}" onclick="copyAllMsg(${s.id}, '${s.id}')">📋 Copiar</button>
+        ${s.phone ? `<a class="btn btn-sms" href="sms:${s.phone}?body=${encodeURIComponent(msg)}">📱 Abrir en Mensajes</a>` : ''}
+        <span style="font-size:11px;color:var(--text2);margin-left:auto;align-self:center">Mensaje ${idx+1} de ${state.length}</span>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+
+function copyAllMsg(id, btnSuffix) {
+  const msg = buildMessage(state[id]);
+  navigator.clipboard.writeText(msg).then(() => {
+    const btn = document.getElementById('allcopy-' + btnSuffix);
+    if (btn) { btn.textContent = '✅ Copiado'; btn.classList.add('copied'); }
+    showToast(`✅ Mensaje de ${state[id].name} copiado`);
+    setTimeout(() => { if(btn){btn.textContent='📋 Copiar';btn.classList.remove('copied');} }, 2500);
+  });
+}
+
+function copyAllMessages() {
+  const all = state.map((s, i) => {
+    const msg = buildMessage(s);
+    return `━━━ ${i+1}. ${s.name} ${s.phone ? '· '+formatPhone(s.phone) : ''} ━━━\n${msg}`;
+  }).join('\n\n');
+  navigator.clipboard.writeText(all).then(() => showToast('✅ Todos los mensajes copiados'));
 }
 
 function showToast(msg) {
