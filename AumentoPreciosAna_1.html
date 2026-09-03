@@ -435,7 +435,7 @@ tr:hover td { background: var(--accent-light); }
 <div class="tabs">
   <button class="tab active" onclick="switchTab('mensajes')">📋 Mensajes por Cliente</button>
   <button class="tab" onclick="switchTab('carta')">📄 Carta Formal</button>
-  <button class="tab" onclick="switchTab('todos')" style="background:linear-gradient(135deg,#1a6ab3,#1a9e7a);color:#fff;font-weight:700">📱 Todos los SMS</button>
+  <button class="tab" onclick="switchTab('todos')" style="background:linear-gradient(135deg,#1a6ab3,#1a9e7a);color:#fff;font-weight:700">📱 Enviar Cartas</button>
 </div>
 
 <!-- ═══════════════ PANEL: MENSAJES ═══════════════ -->
@@ -531,8 +531,8 @@ tr:hover td { background: var(--accent-light); }
 <div id="panel-todos" class="panel">
   <div class="section-header">
     <div>
-      <h2>📱 Todos los Mensajes — Listos para Enviar</h2>
-      <p style="font-size:13px;color:var(--text2);margin-top:4px">Ana: haz clic en <strong>📱 Abrir Mensajes</strong> → el número y el mensaje ya están listos → solo presiona Enviar.</p>
+      <h2>📱 Todas las Cartas — Listas para Enviar</h2>
+      <p style="font-size:13px;color:var(--text2);margin-top:4px">Ana: haz clic en <strong>📱 Abrir en Mensajes</strong> → el número y la carta formal ya están listos → solo presiona Enviar.</p>
     </div>
     <button class="btn btn-ghost" onclick="copyAllMessages()" style="white-space:nowrap">📋 Copiar Todos</button>
   </div>
@@ -778,10 +778,36 @@ function buildLetterText(s) {
   const newP = calcNew(s);
   const cur = parseFloat(s.currentPrice);
   const firstName = s.name.split(' ')[0];
-  const today = 'September 3, 2025';
   const newPStr = newP ? '$' + fmt(newP) : '[precio nuevo]';
   const curPStr = !isNaN(cur) ? '$' + fmt(cur) : '[precio actual]';
   return {firstName, newPStr, curPStr, newP, cur};
+}
+
+function buildLetterPlainText(s) {
+  const {firstName, newPStr, curPStr, newP, cur} = buildLetterText(s);
+  const curNote = (!isNaN(cur) && newP) ? ` (your current rate is ${curPStr})` : '';
+  return `Robinson, Texas, September 3, 2025
+
+Dear ${firstName},
+
+I hope this message finds you well. I sincerely want to thank you for your continued trust in Ana's Cleaning Services. It has truly been a pleasure serving you, and your loyalty means the world to us.
+
+I am writing to let you know that, effective September 21, 2025, there will be a small adjustment to the rate for your cleaning service. Your new rate will be ${newPStr} per visit${curNote}.
+
+This decision was not made lightly. Over the past year, the cost of supplies, fuel, and labor has increased significantly. In order to continue delivering the high-quality, reliable service you deserve, this adjustment has become necessary.
+
+I remain fully committed to providing you with the same exceptional cleaning experience you have come to expect — thorough, professional, and done with care. I will continue to go above and beyond to make sure your home feels truly clean and refreshed after every visit.
+
+If you have any questions or concerns, please don't hesitate to reach out. I am always happy to speak with you directly.
+
+Thank you again for being such a wonderful client. I truly value your business and look forward to continuing to serve you.
+
+With warm appreciation,
+
+Ana
+Ana's Cleaning Services
+(254) 733-4577
+Robinson, Texas`;
 }
 
 function renderLetter() {
@@ -887,44 +913,44 @@ function renderAllMessages() {
   const container = document.getElementById('allMsgsContainer');
   container.innerHTML = '';
   state.forEach((s, idx) => {
-    const msg = buildMessage(s);
+    const letter = buildLetterPlainText(s);
     const newP = calcNew(s);
     const card = document.createElement('div');
     card.style.cssText = 'background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)';
     card.innerHTML = `
-      <div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border)">
-        <span style="font-size:12px;font-weight:700;color:var(--text2);min-width:24px">${idx+1}</span>
-        <span style="font-weight:600;color:var(--text);flex:1">${s.name}</span>
-        ${newP ? `<span style="font-size:13px;font-weight:700;color:var(--accent)">$${fmt(calcNew(s))}</span>` : ''}
-        ${s.phone ? `<span style="font-size:12px;color:var(--text2)">${formatPhone(s.phone)}</span>` : ''}
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;background:var(--surface2);border-bottom:1px solid var(--border)">
+        <span style="font-size:13px;font-weight:700;color:var(--text2);min-width:28px">${idx+1}.</span>
+        <span style="font-weight:700;color:var(--text);flex:1;font-size:15px">${s.name}</span>
+        ${newP ? `<span style="font-size:13px;font-weight:700;color:var(--accent);background:var(--accent-light);padding:2px 8px;border-radius:20px">$${fmt(newP)}/visita</span>` : ''}
+        ${s.phone ? `<span style="font-size:13px;color:var(--text2);font-weight:500">📞 ${formatPhone(s.phone)}</span>` : ''}
       </div>
-      <div style="padding:12px 16px;white-space:pre-wrap;font-size:13px;color:var(--text);line-height:1.6;font-family:'Lora',serif">${escHtml(msg)}</div>
-      <div style="display:flex;gap:8px;padding:10px 16px;background:var(--surface2);border-top:1px solid var(--border)">
-        <button class="btn btn-copy" id="allcopy-${s.id}" onclick="copyAllMsg(${s.id}, '${s.id}')">📋 Copiar</button>
-        ${s.phone ? `<a class="btn btn-sms" href="sms:${s.phone}?body=${encodeURIComponent(msg)}">📱 Abrir en Mensajes</a>` : ''}
-        <span style="font-size:11px;color:var(--text2);margin-left:auto;align-self:center">Mensaje ${idx+1} de ${state.length}</span>
+      <div style="padding:20px 24px;white-space:pre-wrap;font-size:14px;color:var(--text);line-height:1.75;font-family:'Lora',Georgia,serif;max-height:320px;overflow-y:auto;border-bottom:1px solid var(--border)">${escHtml(letter)}</div>
+      <div style="display:flex;gap:8px;padding:12px 20px;background:var(--surface2);align-items:center">
+        <button class="btn btn-copy" id="allcopy-${s.id}" onclick="copyAllMsg(${s.id})">📋 Copiar carta</button>
+        ${s.phone ? `<a class="btn btn-sms" href="sms:${s.phone}?body=${encodeURIComponent(letter)}" target="_blank">📱 Abrir en Mensajes</a>` : ''}
+        <span style="font-size:11px;color:var(--text2);margin-left:auto">${idx+1} de ${state.length}</span>
       </div>
     `;
     container.appendChild(card);
   });
 }
 
-function copyAllMsg(id, btnSuffix) {
-  const msg = buildMessage(state[id]);
-  navigator.clipboard.writeText(msg).then(() => {
-    const btn = document.getElementById('allcopy-' + btnSuffix);
-    if (btn) { btn.textContent = '✅ Copiado'; btn.classList.add('copied'); }
-    showToast(`✅ Mensaje de ${state[id].name} copiado`);
-    setTimeout(() => { if(btn){btn.textContent='📋 Copiar';btn.classList.remove('copied');} }, 2500);
+function copyAllMsg(id) {
+  const letter = buildLetterPlainText(state[id]);
+  navigator.clipboard.writeText(letter).then(() => {
+    const btn = document.getElementById('allcopy-' + id);
+    if (btn) { btn.textContent = '✅ Copiada'; btn.classList.add('copied'); }
+    showToast('✅ Carta de ' + state[id].name + ' copiada');
+    setTimeout(() => { const b = document.getElementById('allcopy-'+id); if(b){b.textContent='📋 Copiar carta';b.classList.remove('copied');} }, 2500);
   });
 }
 
 function copyAllMessages() {
   const all = state.map((s, i) => {
-    const msg = buildMessage(s);
-    return `━━━ ${i+1}. ${s.name} ${s.phone ? '· '+formatPhone(s.phone) : ''} ━━━\n${msg}`;
-  }).join('\n\n');
-  navigator.clipboard.writeText(all).then(() => showToast('✅ Todos los mensajes copiados'));
+    const letter = buildLetterPlainText(s);
+    return `════════════════════════════════\n${i+1}. ${s.name}${s.phone ? ' · ' + formatPhone(s.phone) : ''}\n════════════════════════════════\n\n${letter}`;
+  }).join('\n\n\n');
+  navigator.clipboard.writeText(all).then(() => showToast('✅ Todas las cartas copiadas'));
 }
 
 function showToast(msg) {
