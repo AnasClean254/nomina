@@ -401,6 +401,7 @@
                 <button class="tab" onclick="app.switchTab('checks')">🧾 Cheques</button>
                 <button class="tab" onclick="app.switchTab('expenses')">💸 Gastos</button>
                 <button class="tab" onclick="app.switchTab('history')">📊 Historial</button>
+                <button class="tab" onclick="app.switchTab('loans')">💳 Préstamos</button>
             </div>
             <div style="display:flex; gap:8px; margin-left:auto; flex-wrap:wrap;">
                 <div class="stat-card" style="padding:6px 12px; border-radius:8px; gap:6px;">
@@ -1275,6 +1276,26 @@
             </div>
         </div>
         
+
+        <!-- TAB PRÉSTAMOS -->
+        <div class="tab-content" id="tabLoans">
+            <div class="card">
+                <h2>💳 Préstamos a Empleadas</h2>
+                <p style="color:#666;margin-bottom:20px;">Registra y controla los préstamos que Ana hace a sus empleadas. El descuento se aplica automáticamente al calcular el Time Card.</p>
+
+                <div style="display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap;margin-bottom:24px;">
+                    <div style="flex:1;min-width:200px;">
+                        <label style="font-size:0.85rem;color:#555;display:block;margin-bottom:6px;">Empleada:</label>
+                        <select id="loansEmpSel" onchange="app.renderLoanDetail(this.value)"
+                            style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:1rem;">
+                        </select>
+                    </div>
+                </div>
+
+                <div id="loanDetailArea"></div>
+            </div>
+        </div>
+
         <!-- TAB CHEQUES -->
         <div class="tab-content" id="tabChecks">
             <div class="card">
@@ -1480,6 +1501,8 @@
             
             cardsPerPage: 1,
             
+            loans: {},  // { empId: { active: {...}, history: [...] } }
+
             init() {
                 this.loadData();
                 this.refreshEmployees();
@@ -2284,6 +2307,7 @@
                 if (tab === 'checks') this.refreshChecks();
                 if (tab === 'expenses') this.renderExpenses();
                 if (tab === 'history') { this.refreshHistory(); this.renderSavedPayrollList(); }
+                if (tab === 'loans') this.renderLoansTab();
             },
             
             // ADMIN
@@ -3608,6 +3632,13 @@
                     if (p.empDeduction > 0) {
                         p.deductions = (p.grossPay * p.empDeduction) / 100;
                     }
+                    // Préstamo activo
+                    const _pLoan = this.getLoan(String(p.employeeId));
+                    const _pLoanDeduct = this.calcLoanDeduction(_pLoan, p.grossPay);
+                    if (_pLoan && _pLoanDeduct > 0) {
+                        p.loanDeduction = _pLoanDeduct;
+                        p.deductions = (p.deductions || 0) + _pLoanDeduct;
+                    }
                     
                     // Pago neto = Gross - Tardanza - Deducciones
                     p.netPay = p.grossPay - p.latePenalty - p.deductions;
@@ -4175,6 +4206,10 @@
                 if (emp.deduction > 0) {
                     deductions = grossPay * emp.deduction / 100;
                 }
+                // Préstamo activo
+                const _tcLoan = this.getLoan(String(emp.id));
+                const _tcLoanDeduct = this.calcLoanDeduction(_tcLoan, grossPay);
+                if (_tcLoan && _tcLoanDeduct > 0) deductions += _tcLoanDeduct;
                 
                 // Net = Gross - Late Penalty - Deductions
                 const netPay = grossPay - latePenalty - deductions;
@@ -4210,7 +4245,8 @@
                                 <strong>GROSS PAY: $${this.formatMoney(grossPay)}</strong>
                             </div>
                             ${totalLateMinutes > 0 ? `<div style="margin: 3px 0; color: #c62828; font-size: ${cardsPerPage === 1 ? '0.9rem' : '0.78rem'};">Late Arrival: -${totalLateMinutes} min = -$${this.formatMoney(latePenalty)}</div>` : ''}
-                            ${deductions > 0 ? `<div style="margin: 3px 0; color: #c62828; font-size: ${cardsPerPage === 1 ? '0.9rem' : '0.78rem'};">Deductions (${emp.deduction}%): -$${this.formatMoney(deductions)}</div>` : ''}
+                            ${emp.deduction > 0 ? `<div style="margin: 3px 0; color: #c62828; font-size: ${cardsPerPage === 1 ? '0.9rem' : '0.78rem'};">Deductions (${emp.deduction}%): -$${this.formatMoney(emp.deduction > 0 ? grossPay * emp.deduction / 100 : 0)}</div>` : ''}
+                            ${(_tcLoan && _tcLoanDeduct > 0) ? `<div style="margin: 3px 0; color: #c62828; font-size: ${cardsPerPage === 1 ? '0.9rem' : '0.78rem'};">Loan Deduction: -$${this.formatMoney(_tcLoanDeduct)}</div>` : ''}
                             ${(totalLateMinutes > 0 || deductions > 0) ? `
                             <div style="margin: 6px 0; padding-top: 6px; border-top: 2px solid #1565c0; font-size: ${cardsPerPage === 1 ? '1.05rem' : '0.85rem'};">
                                 <strong style="color: #1565c0;">NET PAY: $${this.formatMoney(netPay)}</strong>
@@ -4490,6 +4526,7 @@
                             hours: p.totalHours,
                             gross: p.grossPay,
                             deductions: p.deductions || 0,
+                            loanDeduction: p.loanDeduction || 0,
                             net: p.netPay,
                             checkNumber: parseInt(numInput ? numInput.value : 0),
                             payMethod: 'check',
@@ -4510,6 +4547,7 @@
                             hours: p.totalHours,
                             gross: p.grossPay,
                             deductions: p.deductions || 0,
+                            loanDeduction: p.loanDeduction || 0,
                             net: p.netPay,
                             checkNumber: txnInput ? (txnInput.value.trim() || '—') : '—',
                             payMethod: method,
@@ -4571,6 +4609,8 @@
                     const dateParts = check.date.split('T')[0].split('-');
                     const dateUSA = dateParts[1]+'/'+dateParts[2]+'/'+dateParts[0];
                     const method = methodLabel[check.payMethod] || check.payMethod || 'Digital';
+                    const _loanDed = check.loanDeduction || 0;
+                    const _regDed  = Math.max(0, (check.deductions || 0) - _loanDed);
                     const stub = (label) => `
                         <div class="stub-wrap">
                             <div class="stub-header">
@@ -4582,7 +4622,9 @@
                                 <tr><td>Empleado</td><td><strong>${check.employeeName}</strong></td><td>Período</td><td>${check.period || dateUSA}</td></tr>
                                 <tr><td>Fecha Pago</td><td>${dateUSA}</td><td>Método</td><td>${method}</td></tr>
                                 <tr><td>Horas</td><td>${check.hours.toFixed(2)} hrs</td><td>Bruto</td><td>$${self.formatMoney(check.gross)}</td></tr>
-                                <tr><td>Deducciones</td><td>${check.deductions > 0 ? '-$'+self.formatMoney(check.deductions) : '—'}</td><td></td><td></td></tr>
+                                ${_regDed > 0 ? `<tr><td>Desc. N\u00f3mina</td><td colspan="3">-$$${self.formatMoney(_regDed)}</td></tr>` : ''}
+                                ${_loanDed > 0 ? `<tr><td>Pr\u00e9stamo</td><td colspan="3" style="color:#c0392b;">-$$${self.formatMoney(_loanDed)}</td></tr>` : ''}
+                                ${(_regDed === 0 && _loanDed === 0) ? '<tr><td>Deducciones</td><td colspan="3">—</td></tr>' : ''}
                                 <tr class="total-row"><td colspan="2">PAGO NETO:</td><td colspan="2">$${self.formatMoney(check.net)}</td></tr>
                             </table>
                         </div>`;
@@ -4624,6 +4666,8 @@
                     const netAmount  = self.formatMoney(check.net || check.gross || 0);
                     const grossAmount = self.formatMoney(check.gross || 0);
                     const dedAmount  = self.formatMoney(check.deductions || 0);
+                    const loanDeduct = check.loanDeduction || 0;
+                    const regDeduct  = Math.max(0, (check.deductions || 0) - loanDeduct);
                     const wordsAmount = self.numberToWords(netAmount);
 
                     // ── Talón helper — posicionado DENTRO del sheet ──
@@ -4641,8 +4685,9 @@
                                 '<tr><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Fecha Pago</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">' + dateUSA + '</td></tr>' +
                                 '<tr><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Horas</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">' + check.hours.toFixed(2) + ' hrs</td>' +
                                     '<td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Bruto</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">$' + grossAmount + '</td></tr>' +
-                                '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Deducciones</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">' + (check.deductions > 0 ? '-$' + dedAmount : '—') + '</td>' +
-                                    '<td colspan="2" style="padding:3px 6px; border:1px solid #e0e0e0;"></td></tr>' +
+                                (regDeduct > 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Desc. Nómina</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">-$' + self.formatMoney(regDeduct) + '</td></tr>' : '') +
+                                (loanDeduct > 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Préstamo</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0; color:#c0392b;">-$' + self.formatMoney(loanDeduct) + '</td></tr>' : '') +
+                                (regDeduct === 0 && loanDeduct === 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Deducciones</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">—</td></tr>' : '') +
                                 '<tr style="background:#e8f5e9;"><td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt;"><strong>PAGO NETO:</strong></td>' +
                                     '<td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt; color:#1565c0;"><strong>$' + netAmount + '</strong></td></tr>' +
                             '</table>' +
@@ -4725,6 +4770,8 @@
                     const netAmount = self.formatMoney(check.net || check.gross || 0);
                     const grossAmount = self.formatMoney(check.gross || 0);
                     const dedAmount = self.formatMoney(check.deductions || 0);
+                    const loanDeductM = check.loanDeduction || 0;
+                    const regDeductM  = Math.max(0, (check.deductions || 0) - loanDeductM);
                     const wordsAmount = self.numberToWords(netAmount);
 
                     // Sección 1: Cheque real
@@ -4757,8 +4804,10 @@
                                 '<tr><td>Fecha Pago:</td><td colspan="3">' + dateUSA + '</td></tr>' +
                                 '<tr><td>Horas trabajadas:</td><td>' + check.hours.toFixed(2) + ' hrs</td>' +
                                     '<td>Tarifa:</td><td>$' + self.formatMoney(check.gross / (check.hours || 1)) + '/hr</td></tr>' +
-                                '<tr><td>Pago Bruto:</td><td>$' + grossAmount + '</td>' +
-                                    '<td>Deducciones:</td><td>' + (check.deductions > 0 ? '-$' + dedAmount : '—') + '</td></tr>' +
+                                '<tr><td>Pago Bruto:</td><td colspan="3">$' + grossAmount + '</td></tr>' +
+                                (regDeductM > 0 ? '<tr><td>Desc. Nómina:</td><td colspan="3">-$' + self.formatMoney(regDeductM) + '</td></tr>' : '') +
+                                (loanDeductM > 0 ? '<tr><td>Préstamo:</td><td colspan="3" style="color:#c0392b;">-$' + self.formatMoney(loanDeductM) + '</td></tr>' : '') +
+                                (regDeductM === 0 && loanDeductM === 0 ? '<tr><td>Deducciones:</td><td colspan="3">—</td></tr>' : '') +
                                 '<tr class="stub-total"><td colspan="2">PAGO NETO:</td>' +
                                     '<td colspan="2"><strong>$' + netAmount + '</strong></td></tr>' +
                             '</table>' +
@@ -5786,7 +5835,8 @@
                         workConfig: this.workConfig,
                         expenses: this.expenses || [],
                         checks: this.checks || [],
-                        vendors: this.vendors || []
+                        vendors: this.vendors || [],
+                        loans: this.loans || {}
                     };
                     await this.driveUploadFile('anas_nomina_sync.json', JSON.stringify(data, null, 2));
 
@@ -5978,6 +6028,25 @@
                         });
                     }
 
+                    // Merge préstamos — reemplazar activo si Drive tiene y local no
+                    if (data.loans) {
+                        this.loans = this.loans || {};
+                        Object.keys(data.loans).forEach(empId => {
+                            if (!this.loans[empId]) {
+                                this.loans[empId] = data.loans[empId];
+                            } else {
+                                if (data.loans[empId].active && !this.loans[empId].active) {
+                                    this.loans[empId].active = data.loans[empId].active;
+                                }
+                                const localHist = this.loans[empId].history || [];
+                                (data.loans[empId].history || []).forEach(dl => {
+                                    if (!localHist.some(le => le.id === dl.id)) localHist.push(dl);
+                                });
+                                this.loans[empId].history = localHist;
+                            }
+                        });
+                    }
+
                     // Guardar en localStorage (sin tocar workConfig)
                     localStorage.setItem('anas_employees', JSON.stringify(this.employees));
                     localStorage.setItem('anas_attendances', JSON.stringify(this.attendances));
@@ -5985,6 +6054,7 @@
                 localStorage.setItem('anas_checks',   JSON.stringify(this.checks   || []));
                 localStorage.setItem('anas_expenses', JSON.stringify(this.expenses || []));
                 localStorage.setItem('anas_vendors',  JSON.stringify(this.vendors  || []));
+                localStorage.setItem('anas_loans',    JSON.stringify(this.loans    || {}));
                     localStorage.setItem('anas_payroll_periods', JSON.stringify(this.savedPayrollPeriods));
                     localStorage.setItem('anas_lastSyncAt', new Date().toISOString());
 
@@ -6252,6 +6322,7 @@
                 localStorage.setItem('anas_checks',   JSON.stringify(this.checks   || []));
                 localStorage.setItem('anas_expenses', JSON.stringify(this.expenses || []));
                 localStorage.setItem('anas_vendors',  JSON.stringify(this.vendors  || []));
+                localStorage.setItem('anas_loans',    JSON.stringify(this.loans    || {}));
             },
             
             loadData() {
@@ -6313,6 +6384,7 @@
                 this.expenses = JSON.parse(localStorage.getItem('anas_expenses') || '[]');
                 this.vendors  = JSON.parse(localStorage.getItem('anas_vendors')  || '[]');
                 this.savedPayrollPeriods = JSON.parse(localStorage.getItem('anas_payroll_periods') || '[]');
+                this.loans = JSON.parse(localStorage.getItem('anas_loans') || '{}');
                 this.adminPin = localStorage.getItem('anas_adminPin') || '0000';
                 
                 const defaultConfig = {
@@ -6752,6 +6824,254 @@
                         </tr>`;
                     }).join('') +
                     '</tbody></table>';
+            },
+
+
+            // ══════════════════════════════════════════════════════════════════
+            //  MÓDULO DE PRÉSTAMOS  ·  AppNomina
+            // ══════════════════════════════════════════════════════════════════
+
+            getLoan(empId) {
+                const d = this.loans[empId];
+                return (d && d.active) ? d.active : null;
+            },
+
+            calcLoanDeduction(loan, grossPay) {
+                if (!loan) return 0;
+                const remaining = parseFloat((loan.amount - loan.amountPaid).toFixed(2));
+                if (remaining <= 0) return 0;
+                const raw = loan.repaymentType === 'percentage'
+                    ? grossPay * (loan.repaymentValue / 100)
+                    : loan.repaymentValue;
+                return Math.min(parseFloat(raw.toFixed(2)), remaining);
+            },
+
+            applyLoanPaymentSilent(empId, periodStr, amount) {
+                if (!empId || !periodStr || !amount || amount <= 0) return;
+                if (!this.loans[empId] || !this.loans[empId].active) return;
+                const loan = this.loans[empId].active;
+                if (loan.payments.some(p => p.weekOf === periodStr)) return; // No duplicar
+                const saldo = parseFloat((loan.amount - loan.amountPaid).toFixed(2));
+                if (saldo <= 0) return;
+                const abono = Math.min(parseFloat(amount.toFixed(2)), saldo);
+                if (abono <= 0) return;
+                loan.amountPaid = parseFloat((loan.amountPaid + abono).toFixed(2));
+                loan.payments.push({ date: new Date().toISOString(), weekOf: periodStr, amount: abono });
+                if (loan.amountPaid >= loan.amount - 0.01) {
+                    loan.amountPaid = loan.amount;
+                    loan.paidDate = new Date().toLocaleDateString('en-CA');
+                    if (!this.loans[empId].history) this.loans[empId].history = [];
+                    this.loans[empId].history.unshift(Object.assign({}, loan));
+                    this.loans[empId].active = null;
+                }
+                localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+            },
+
+            renderLoansTab() {
+                const sel = document.getElementById('loansEmpSel');
+                if (!sel) return;
+                const current = sel.value;
+                sel.innerHTML = '';
+                [...this.employees].sort((a,b) => a.name.localeCompare(b.name)).forEach(e => {
+                    const opt = document.createElement('option');
+                    opt.value = e.id;
+                    opt.textContent = e.name;
+                    sel.appendChild(opt);
+                });
+                if (current && this.employees.find(e => String(e.id) === String(current))) {
+                    sel.value = current;
+                } else if (this.employees.length > 0) {
+                    sel.value = this.employees[0].id;
+                }
+                if (sel.value) this.renderLoanDetail(sel.value);
+            },
+
+            renderLoanDetail(empId) {
+                const area = document.getElementById('loanDetailArea');
+                if (!area) return;
+                empId = String(empId);
+                const emp = this.employees.find(e => String(e.id) === empId);
+                const empName = emp ? emp.name : empId;
+                const data = this.loans[empId] || { active: null, history: [] };
+                const active = data.active;
+                const history = data.history || [];
+                const fmt = n => '$' + parseFloat(n || 0).toFixed(2);
+
+                let html = '';
+
+                // ── Préstamo activo ───────────────────────────────────────────
+                if (active) {
+                    const saldo = parseFloat((active.amount - active.amountPaid).toFixed(2));
+                    const pagosRest = (active.repaymentType === 'fixed' && active.repaymentValue > 0)
+                        ? Math.ceil(saldo / active.repaymentValue) : null;
+                    const descLabel = active.repaymentType === 'fixed'
+                        ? fmt(active.repaymentValue) + '/semana'
+                        : active.repaymentValue + '% del pago';
+                    html += `
+                    <div style="background:#fff8e1;border:2px solid #f59e0b;border-radius:10px;padding:20px;margin-bottom:20px;">
+                        <div style="color:#b45309;font-weight:700;font-size:1rem;margin-bottom:14px;">📋 Préstamo Activo — ${empName}</div>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 24px;font-size:0.9rem;margin-bottom:16px;">
+                            <span style="color:#666;">Préstamo original:</span><span style="font-weight:700;">${fmt(active.amount)}</span>
+                            <span style="color:#666;">Total abonado:</span><span style="color:#27ae60;font-weight:700;">${fmt(active.amountPaid)}</span>
+                            <span style="color:#666;">Saldo restante:</span><span style="color:#e74c3c;font-weight:700;">${fmt(saldo)}</span>
+                            <span style="color:#666;">Descuento semanal:</span><span>${descLabel}</span>
+                            <span style="color:#666;">Fecha del préstamo:</span><span>${active.date}</span>
+                            ${pagosRest !== null ? `<span style="color:#666;">Semanas restantes:</span><span style="color:#e67e22;font-weight:700;">${pagosRest}</span>` : ''}
+                        </div>
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                            <button onclick="app.registerLoanPayment('${empId}')"
+                                style="background:#27ae60;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:700;">
+                                💵 Registrar Abono Manual
+                            </button>
+                            <button onclick="app.cancelLoan('${empId}')"
+                                style="background:#95a5a6;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:0.85rem;">
+                                Cancelar Préstamo
+                            </button>
+                        </div>
+                    </div>`;
+                } else {
+                    // ── Formulario nuevo préstamo ─────────────────────────────
+                    html += `
+                    <div style="background:#f8f9fa;border:1px dashed #adb5bd;border-radius:10px;padding:20px;margin-bottom:20px;">
+                        <div style="color:#555;font-size:0.9rem;margin-bottom:16px;">Sin préstamo activo para <strong>${empName}</strong></div>
+                        <div style="display:grid;gap:14px;max-width:460px;">
+                            <div>
+                                <label style="font-size:0.85rem;color:#555;display:block;margin-bottom:5px;">Monto del préstamo ($)</label>
+                                <input type="number" id="loanMonto" min="1" step="0.01" placeholder="500.00"
+                                    style="width:100%;padding:10px;border:1px solid #ced4da;border-radius:8px;font-size:1rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.85rem;color:#555;display:block;margin-bottom:8px;">Tipo de descuento semanal</label>
+                                <div style="display:flex;gap:20px;">
+                                    <label style="cursor:pointer;"><input type="radio" name="loanTipo" value="fixed" checked onchange="app.toggleLoanTipo()"> Cantidad fija ($)</label>
+                                    <label style="cursor:pointer;"><input type="radio" name="loanTipo" value="percentage" onchange="app.toggleLoanTipo()"> Porcentaje (%)</label>
+                                </div>
+                            </div>
+                            <div>
+                                <label id="loanValorLabel" style="font-size:0.85rem;color:#555;display:block;margin-bottom:5px;">Cantidad fija por semana ($)</label>
+                                <input type="number" id="loanValor" min="1" step="0.01" placeholder="50.00"
+                                    style="width:100%;padding:10px;border:1px solid #ced4da;border-radius:8px;font-size:1rem;">
+                            </div>
+                            <div>
+                                <label style="font-size:0.85rem;color:#555;display:block;margin-bottom:5px;">
+                                    Saldo actual (si ya tiene pagos previos)
+                                    <span style="color:#aaa;font-weight:normal;font-size:0.8rem;">— dejar en 0 si es nuevo</span>
+                                </label>
+                                <input type="number" id="loanSaldoActual" min="0" step="0.01" placeholder="0.00"
+                                    style="width:100%;padding:10px;border:1px solid #ced4da;border-radius:8px;font-size:1rem;">
+                            </div>
+                            <button onclick="app.saveLoan('${empId}')"
+                                style="background:#3498db;color:white;border:none;padding:12px;border-radius:8px;cursor:pointer;font-weight:700;font-size:1rem;">
+                                💳 Registrar Préstamo
+                            </button>
+                        </div>
+                    </div>`;
+                }
+
+                // ── Historial ─────────────────────────────────────────────────
+                if (history.length > 0) {
+                    html += `
+                    <div>
+                        <h3 style="color:#555;font-size:0.95rem;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Historial de Préstamos</h3>
+                        <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                            <thead><tr style="background:#34495e;color:white;">
+                                <th style="padding:8px 12px;text-align:left;">Fecha</th>
+                                <th style="padding:8px 12px;text-align:right;">Monto</th>
+                                <th style="padding:8px 12px;text-align:right;">Abonado</th>
+                                <th style="padding:8px 12px;text-align:left;">Saldado</th>
+                                <th style="padding:8px 12px;text-align:right;">Pagos</th>
+                            </tr></thead>
+                            <tbody>
+                            ${history.map((l,i) => `
+                                <tr style="background:${i%2===0?'#fff':'#f9f9f9'};border-bottom:1px solid #eee;">
+                                    <td style="padding:8px 12px;">${l.date}</td>
+                                    <td style="padding:8px 12px;text-align:right;font-weight:bold;">$${parseFloat(l.amount||0).toFixed(2)}</td>
+                                    <td style="padding:8px 12px;text-align:right;color:#27ae60;font-weight:bold;">$${parseFloat(l.amountPaid||0).toFixed(2)}</td>
+                                    <td style="padding:8px 12px;color:#555;">${l.paidDate || '—'}</td>
+                                    <td style="padding:8px 12px;text-align:right;color:#888;">${(l.payments||[]).length}</td>
+                                </tr>`).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+                }
+
+                area.innerHTML = html || '<div style="text-align:center;padding:40px;color:#aaa;">Selecciona una empleada</div>';
+            },
+
+            toggleLoanTipo() {
+                const tipo = document.querySelector('input[name="loanTipo"]:checked')?.value || 'fixed';
+                const lbl = document.getElementById('loanValorLabel');
+                if (lbl) lbl.textContent = tipo === 'fixed'
+                    ? 'Cantidad fija por semana ($)'
+                    : 'Porcentaje del pago semanal (%)';
+            },
+
+            saveLoan(empId) {
+                empId = String(empId);
+                const monto = parseFloat(document.getElementById('loanMonto')?.value || 0);
+                const tipo = document.querySelector('input[name="loanTipo"]:checked')?.value || 'fixed';
+                const valor = parseFloat(document.getElementById('loanValor')?.value || 0);
+                const saldoActual = parseFloat(document.getElementById('loanSaldoActual')?.value || 0);
+                if (!monto || monto <= 0) { alert('Ingresa el monto del préstamo.'); return; }
+                if (!valor || valor <= 0) { alert('Ingresa el descuento semanal.'); return; }
+                if (saldoActual > monto) { alert('El saldo actual no puede ser mayor al monto del préstamo.'); return; }
+                if (!this.loans[empId]) this.loans[empId] = { active: null, history: [] };
+                if (this.loans[empId].active) { alert('Esta empleada ya tiene un préstamo activo.'); return; }
+                const emp = this.employees.find(e => String(e.id) === empId);
+                const amountPaid = (saldoActual > 0 && saldoActual < monto)
+                    ? parseFloat((monto - saldoActual).toFixed(2)) : 0;
+                this.loans[empId].active = {
+                    id: 'loan_' + Date.now(),
+                    empId, empName: emp ? emp.name : empId,
+                    amount: monto, date: new Date().toLocaleDateString('en-CA'),
+                    repaymentType: tipo, repaymentValue: valor,
+                    amountPaid, payments: []
+                };
+                localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                this.renderLoanDetail(empId);
+            },
+
+            cancelLoan(empId) {
+                if (!confirm('¿Cancelar el préstamo activo de esta empleada?')) return;
+                empId = String(empId);
+                if (this.loans[empId]) this.loans[empId].active = null;
+                localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                this.renderLoanDetail(empId);
+            },
+
+            registerLoanPayment(empId) {
+                empId = String(empId);
+                const loan = this.getLoan(empId);
+                if (!loan) { alert('No hay préstamo activo.'); return; }
+                const saldo = parseFloat((loan.amount - loan.amountPaid).toFixed(2));
+                let abono = loan.repaymentType === 'fixed'
+                    ? loan.repaymentValue
+                    : loan.repaymentValue / 100 * (loan.amount - loan.amountPaid); // aprox
+                abono = Math.min(parseFloat(abono.toFixed(2)), saldo);
+                const periodStr = new Date().toLocaleDateString('en-CA');
+                if (loan.payments.some(p => p.weekOf === periodStr)) {
+                    if (!confirm('Ya hay un abono registrado hoy. ¿Registrar otro?')) return;
+                }
+                if (!confirm(`Registrar abono de $${abono.toFixed(2)}?\n\nSaldo actual: $${saldo.toFixed(2)} → Nuevo saldo: $${(saldo - abono).toFixed(2)}`)) return;
+                this.applyLoanPaymentSilent(empId, periodStr + '_manual_' + Date.now(), abono);
+                // Forzar aplicación aunque haya duplicado de fecha
+                const l2 = this.loans[empId]?.active;
+                if (l2) {
+                    l2.amountPaid = parseFloat((l2.amountPaid + abono).toFixed(2));
+                    l2.payments.push({ date: new Date().toISOString(), weekOf: periodStr, amount: abono });
+                    if (l2.amountPaid >= l2.amount - 0.01) {
+                        l2.amountPaid = l2.amount;
+                        l2.paidDate = new Date().toLocaleDateString('en-CA');
+                        if (!this.loans[empId].history) this.loans[empId].history = [];
+                        this.loans[empId].history.unshift(Object.assign({}, l2));
+                        this.loans[empId].active = null;
+                        alert('✅ ¡Préstamo SALDADO completamente!');
+                    } else {
+                        alert('✅ Abono registrado. Saldo restante: $' + (l2.amount - l2.amountPaid).toFixed(2));
+                    }
+                    localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                }
+                this.renderLoanDetail(empId);
             },
 
             exportExpensesCSV() {
