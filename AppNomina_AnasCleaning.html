@@ -3638,6 +3638,12 @@
                     if (_pLoan && _pLoanDeduct > 0) {
                         p.loanDeduction = _pLoanDeduct;
                         p.deductions = (p.deductions || 0) + _pLoanDeduct;
+                        p.loanAmount = _pLoan.amount;
+                        const _pSaldo = parseFloat((_pLoan.amount - _pLoan.amountPaid).toFixed(2));
+                        p.loanBalance = _pSaldo;
+                        const _pSaldoPost = Math.max(0, parseFloat((_pSaldo - _pLoanDeduct).toFixed(2)));
+                        p.loanPaymentsLeft = (_pLoan.repaymentType === 'fixed' && _pLoan.repaymentValue > 0)
+                            ? Math.max(0, Math.ceil(_pSaldoPost / _pLoan.repaymentValue)) : null;
                     }
                     
                     // Pago neto = Gross - Tardanza - Deducciones
@@ -4527,6 +4533,9 @@
                             gross: p.grossPay,
                             deductions: p.deductions || 0,
                             loanDeduction: p.loanDeduction || 0,
+                            loanAmount: p.loanAmount || 0,
+                            loanBalance: p.loanBalance || 0,
+                            loanPaymentsLeft: (p.loanPaymentsLeft != null) ? p.loanPaymentsLeft : null,
                             net: p.netPay,
                             checkNumber: parseInt(numInput ? numInput.value : 0),
                             payMethod: 'check',
@@ -4548,6 +4557,9 @@
                             gross: p.grossPay,
                             deductions: p.deductions || 0,
                             loanDeduction: p.loanDeduction || 0,
+                            loanAmount: p.loanAmount || 0,
+                            loanBalance: p.loanBalance || 0,
+                            loanPaymentsLeft: (p.loanPaymentsLeft != null) ? p.loanPaymentsLeft : null,
                             net: p.netPay,
                             checkNumber: txnInput ? (txnInput.value.trim() || '—') : '—',
                             payMethod: method,
@@ -4623,7 +4635,7 @@
                                 <tr><td>Fecha Pago</td><td>${dateUSA}</td><td>Método</td><td>${method}</td></tr>
                                 <tr><td>Horas</td><td>${check.hours.toFixed(2)} hrs</td><td>Bruto</td><td>$${self.formatMoney(check.gross)}</td></tr>
                                 ${_regDed > 0 ? `<tr><td>Desc. N\u00f3mina</td><td colspan="3">-$$${self.formatMoney(_regDed)}</td></tr>` : ''}
-                                ${_loanDed > 0 ? `<tr><td>Pr\u00e9stamo</td><td colspan="3" style="color:#c0392b;">-$$${self.formatMoney(_loanDed)}</td></tr>` : ''}
+                                ${_loanDed > 0 ? `<tr><td colspan=\'4\' style=\'padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;\'>💳 Orig: $$${self.formatMoney(check.loanAmount||0)} &nbsp;·&nbsp; Desc: -$$${self.formatMoney(_loanDed)} &nbsp;·&nbsp; Saldo: $$${self.formatMoney(check.loanBalance||0)} &nbsp;·&nbsp; ${check.loanPaymentsLeft !== null && check.loanPaymentsLeft !== undefined ? (check.loanPaymentsLeft === 0 ? '\u00a1SALDADO!' : check.loanPaymentsLeft + ' pago' + (check.loanPaymentsLeft !== 1 ? 's' : '') + ' restantes') : '\u2014'}</td></tr>` : ''}
                                 ${(_regDed === 0 && _loanDed === 0) ? '<tr><td>Deducciones</td><td colspan="3">—</td></tr>' : ''}
                                 <tr class="total-row"><td colspan="2">PAGO NETO:</td><td colspan="2">$${self.formatMoney(check.net)}</td></tr>
                             </table>
@@ -4686,7 +4698,7 @@
                                 '<tr><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Horas</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">' + check.hours.toFixed(2) + ' hrs</td>' +
                                     '<td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Bruto</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">$' + grossAmount + '</td></tr>' +
                                 (regDeduct > 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Desc. Nómina</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">-$' + self.formatMoney(regDeduct) + '</td></tr>' : '') +
-                                (loanDeduct > 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Préstamo</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0; color:#c0392b;">-$' + self.formatMoney(loanDeduct) + '</td></tr>' : '') +
+                                (loanDeduct > 0 ? '<tr><td colspan="4" style="padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;">💳 Orig: $' + self.formatMoney(check.loanAmount||0) + ' &nbsp;·&nbsp; Desc: -$' + self.formatMoney(loanDeduct) + ' &nbsp;·&nbsp; Saldo: $' + self.formatMoney(check.loanBalance||0) + ' &nbsp;·&nbsp; ' + (check.loanPaymentsLeft !== null && check.loanPaymentsLeft !== undefined ? (check.loanPaymentsLeft === 0 ? '¡SALDADO!' : check.loanPaymentsLeft + ' pago' + (check.loanPaymentsLeft !== 1 ? 's' : '') + ' restantes') : '—') + '</td></tr>' : '') +
                                 (regDeduct === 0 && loanDeduct === 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Deducciones</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">—</td></tr>' : '') +
                                 '<tr style="background:#e8f5e9;"><td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt;"><strong>PAGO NETO:</strong></td>' +
                                     '<td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt; color:#1565c0;"><strong>$' + netAmount + '</strong></td></tr>' +
@@ -4806,7 +4818,7 @@
                                     '<td>Tarifa:</td><td>$' + self.formatMoney(check.gross / (check.hours || 1)) + '/hr</td></tr>' +
                                 '<tr><td>Pago Bruto:</td><td colspan="3">$' + grossAmount + '</td></tr>' +
                                 (regDeductM > 0 ? '<tr><td>Desc. Nómina:</td><td colspan="3">-$' + self.formatMoney(regDeductM) + '</td></tr>' : '') +
-                                (loanDeductM > 0 ? '<tr><td>Préstamo:</td><td colspan="3" style="color:#c0392b;">-$' + self.formatMoney(loanDeductM) + '</td></tr>' : '') +
+                                (loanDeductM > 0 ? '<tr><td colspan="4" style="padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;">💳 Orig: $' + self.formatMoney(check.loanAmount||0) + ' &nbsp;·&nbsp; Desc: -$' + self.formatMoney(loanDeductM) + ' &nbsp;·&nbsp; Saldo: $' + self.formatMoney(check.loanBalance||0) + ' &nbsp;·&nbsp; ' + (check.loanPaymentsLeft !== null && check.loanPaymentsLeft !== undefined ? (check.loanPaymentsLeft === 0 ? '¡SALDADO!' : check.loanPaymentsLeft + ' pago' + (check.loanPaymentsLeft !== 1 ? 's' : '') + ' restantes') : '—') + '</td></tr>' : '') +
                                 (regDeductM === 0 && loanDeductM === 0 ? '<tr><td>Deducciones:</td><td colspan="3">—</td></tr>' : '') +
                                 '<tr class="stub-total"><td colspan="2">PAGO NETO:</td>' +
                                     '<td colspan="2"><strong>$' + netAmount + '</strong></td></tr>' +
