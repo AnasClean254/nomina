@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '150';
+    window.ANACS_VERSION = '146';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -1084,9 +1084,6 @@
                     <option value="all">TODOS LOS CLIENTES</option>
                 </select>
                 <input type="hidden" id="searchCliIds" value="all">
-                <select id="searchPropId" onchange="app._selectCalendarProp(this.value)" class="filter-select-final" style="display:none;">
-                    <option value="all">TODAS LAS PROPIEDADES</option>
-                </select>
             </div>
         </div>
         
@@ -2708,7 +2705,6 @@ class Scheduler {
                         }
                         ev.title = this._svcLabel(c) + (s.grupo ? ' — ' + s.grupo : '');
                         ev.onclick = (e) => { e.stopPropagation(); this.openModal(s); };
-                        this._hacerArrastrable(ev, s);
                         cell.appendChild(ev);
                     });
 
@@ -2728,7 +2724,6 @@ class Scheduler {
                                 ev.style.color = textModeH === 'auto' ? getTextColor(bgColorH) : (textModeH === 'white' ? '#fff' : '#000');
                                 const showPropH = this._hasProp(c); const _cioH = (fCli !== 'all') ? this._getCheckInOut(dStr, s.id) : null; ev.textContent = (s.priority ? `${s.priority}. ` : '') + c.name + (c.city ? ' - ' + c.city : '') + (showPropH && c.propId ? ' / ' + c.propId : '') + (_cioH ? '  ▶ ' + this.fmt12(_cioH.checkin) : '');
                                 ev.onclick = (e2) => { e2.stopPropagation(); this.openModal(s); };
-                                app._hacerArrastrable(ev, s);
                                 cell.insertBefore(ev, more);
                             });
                             more.remove();
@@ -2744,7 +2739,6 @@ class Scheduler {
             wrapper.appendChild(weekRow);
         }
         grid.appendChild(wrapper);
-        this.enableDropOnCells();
     }
 
     _renderGruposBar(grid) {
@@ -3627,9 +3621,6 @@ class Scheduler {
             dropdown.style.display = 'none';
             hiddenSelect.value = 'all';
             if(hiddenIds) hiddenIds.value = 'all';
-            const _sp = document.getElementById('searchPropId');
-            if (_sp) { _sp.style.display = 'none'; _sp.value = 'all'; }
-            this._propIdsCliente = [];
             this.render();
             return;
         }
@@ -3672,48 +3663,13 @@ class Scheduler {
         dropdown.style.display = 'block';
     }
 
-    // ── Filtro por propiedad (clientes multipropiedad) ──────────────────────
-    // `_propIdsCliente` guarda la lista completa del cliente elegido para poder
-    // volver a "todas" sin tener que recalcularla.
-    _llenarSelectorPropiedades(name) {
-        const sel = document.getElementById('searchPropId');
-        if (!sel) return;
-        const props = (this.clis || []).filter(c => c.name.trim().toLowerCase() === String(name).trim().toLowerCase());
-        this._propIdsCliente = props.map(c => String(c.id));
-        if (props.length < 2) { sel.style.display = 'none'; sel.innerHTML = '<option value="all">TODAS LAS PROPIEDADES</option>'; return; }
-        const etiqueta = (c, i) => {
-            const u = (c.propId && c.propId.trim() && c.propId.trim().toLowerCase() !== (c.name||'').trim().toLowerCase()) ? c.propId.trim() : '';
-            const d = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim() : '';
-            return [d, u].filter(Boolean).join(' — ') || ('Propiedad ' + (i + 1));
-        };
-        let html = '<option value="all">TODAS LAS PROPIEDADES (' + props.length + ')</option>';
-        props.forEach((c, i) => {
-            const t = etiqueta(c, i).replace(/&/g, '&amp;').replace(/</g, '&lt;');
-            html += '<option value="' + String(c.id) + '">' + t + '</option>';
-        });
-        sel.innerHTML = html;
-        sel.value = 'all';
-        sel.style.display = '';
-    }
-
-    _selectCalendarProp(valor) {
-        const hiddenIds = document.getElementById('searchCliIds');
-        if (!hiddenIds) return;
-        const todas = this._propIdsCliente || [];
-        hiddenIds.value = (valor === 'all') ? (todas.length ? todas.join(',') : 'all') : String(valor);
-        this.render();
-    }
-
     _selectCalendarCli(id, name, searchVal) {
         const input = document.getElementById('searchCliText');
         const hiddenIds = document.getElementById('searchCliIds');
         const dropdown = document.getElementById('searchCliDropdown');
-        const selProp = document.getElementById('searchPropId');
         if (id === 'all') {
             input.value = '';
             if(hiddenIds) hiddenIds.value = 'all';
-            if (selProp) { selProp.style.display = 'none'; selProp.value = 'all'; }
-            this._propIdsCliente = [];
         } else {
             input.value = name;
             // Buscar todos los IDs del mismo cliente (múltiples propiedades)
@@ -3721,7 +3677,6 @@ class Scheduler {
                 .filter(c => c.name.trim().toLowerCase() === name.trim().toLowerCase())
                 .map(c => String(c.id));
             if(hiddenIds) hiddenIds.value = allIds.length > 0 ? allIds.join(',') : id;
-            try { this._llenarSelectorPropiedades(name); } catch (e) { console.warn('selector de propiedades:', e); }
         }
         dropdown.style.display = 'none';
         this.render();
@@ -3748,26 +3703,6 @@ class Scheduler {
 
     filterCat(val) {
         this.renderCat(val);
-    }
-
-    // Hace arrastrable un servicio ya existente. Se usa en la vista mensual, con
-    // el mismo contrato que la semanal: svcId + svcGrupo en el dataTransfer, que
-    // es lo que lee el 'drop' de enableDropOnCells.
-    _hacerArrastrable(el, s) {
-        if (!el || !s) return;
-        const grupo = s.grupo
-            || Object.keys(this.grupos).find(g => this.grupos[g].includes(String(s.empId))) || '';
-        el.draggable = true;
-        el.addEventListener('mousedown', () => { el.style.cursor = 'grab'; });
-        el.addEventListener('mouseup',   () => { el.style.cursor = 'pointer'; });
-        el.addEventListener('dragstart', e => {
-            e.stopPropagation();
-            e.dataTransfer.setData('svcId', String(s.id));
-            e.dataTransfer.setData('svcGrupo', grupo);
-            el.style.opacity = '0.5';
-            el.style.cursor = 'grabbing';
-        });
-        el.addEventListener('dragend', () => { el.style.opacity = '1'; el.style.cursor = 'pointer'; });
     }
 
     enableDropOnCells() {
@@ -15534,11 +15469,9 @@ Motivo de cancelación (opcional):`);
         const start = new Date(startDate + 'T00:00:00');
         const end = new Date(endDate + 'T00:00:00');
         const daysDiff = Math.round((end - start) / (1000*60*60*24));
+        this.view = (daysDiff <= 7) ? 'week' : 'month';
         this.curDate = start;
-        // setView (y no `this.view = ...`) para que los botones DÍA/SEMANA/MES
-        // queden iluminados donde de verdad está la vista: si no, las flechas
-        // avanzan de mes con SEMANA marcado. setView ya llama a render().
-        this.setView((daysDiff <= 7) ? 'week' : 'month');
+        this.render();
 
         // Tras renderizar, resaltar las celdas de las fechas facturadas y verificar.
         setTimeout(() => this._pintarFacturaEnCalendario(), 120);
@@ -15720,6 +15653,9 @@ Motivo de cancelación (opcional):`);
                     </button>` : ''}
                     ${client.email ? `<button onclick="app.sendInvoiceByGmail(window.currentPDFData.blob, window.currentPDFData.client, window.currentPDFData.invoiceNumber, window.currentPDFData.total || 0, window.currentPDFData.startDate || '${startDate}', window.currentPDFData.endDate || '${endDate}')" class="btn" style="background: #ea4335; color: white; padding: 15px 30px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
                         📧 Enviar por Gmail
+                    </button>` : ''}
+                    ${client.tel ? `<button onclick="app.sendInvoiceBySMS()" class="btn" style="background: #2ecc71; color: white; padding: 15px 30px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                        📲 Enviar por Mensaje
                     </button>` : ''}
                     <button onclick="document.getElementById('pdfPreviewModal').remove();" class="btn" style="background: #95a5a6; color: white; padding: 15px 30px; font-size: 1rem; border: none; border-radius: 8px; cursor: pointer; font-weight: bold;">
                         ❌ Cancelar
@@ -16169,6 +16105,50 @@ Motivo de cancelación (opcional):`);
                 this.driveSyncNow().catch(e => console.warn('⚠️ No se pudo sincronizar a Drive:', e));
             }, 500);
         }
+    }
+
+    async sendInvoiceBySMS() {
+        if (this._clicDuplicado('sendInvoiceBySMS', 3000)) return;
+        const data = window.currentPDFData;
+        if (!data) { alert('No hay factura en preview.'); return; }
+        const client = data.client;
+        const tel = (client.tel || '').replace(/\D/g, '');
+        if (!tel) { alert('Este cliente no tiene número de teléfono guardado.'); return; }
+        const invoiceNumber = String(data.invoiceNumber || '').padStart(4, '0');
+        const total = parseFloat(data.total || 0).toFixed(2);
+        const firstName = (client.name || 'there').split(' ')[0];
+        const msgText = `Hi ${firstName}, please find attached invoice #${invoiceNumber} for $${total}. Thank you! — Ana's Cleaning Service`;
+
+        // Intentar compartir con PDF adjunto (Web Share API — Mac Chrome/Safari)
+        if (data.blob && navigator.canShare) {
+            try {
+                const pdfFile = new File([data.blob], `Invoice_${invoiceNumber}.pdf`, { type: 'application/pdf' });
+                if (navigator.canShare({ files: [pdfFile] })) {
+                    await navigator.share({
+                        files: [pdfFile],
+                        title: `Invoice #${invoiceNumber} — Ana's Cleaning Service`,
+                        text: msgText
+                    });
+                    return;
+                }
+            } catch(e) {
+                if (e.name === 'AbortError') return; // usuario canceló el share sheet
+                console.warn('Web Share con PDF falló, usando fallback SMS:', e);
+            }
+        }
+
+        // Fallback: descargar PDF + abrir Messages con texto
+        if (data.blob) {
+            const url = URL.createObjectURL(data.blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Invoice_${invoiceNumber}.pdf`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        // Abrir Messages con el número y texto pre-compuesto
+        const smsUrl = `sms:${tel}?body=${encodeURIComponent(msgText)}`;
+        window.open(smsUrl, '_blank');
     }
 
     async sendInvoiceByGmail(pdfBlob, client, invoiceNumber, total, startDate, endDate) {
@@ -19368,128 +19348,6 @@ Motivo de cancelación (opcional):`);
         if (this._reintentoInt) { clearInterval(this._reintentoInt); this._reintentoInt = null; }
     }
 
-    // ── Respaldo de claves en Drive ─────────────────────────────────────────
-    _clavesNombre() { return 'anas_config_claves.json'; }
-
-    async _clavesBuscar() {
-        const r = await fetch(
-            `https://www.googleapis.com/drive/v3/files?q=name='${this._clavesNombre()}'+and+'${this.driveFolderId}'+in+parents+and+trashed=false`,
-            { headers: { Authorization: `Bearer ${this.driveToken}` } });
-        const d = await r.json();
-        return (d.files && d.files.length) ? d.files[0].id : null;
-    }
-
-    async respaldarClaves() {
-        if (!this.driveToken || !this.driveFolderId) {
-            alert('Primero conéctate a Google Drive (botón de arriba).');
-            return;
-        }
-        const c = window.ANACS_CONFIG;
-        const paquete = {
-            tipo: 'anas_config_claves',
-            guardadoEn: new Date().toISOString(),
-            dispositivo: localStorage.getItem('anaCS_pcLabel') || localStorage.getItem('anaCS_deviceId') || 'sin nombre',
-            emailPublicKey:  c.emailPublicKey  || '',
-            emailServiceId:  c.emailServiceId  || '',
-            emailTemplateId: c.emailTemplateId || '',
-            stripeWorkerUrl: c.stripeWorkerUrl || '',
-            appKey:          c.appKey          || ''
-        };
-        const faltan = ['emailPublicKey','emailServiceId','emailTemplateId','stripeWorkerUrl','appKey']
-            .filter(k => !String(paquete[k]).trim());
-        if (faltan.length && !confirm(
-            'OJO: en ESTA computadora faltan ' + faltan.length + ' de 5 claves.\n\n' +
-            'Si respaldas ahora, el respaldo quedará incompleto y pisará al anterior.\n\n' +
-            '¿Aun así quieres continuar?')) return;
-
-        if (!confirm(
-            'Se van a guardar en Drive las claves de esta computadora:\n\n' +
-            '  · EmailJS (3 claves)\n' +
-            '  · Dirección del Worker de Stripe\n' +
-            '  · Clave de la app (APP_KEY)\n\n' +
-            'La clave SECRETA de Stripe no se guarda: esa vive sólo en Cloudflare.\n\n' +
-            '¿Continuar?')) return;
-
-        try {
-            const fileId = await this._clavesBuscar();
-            const form = new FormData();
-            const metadata = { name: this._clavesNombre(), parents: fileId ? undefined : [this.driveFolderId] };
-            form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-            form.append('file', new Blob([JSON.stringify(paquete)], { type: 'application/json' }));
-            const res = await fetch(
-                fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-                       : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-                { method: fileId ? 'PATCH' : 'POST',
-                  headers: { Authorization: `Bearer ${this.driveToken}` }, body: form });
-            if (!res.ok) throw new Error('Drive respondió ' + res.status);
-            alert('✅ Claves respaldadas en Drive.\n\nEn otra computadora se recuperan con el botón de al lado.');
-        } catch (e) {
-            console.error('respaldarClaves', e);
-            alert('❌ No se pudo guardar el respaldo: ' + (e.message || e));
-        }
-    }
-
-    async restaurarClaves() {
-        if (!this.driveToken || !this.driveFolderId) {
-            alert('Primero conéctate a Google Drive (botón de arriba).');
-            return;
-        }
-        try {
-            const fileId = await this._clavesBuscar();
-            if (!fileId) {
-                alert('No hay ningún respaldo de claves todavía.\n\nGuarda uno primero desde la computadora que ya está configurada.');
-                return;
-            }
-            const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
-                { headers: { Authorization: `Bearer ${this.driveToken}` } });
-            const p = await res.json();
-            if (!p || p.tipo !== 'anas_config_claves') { alert('El archivo de respaldo no tiene el formato esperado.'); return; }
-
-            const c = window.ANACS_CONFIG;
-            const campos = ['emailPublicKey','emailServiceId','emailTemplateId','stripeWorkerUrl','appKey'];
-            const nombres = {
-                emailPublicKey:'EmailJS · public key', emailServiceId:'EmailJS · service ID',
-                emailTemplateId:'EmailJS · template ID', stripeWorkerUrl:'URL del Worker', appKey:'Clave de la app'
-            };
-            const aPoner = {}, distintos = [];
-            campos.forEach(k => {
-                const nuevo = String(p[k] || '').trim();
-                const actual = String(c[k] || '').trim();
-                if (!nuevo) return;
-                if (!actual) { aPoner[k] = nuevo; return; }
-                if (actual !== nuevo) distintos.push(nombres[k]);
-            });
-
-            const f = new Date(p.guardadoEn);
-            const nVacios = Object.keys(aPoner).length;
-            let msg = 'Respaldo encontrado:\n\n  Guardado: ' + (isNaN(f) ? '—' : f.toLocaleString()) +
-                      '\n  Desde: ' + (p.dispositivo || '—') + '\n\n' +
-                      (nVacios ? ('Se van a llenar ' + nVacios + ' clave(s) que aquí están vacías.')
-                               : ('Aquí no falta ninguna clave.'));
-            if (!nVacios && !distintos.length) { alert(msg + '\n\nNo hay nada que cambiar.'); return; }
-            if (!confirm(msg + '\n\n¿Continuar?')) return;
-
-            // Las que aquí ya tienen OTRO valor se preguntan aparte: puede ser que
-            // la buena sea la de esta computadora y el respaldo el viejo.
-            if (distintos.length) {
-                const pisar = confirm(
-                    'Estas claves ya tienen aquí un valor DISTINTO al del respaldo:\n  · ' + distintos.join('\n  · ') +
-                    '\n\nAceptar = usar las del respaldo (se pisan las de esta computadora)' +
-                    '\nCancelar = dejar las de aquí como están');
-                if (pisar) campos.forEach(k => { const v = String(p[k] || '').trim(); if (v) aPoner[k] = v; });
-            }
-            if (!Object.keys(aPoner).length) { alert('No se cambió ninguna clave.'); return; }
-
-            c.guardar(aPoner);
-            if (typeof ANACS_cargarConfigPagos === 'function') { try { ANACS_cargarConfigPagos(); } catch (e) {} }
-            if (typeof ANACS_pintarEstado === 'function') { try { ANACS_pintarEstado(); } catch (e) {} }
-            alert('✅ Claves restauradas en esta computadora.\n\nAbre Facturas → ⚙️ Configuración para verificar el semáforo.');
-        } catch (e) {
-            console.error('restaurarClaves', e);
-            alert('❌ No se pudo restaurar: ' + (e.message || e));
-        }
-    }
-
     async driveGetOrCreateFolder() {
         const res = await fetch(
             `https://www.googleapis.com/drive/v3/files?q=name='${this.FOLDER_NAME}'+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false`,
@@ -19594,31 +19452,9 @@ Motivo de cancelación (opcional):`);
             // El MISMO registro en las dos computadoras: gana el tocado más tarde,
             // no el de la computadora que guardó al último. Ésta es la diferencia.
             const i = posPorClave.get(key);
-            const tSuyo = cuando(item), tMio = cuando(merged[i]);
-            const gana = (tSuyo > tMio) ? item : merged[i];
-            const pierde = (tSuyo > tMio) ? merged[i] : item;
-            merged[i] = this._rellenarHuecos(gana, pierde);
+            if (cuando(item) > cuando(merged[i])) merged[i] = item;
         });
         return merged;
-    }
-
-    // Cuando dos versiones del MISMO registro empatan en fecha —o cuando ninguna
-    // trae fecha, que es el caso de todo lo capturado antes de la v146— quedarse
-    // con una y tirar la otra pierde datos: así desaparecieron las direcciones de
-    // Jessie Reid. Aquí el ganador conserva TODO lo suyo y sólo se le copian del
-    // otro los campos que él trae VACÍOS. Nunca se pisa un dato con otro distinto;
-    // en el peor caso no se gana nada.
-    _rellenarHuecos(base, otro) {
-        if (!base || !otro || typeof base !== 'object' || typeof otro !== 'object') return base;
-        const vacio = (v) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '');
-        let copia = null;
-        Object.keys(otro).forEach(k => {
-            if (k === 'updatedAt') return;
-            if (!vacio(base[k]) || vacio(otro[k])) return;
-            if (!copia) copia = Object.assign({}, base);
-            copia[k] = otro[k];
-        });
-        return copia || base;
     }
 
     // Huella barata de un registro, para saber si cambió desde el último guardado.
@@ -21581,12 +21417,6 @@ document.addEventListener('click', function(e) {
                 <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <button onclick="ANACS_guardarConfigPagos()" class="btn" style="background:#27ae60; color:white; padding:10px 22px; font-size:0.88rem; font-weight:700;">
                         💾 Guardar
-                    </button>
-                    <button onclick="app.respaldarClaves()" class="btn" style="background:#2980b9; color:white; padding:10px 16px; font-size:0.82rem;" title="Sube estas claves a la carpeta de Drive">
-                        ☁️ Respaldar en Drive
-                    </button>
-                    <button onclick="app.restaurarClaves()" class="btn" style="background:#8e44ad; color:white; padding:10px 16px; font-size:0.82rem; margin-right:6px;" title="Trae las claves guardadas en Drive a esta computadora">
-                        ⬇️ Traer del Drive
                     </button>
                     <span id="anacsAvisoConfig" style="font-size:0.8rem; color:#27ae60; font-weight:600;"></span>
                 </div>
