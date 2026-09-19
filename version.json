@@ -1,5 +1,4 @@
 {
-  "version": "150",
-  "notas": "Arregla los botones Dia/Semana/Mes tras Ver en Calendario. Filtro por propiedad, respaldo de claves y arrastre en la vista mensual.",
-  "publicado": "2026-08-31T22:41:09+00:00"
+  "version": "146",
+  "notas": "Recuperar factura perdida • Envío por SMS registra en Enviadas"
 }
