@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '146';
+    window.ANACS_VERSION = '147';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -19462,6 +19462,7 @@ Motivo de cancelación (opcional):`);
 
     _iniciarLatido() {
         if (this._latidoInt) return;
+        this._registrarCierreLock();
         const yo = localStorage.getItem('anaCS_deviceId') || 'unknown';
         let _vueltas = 0;
         this._latidoInt = setInterval(async () => {
@@ -19509,6 +19510,36 @@ Motivo de cancelación (opcional):`);
         const b = document.getElementById('anacsLockBanner');
         if (b) b.remove();
         if (this._reintentoInt) { clearInterval(this._reintentoInt); this._reintentoInt = null; }
+    }
+
+    _lockLiberar() {
+        // Libera el candado de Drive escribiendo un heartbeat nulo.
+        // Usa keepalive:true para que el fetch complete aunque la página
+        // ya se esté cerrando (necesario en pagehide / beforeunload).
+        if (!this.driveToken || !this._lockFileId) return;
+        const cuerpo = { owner: null, heartbeat: '1970-01-01T00:00:00.000Z', label: '' };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify({ name: this._lockNombre() })], { type: 'application/json' }));
+        form.append('file',     new Blob([JSON.stringify(cuerpo)],                      { type: 'application/json' }));
+        try {
+            fetch(
+                `https://www.googleapis.com/upload/drive/v3/files/${this._lockFileId}?uploadType=multipart`,
+                { method: 'PATCH', headers: { Authorization: `Bearer ${this.driveToken}` }, body: form, keepalive: true }
+            );
+        } catch (e) { /* silencioso — la página se está cerrando */ }
+    }
+
+    _registrarCierreLock() {
+        // Registra UNA SOLA VEZ los listeners para liberar el candado al cerrar.
+        // - pagehide  : iOS Safari al cerrar tab o cambiar de app
+        // - beforeunload: Mac/PC al cerrar pestaña o ventana
+        // (visibilitychange:hidden se omite para no soltar el lock al
+        //  simplemente cambiar de pestaña en la misma computadora.)
+        if (this._cierreLockRegistrado) return;
+        this._cierreLockRegistrado = true;
+        const liberar = () => { try { this._lockLiberar(); } catch (e) {} };
+        window.addEventListener('pagehide',     liberar);
+        window.addEventListener('beforeunload', liberar);
     }
 
     async driveGetOrCreateFolder() {
