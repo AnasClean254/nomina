@@ -7244,6 +7244,164 @@ class Scheduler {
         this.refreshGeneratedInvoices();
     }
 
+    mostrarModalRecuperarFactura() {
+        // Construir lista de clientes para el selector
+        const clienteOpts = (this.clis || [])
+            .filter((c, i, arr) => arr.findIndex(x => x.name === c.name) === i)
+            .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+            .map(c => `<option value="${c.id}">${c.name}</option>`)
+            .join('');
+
+        const today = new Date().toISOString().split('T')[0];
+        const nextNum = this.getNextInvoiceNumber();
+
+        const modal = document.createElement('div');
+        modal.id = 'recuperarFacturaModal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;';
+        modal.innerHTML = `
+        <div style="background:#fff;border-radius:16px;padding:32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.35);">
+            <h2 style="margin:0 0 6px;color:#8e44ad;">🔧 Recuperar Factura Enviada</h2>
+            <p style="margin:0 0 20px;color:#666;font-size:0.85rem;">Registra una factura que ya fue enviada al cliente pero que no quedó guardada en el sistema.</p>
+
+            <div style="display:grid;gap:12px;">
+                <div>
+                    <label style="font-size:0.8rem;font-weight:700;color:#555;">Número de Factura</label>
+                    <input id="rfInvNum" type="number" min="1" value="${nextNum}"
+                        style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:1rem;box-sizing:border-box;margin-top:4px;">
+                    <small style="color:#888;">Número que aparece en el PDF enviado al cliente.</small>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:700;color:#555;">Cliente</label>
+                    <select id="rfClient" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-top:4px;">
+                        <option value="">-- Selecciona --</option>
+                        ${clienteOpts}
+                    </select>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                    <div>
+                        <label style="font-size:0.8rem;font-weight:700;color:#555;">Fecha Inicio</label>
+                        <input id="rfStart" type="date" value="${today.slice(0,7)}-01"
+                            style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-top:4px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.8rem;font-weight:700;color:#555;">Fecha Fin</label>
+                        <input id="rfEnd" type="date" value="${today}"
+                            style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-top:4px;">
+                    </div>
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:700;color:#555;">Total ($)</label>
+                    <input id="rfTotal" type="number" min="0" step="0.01" placeholder="0.00"
+                        style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:1rem;box-sizing:border-box;margin-top:4px;">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:700;color:#555;">Fecha de Envío</label>
+                    <input id="rfSentAt" type="date" value="${today}"
+                        style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-top:4px;">
+                </div>
+                <div>
+                    <label style="font-size:0.8rem;font-weight:700;color:#555;">Notas (opcional)</label>
+                    <input id="rfNotes" type="text" placeholder="Ej: enviada por SMS, pagada en efectivo..."
+                        style="width:100%;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:0.9rem;box-sizing:border-box;margin-top:4px;">
+                </div>
+            </div>
+
+            <div style="display:flex;gap:10px;margin-top:20px;">
+                <button onclick="app.recuperarFacturaPerdida()" style="flex:1;background:#8e44ad;color:white;border:none;padding:12px;border-radius:8px;font-size:0.95rem;font-weight:700;cursor:pointer;">
+                    ✅ Registrar Factura
+                </button>
+                <button onclick="document.getElementById('recuperarFacturaModal')?.remove()" style="background:#95a5a6;color:white;border:none;padding:12px 20px;border-radius:8px;font-size:0.95rem;cursor:pointer;">
+                    Cancelar
+                </button>
+            </div>
+        </div>`;
+
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    }
+
+    recuperarFacturaPerdida() {
+        const numEl   = document.getElementById('rfInvNum');
+        const cliEl   = document.getElementById('rfClient');
+        const startEl = document.getElementById('rfStart');
+        const endEl   = document.getElementById('rfEnd');
+        const totEl   = document.getElementById('rfTotal');
+        const sentEl  = document.getElementById('rfSentAt');
+        const notEl   = document.getElementById('rfNotes');
+
+        const invoiceNumber = parseInt(numEl?.value || '0');
+        const clientId = cliEl?.value;
+        const startDate = startEl?.value;
+        const endDate = endEl?.value;
+        const total = parseFloat(totEl?.value || '0');
+        const sentAt = sentEl?.value || new Date().toISOString().split('T')[0];
+        const notes = notEl?.value || '';
+
+        if (!invoiceNumber || invoiceNumber < 1) { alert('Ingresa un número de factura válido.'); return; }
+        if (!clientId) { alert('Selecciona un cliente.'); return; }
+        if (!startDate || !endDate) { alert('Ingresa las fechas del período.'); return; }
+
+        const cli = (this.clis || []).find(c => String(c.id) === String(clientId));
+        if (!cli) { alert('Cliente no encontrado.'); return; }
+
+        if (!this.generatedInvoices) this.generatedInvoices = [];
+
+        // Verificar si ya existe con ese número
+        const existing = this.generatedInvoices.find(i => i.invoiceNumber === invoiceNumber);
+        if (existing) {
+            const conf = confirm(
+                `⚠️ Ya existe una factura #${String(invoiceNumber).padStart(4,'0')} a nombre de "${existing.clientName}" con status "${existing.status}".\n\n` +
+                `¿Deseas actualizar su estado a "enviada" y agregar estas notas?`
+            );
+            if (!conf) return;
+            if (!this._isInvoiceStatusAdvanced(existing.status)) {
+                existing.status = 'enviada';
+                existing.sentAt = existing.sentAt || sentAt;
+            }
+            if (notes) existing.notes = (existing.notes ? existing.notes + ' | ' : '') + notes;
+            this._addSentHistory(existing, 'recuperación manual');
+            this.save();
+            document.getElementById('recuperarFacturaModal')?.remove();
+            this.refreshGeneratedInvoices();
+            alert(`✅ Factura #${String(invoiceNumber).padStart(4,'0')} actualizada a "enviada".`);
+            return;
+        }
+
+        // Crear nuevo registro
+        this.generatedInvoices.push({
+            id: Date.now() + Math.random(),
+            invoiceNumber,
+            generatedDate: sentAt,
+            clientName: cli.name,
+            clientIds: [cli.id],
+            clientEmail: cli.email || '',
+            type: cli.type || 'mensual',
+            isManual: true,
+            startDate,
+            endDate,
+            serviceCount: 0,
+            total,
+            items: [],
+            status: 'enviada',
+            sentAt,
+            paidAt: null, paidAmount: null,
+            notes: notes || 'Recuperada manualmente',
+            sentHistory: [{ date: new Date().toISOString(), method: 'recuperación manual', notes }],
+            invoiceConfig: null
+        });
+
+        // Actualizar contador si el número recuperado es mayor al actual
+        const currentLast = parseInt(localStorage.getItem('lastInvoiceNumber') || '0');
+        if (invoiceNumber > currentLast) {
+            localStorage.setItem('lastInvoiceNumber', invoiceNumber.toString());
+        }
+
+        this.save();
+        document.getElementById('recuperarFacturaModal')?.remove();
+        this.refreshGeneratedInvoices();
+        alert(`✅ Factura #${String(invoiceNumber).padStart(4,'0')} registrada como "enviada" a nombre de ${cli.name}.\nYa aparece en la lista de Enviadas.`);
+    }
+
     refreshGeneratedInvoices() {
         const start = document.getElementById('genInvStart').value;
         const end = document.getElementById('genInvEnd').value;
@@ -7527,7 +7685,7 @@ class Scheduler {
 
     // ── HELPER: dibuja la caja de Payment Options compacta con iconos de tarjetas ──
     drawPaymentOptions(doc, x, y, width, invoiceNumber, clientName, amount) {
-        const h = 32;
+        const h = 38;
         doc.setDrawColor(39, 174, 96);
         doc.setFillColor(240, 255, 244);
         doc.setLineWidth(1.5);
@@ -7611,6 +7769,8 @@ class Scheduler {
         doc.setFontSize(6.5); doc.setFont(undefined, 'normal');
         doc.setTextColor(100, 100, 100);
         doc.text('Secure payment powered by Stripe. Accepted: Visa, Mastercard, Amex, Discover, and more.', x + 4, y + 28);
+        doc.setFontSize(6); doc.setTextColor(160, 80, 0);
+        doc.text('Note: A 3% processing fee applies to credit/debit card payments.', x + 4, y + 33);
 
         doc.setFont(undefined, 'normal');
         doc.setTextColor(0, 0, 0);
@@ -16111,6 +16271,9 @@ Motivo de cancelación (opcional):`);
         if (this._clicDuplicado('sendInvoiceBySMS', 3000)) return;
         const data = window.currentPDFData;
         if (!data) { alert('No hay factura en preview.'); return; }
+        // Registrar en Enviadas automáticamente (igual que Gmail)
+        this._registerInvoiceFromPDF('enviada');
+        this.markPendingAsGenerated();
         const client = data.client;
         const tel = (client.tel || '').replace(/\D/g, '');
         if (!tel) { alert('Este cliente no tiene número de teléfono guardado.'); return; }
@@ -17005,7 +17168,7 @@ Motivo de cancelación (opcional):`);
         // Empujar el total hacia la parte inferior de la página
         const pageHeight = doc.internal.pageSize.getHeight();
         const noteOffset = (applyTax && taxRate > 0) ? 44 : 37;
-        const totalNeeded = noteOffset + 32 + 5;
+        const totalNeeded = noteOffset + 38 + 5;
         const minY = pageHeight - totalNeeded;
         if (y > minY) { doc.addPage(); y = 20; }
         else { y = minY; } // Siempre al fondo de la página
@@ -17350,8 +17513,8 @@ Motivo de cancelación (opcional):`);
             // ── PAYMENT OPTIONS NOTE (plantilla Anas) ──
             const noteYb2 = y_b + 42;
             const pageH_b = doc.internal.pageSize.getHeight();
-            if (noteYb2 + 26 > pageH_b) { doc.addPage(); }
-            const finalNoteY = noteYb2 + 26 > pageH_b ? 20 : noteYb2;
+            if (noteYb2 + 38 > pageH_b) { doc.addPage(); }
+            const finalNoteY = noteYb2 + 38 > pageH_b ? 20 : noteYb2;
             this.drawPaymentOptions(doc, 18, finalNoteY, 174, invoiceNumber, client.name, total_b + taxAmt_b);
 
             doc.save(fname_b);
@@ -21720,6 +21883,9 @@ document.addEventListener('click', function(e) {
                 </button>
                 <button onclick="app.auditarDuplicados()" title="Busca facturas del mismo cliente cuyo periodo se cruza (posible doble cobro)" class="btn" style="padding:8px 14px; background:#c0392b; color:white; font-size:0.85rem; font-weight:bold; white-space:nowrap;">
                     🔍 Revisar Duplicados
+                </button>
+                <button onclick="app.mostrarModalRecuperarFactura()" title="Registra manualmente una factura enviada que no quedó guardada en el sistema" class="btn" style="padding:8px 14px; background:#8e44ad; color:white; font-size:0.85rem; font-weight:bold; white-space:nowrap;">
+                    🔧 Recuperar Factura
                 </button>
                 <button onclick="app.printInvoicesList()" title="Imprime la lista filtrada actual" class="btn" style="padding:8px 14px; background:#495057; color:white; font-size:0.85rem; font-weight:bold; white-space:nowrap;">
                     🖨️ Imprimir
