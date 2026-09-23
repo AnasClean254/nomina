@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="AnaCalendar">
 <link rel="manifest" id="pwaManifest">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%230f1117'/><text x='90' y='125' font-size='100' text-anchor='middle'>📅</text></svg>">
 <script>
 const _manifest={
   name:"AnaCalendar · Ana's Cleaning",short_name:"AnaCalendar",
@@ -25,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.2.1';
+const APP_VERSION = '2.3.1';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -47,15 +48,35 @@ if('serviceWorker' in navigator){
   navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister()));
 }
 let _installPrompt=null;
-window.addEventListener('beforeinstallprompt',e=>{e.preventDefault(); _installPrompt=null; }); // Deshabilitar instalación PWA
+const _isIOS=(/iPhone|iPad|iPod/.test(navigator.userAgent))&&!window.MSStream;
+const _isAndroid=/Android/.test(navigator.userAgent);
+const _isStandalone=()=>window.matchMedia('(display-mode:standalone)').matches||!!navigator.standalone;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault(); _installPrompt=e; }); // Guardar prompt para Android
 function showInstallBanner(){
   if(document.getElementById('_pwaBanner'))return;
+  if(_isStandalone())return; // Ya está instalado, no mostrar
   const b=document.createElement('div');b.id='_pwaBanner';
-  b.style.cssText='position:fixed;bottom:80px;left:16px;right:16px;max-width:398px;margin:0 auto;background:#0c2a3a;border:1.5px solid #3498db;border-radius:14px;padding:12px 14px;z-index:500;display:flex;align-items:center;justify-content:space-between;gap:10px;font-family:Barlow,sans-serif;box-shadow:0 4px 24px rgba(0,0,0,.5)';
-  b.innerHTML=`<div><div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:#3498db">📲 Instalar AnaCalendar</div><div style="font-size:11px;color:#94a3b8;margin-top:2px">Agrega al inicio para acceso rápido</div></div><div style="display:flex;gap:7px"><button onclick="doInstall()" style="background:#3498db;border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer">Instalar</button><button onclick="dismissBanner()" style="background:none;border:1px solid #2e3349;color:#94a3b8;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;padding:8px 10px;border-radius:8px;cursor:pointer">✕</button></div>`;
+  b.style.cssText='position:fixed;bottom:80px;left:16px;right:16px;max-width:398px;margin:0 auto;background:#0c2a3a;border:1.5px solid #3498db;border-radius:14px;padding:14px;z-index:500;font-family:Barlow,sans-serif;box-shadow:0 4px 24px rgba(0,0,0,.5)';
+  if(_isIOS){
+    // iOS Safari: instrucciones manuales para Share → Add to Home Screen
+    b.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:#3498db">📲 Agregar al inicio (iPhone)</div>
+        <button onclick="dismissBanner()" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+      </div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.6;">
+        1. Toca el botón <strong style="color:#3498db;">Compartir</strong> &nbsp;⬆️&nbsp; (barra inferior de Safari)<br>
+        2. Baja y toca <strong style="color:#3498db;">"Agregar a inicio"</strong> o <strong style="color:#3498db;">"Add to Home Screen"</strong><br>
+        3. Toca <strong style="color:#f1f5f9;">Agregar</strong> — la app quedará en tu pantalla de inicio
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:8px;">⚠ Solo funciona desde <strong>Safari</strong>. Chrome/Firefox en iPhone no permiten instalación.</div>`;
+  } else {
+    // Android / escritorio: mostrar botón nativo
+    b.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:#3498db">📲 Instalar AnaCalendar</div><div style="font-size:11px;color:#94a3b8;margin-top:2px">Agrega al inicio para acceso rápido</div></div><div style="display:flex;gap:7px"><button onclick="doInstall()" style="background:#3498db;border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer">Instalar</button><button onclick="dismissBanner()" style="background:none;border:1px solid #2e3349;color:#94a3b8;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;padding:8px 10px;border-radius:8px;cursor:pointer">✕</button></div></div>`;
+  }
   document.body.appendChild(b);
 }
-function doInstall(){if(_installPrompt){_installPrompt.prompt();_installPrompt.userChoice.then(()=>{_installPrompt=null;dismissBanner();});}else{dismissBanner();}}
+function doInstall(){if(_installPrompt){_installPrompt.prompt();_installPrompt.userChoice.then(()=>{_installPrompt=null;dismissBanner();});}else{showInstallBanner();}}
 function dismissBanner(){const b=document.getElementById('_pwaBanner');if(b)b.remove();}
 window.addEventListener('appinstalled',()=>{dismissBanner();});
 </script>
@@ -372,7 +393,7 @@ const CLIENT_ID='701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleuserco
 const SCOPES='https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
 const FOLDER='AnasCleaningApp', FILE='anaCS_sync.json', RFILE='quiktrack_ana_reports.json';
 const RPTS_KEY='qt_bra_reports';
-const SESS='ac_bra_sess', TKEY='anas_drive_token', TEXP='anas_drive_token_expiry';
+const SESS='ac_bra_sess', TKEY='anas_drive_token', TEXP='anas_drive_token_expiry', LSYNC='ac_last_drive_sync';
 const DAYS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -390,20 +411,7 @@ let allEmpsList = [];
 document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'visible'){
     updateDriveHeaderBtn();
-    // Verificar si token está expirado o por expirar
-    const exp=parseInt(localStorage.getItem(TEXP)||'0');
-    if(S.driveToken && exp && Date.now() > exp - (5*60*1000)){
-      // Token expirado o expira en menos de 5 min — renovar silenciosamente
-      try{
-        const tcS=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,prompt:'',callback:function(r){
-          if(r.error) return;
-          S.driveToken=r.access_token;
-          localStorage.setItem(TKEY,r.access_token);
-          localStorage.setItem(TEXP,(Date.now()+(r.expires_in||3600)*1000).toString());
-        }});
-        tcS.requestAccessToken({prompt:''});
-      }catch(e){}
-    }
+    // refreshData() se encarga de re-auth silencioso si el token expiró
     setTimeout(()=>{ try{ refreshData() }catch(e){} }, 800);
   }
 });
@@ -453,8 +461,8 @@ function tryRestoreSession(){
       showEmpSelected(S.empName, S.group);
       launch(false);
       const tok=localStorage.getItem(TKEY);
-      const exp=parseInt(localStorage.getItem(TEXP)||'0');
-      if(tok && Date.now() < exp){ setTimeout(()=>refreshData(), 1500); } 
+      // Siempre intentar refreshData — si el token expiró, refreshData hará re-auth silencioso
+      if(tok){ setTimeout(()=>refreshData(), 1500); }
       setTimeout(updateDriveHeaderBtn, 500);
       try{checkBtnSuplente();}catch(e){} try{checkBtnSupervisor();}catch(e2){}
       return;
@@ -467,19 +475,36 @@ let tc=null;
 function connectDrive(){
   if(S.driveToken){loadSyncFile();return;}
   if(typeof google==='undefined'){setDS('err','⚠ Google API no cargó');return;}
-  tc=google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID,scope:SCOPES,callback:async(r)=>{
-    if(r.error){setDS('err','⚠ '+r.error);return;}
+
+  // Intenta autenticación silenciosa primero; solo muestra pantalla de cuenta
+  // si Google devuelve interaction_required (primera vez o sesión expirada).
+  const _onToken = async(r)=>{
+    if(r.error){
+      // interaction_required / access_denied → necesita pantalla de cuenta
+      const needsUI = ['interaction_required','user_cancelled_auth_flow','access_denied'].includes(r.error);
+      if(needsUI && !_connectDriveForcedUI){
+        _connectDriveForcedUI = true;
+        tc.requestAccessToken({prompt:'select_account', login_hint:'anacsrobinson2026@gmail.com'});
+      } else if(!needsUI){
+        setDS('err','⚠ '+r.error);
+      }
+      return;
+    }
     S.driveToken=r.access_token;
     localStorage.setItem(TKEY,r.access_token);
     localStorage.setItem(TEXP,(Date.now()+(r.expires_in||3600)*1000).toString());
-    markConnected(); 
+    markConnected();
     await loadSyncFile();
     // Subir horarios pendientes en localStorage que no se pudieron subir antes
     if(S.group){ setTimeout(function(){ try{ saveHorariosToDrive(); }catch(e){} }, 1000); }
     // Iniciar refresh silencioso cada 50 minutos
     startSilentRefresh();
-  }});
-  tc.requestAccessToken({prompt:'select_account', login_hint:'anacsrobinson2026@gmail.com'});
+  };
+
+  let _connectDriveForcedUI = false;
+  tc = google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID, scope:SCOPES, callback:_onToken});
+  // Primer intento: silencioso (sin pantalla de verificación si ya hay sesión de Google activa)
+  tc.requestAccessToken({prompt:'', login_hint:'anacsrobinson2026@gmail.com'});
 }
 
 let _silentRefreshInterval = null;
@@ -531,10 +556,23 @@ async function loadSyncFile(){
     if(data.clavesSuplente) S.clavesSuplente=data.clavesSuplente;
     if(data.supervisorPin) S.supervisorPin=data.supervisorPin;
     const mod=new Date(sr.files[0].modifiedTime).toLocaleString('es-MX',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    localStorage.setItem(LSYNC, Date.now().toString());
+    hideStaleWarning();
     setDS('ok',`✅ ${S.servs.length} servicios · ${mod}`);
     // Si ya hay grupo seleccionado (sesión restaurada), descargar horarios
     try{ await loadHorariosFromDrive(); }catch(e){}
     buildEmpsList();
+    // Validar que el grupo guardado siga existiendo en los datos frescos
+    if(S.empId && S.group && !S.grupos[S.group]){
+      // El grupo fue renombrado o el empleado cambió de grupo — pedir re-selección
+      toast(`⚠️ Tu grupo "${S.group}" cambió. Por favor selecciona tu nombre de nuevo.`);
+      S.empId=null; S.empName=''; S.group='';
+      localStorage.removeItem(SESS);
+      showEmpSection();
+      renderView();
+      try{checkNotesBadge();}catch(e2){}
+      return;
+    }
     // Solo mostrar pantalla de selección si NO hay empleado ya seleccionado
     if(!S.empId){
       showEmpSection();
@@ -779,6 +817,27 @@ function sdot(t,m){
   if(l&&m)l.textContent=m;
 }
 
+/* ── STALE DATA WARNING ── */
+function showStaleWarning(){
+  if(document.getElementById('_staleWarn')) return;
+  const agenda=document.getElementById('scrAgenda');
+  if(!agenda||!agenda.classList.contains('active')) return;
+  const w=document.createElement('div');
+  w.id='_staleWarn';
+  w.style.cssText='position:sticky;top:42px;left:0;right:0;background:#7c2d12;border-bottom:2px solid #f59e0b;padding:10px 16px;z-index:35;display:flex;align-items:center;justify-content:space-between;font-family:Barlow,sans-serif;font-size:12px;color:#fed7aa;gap:8px;';
+  const lsync=parseInt(localStorage.getItem(LSYNC)||'0');
+  let agoText='desconocido';
+  if(lsync){const m=Math.round((Date.now()-lsync)/60000);agoText=m<60?`hace ${m} min`:`hace ${Math.round(m/60)}h`;}
+  w.innerHTML=`<span>⚠️ <strong>Sin conexión a Drive</strong> — estos datos son locales (${agoText}). Podrían faltar servicios del día.</span>`+
+    `<button onclick="connectDrive()" style="background:#f59e0b;color:#0f1117;border:none;border-radius:6px;font-size:11px;font-weight:800;padding:5px 11px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;white-space:nowrap;flex-shrink:0;">🔄 Reconectar</button>`;
+  const sync=agenda.querySelector('.sync');
+  if(sync) sync.after(w); else agenda.prepend(w);
+}
+function hideStaleWarning(){
+  const w=document.getElementById('_staleWarn');
+  if(w) w.remove();
+}
+
 /* ── EMPLOYEE LIST ── */
 function buildEmpsList(){
   allEmpsList=[];
@@ -794,6 +853,15 @@ function buildEmpsList(){
   });
   allEmpsList.sort((a,b)=>a.name.localeCompare(b.name));
   renderEmpList('');
+  // Si hay un empleado guardado, verificar que siga en la lista
+  if(S.empId){
+    const stillExists=allEmpsList.find(e=>String(e.id)===String(S.empId));
+    if(stillExists && stillExists.group !== S.group){
+      // El empleado cambió de grupo en los datos frescos → actualizar
+      S.group = stillExists.group;
+      saveSess();
+    }
+  }
 }
 
 function showEmpSection(){
@@ -876,6 +944,8 @@ function launch(save){
   buildStrip(); renderView();
   updateInfoScreen();
   try{checkNotesBadge();}catch(e){}
+  // Si no hay Drive activo al lanzar, avisar que los datos pueden estar desactualizados
+  if(!S.driveToken){ setTimeout(showStaleWarning, 400); }
 }
 
 /* ── WEEK STRIP ── */
@@ -1335,10 +1405,40 @@ async function refreshData(){
   const btn=document.getElementById('btnRefresh');
   if(btn){btn.innerHTML='<span class="spinning">🔄</span>';btn.style.pointerEvents='none';}
   try{
+    // ── Paso 1: Re-auth silencioso si el token falta o expiró ──────────────
+    const tokenExp=parseInt(localStorage.getItem(TEXP)||'0');
+    const tokenExpired=!S.driveToken||(tokenExp && Date.now() > tokenExp - 60000);
+    if(tokenExpired && localStorage.getItem(TKEY) && typeof google!=='undefined'){
+      sdot('spin','Reconectando…');
+      await new Promise((resolve)=>{
+        try{
+          const tcR=google.accounts.oauth2.initTokenClient({
+            client_id:CLIENT_ID, scope:SCOPES, prompt:'',
+            callback:function(r){
+              if(!r.error){
+                S.driveToken=r.access_token;
+                localStorage.setItem(TKEY,r.access_token);
+                localStorage.setItem(TEXP,(Date.now()+(r.expires_in||3600)*1000).toString());
+                markConnected();
+              } else {
+                // Si Google exige interacción (sesión cerrada), limpiar token
+                if(['interaction_required','user_cancelled_auth_flow','access_denied'].includes(r.error)){
+                  S.driveToken=null;
+                }
+              }
+              resolve();
+            }
+          });
+          tcR.requestAccessToken({prompt:''});
+        }catch(e){ resolve(); }
+      });
+    }
+
+    // ── Paso 2: Sincronizar con Drive o caer a datos locales ───────────────
     if(S.driveToken && S.folderId){
+      // Token OK + carpeta conocida → refrescar datos de Drive
       sdot('spin','Actualizando…');
       document.getElementById('syncLbl').textContent='Actualizando…';
-      // Reload sync file
       const sr=await dGet(`https://www.googleapis.com/drive/v3/files?q=name='${FILE}'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id,modifiedTime)`);
       if(sr.files&&sr.files.length){
         const data=await dGet(`https://www.googleapis.com/drive/v3/files/${sr.files[0].id}?alt=media`);
@@ -1349,15 +1449,25 @@ async function refreshData(){
           if(data.clavesSuplente) S.clavesSuplente=data.clavesSuplente;
         }
       }
-      // Recargar horarios del grupo
       try{ await loadHorariosFromDrive(); }catch(e){}
       const mod=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+      localStorage.setItem(LSYNC, Date.now().toString());
+      hideStaleWarning();
       sdot('ok','Actualizado '+mod);
       document.getElementById('syncLbl').textContent='Actualizado '+mod;
-      saveSess(); buildStrip(); renderView(); updateInfoScreen(); try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
+      saveSess(); buildStrip(); renderView(); updateInfoScreen();
+      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
       toast('✅ Datos actualizados');
+
+    } else if(S.driveToken && !S.folderId){
+      // Token OK pero carpeta no localizada — correr loadSyncFile completo
+      await loadSyncFile();
+      if(btn){btn.innerHTML='🔄';btn.style.pointerEvents='auto';}
+      return;
+
     } else {
-      // localStorage fallback — leer archivos por fecha
+      // Sin Drive — datos locales; mostrar advertencia prominente
+      showStaleWarning();
       try{
         S.reports={};
         const base=new Date(today()+'T12:00:00');
@@ -1372,14 +1482,22 @@ async function refreshData(){
           }
         }
       }catch(ex){}
-      sdot('ok','Datos locales');
-      document.getElementById('syncLbl').textContent='Datos locales actualizados';
-      saveSess(); buildStrip(); renderView(); updateInfoScreen(); try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
-      toast('✅ Actualizado desde local');
+      sdot('err','Sin Drive');
+      document.getElementById('syncLbl').textContent='Sin Drive — datos locales';
+      saveSess(); buildStrip(); renderView(); updateInfoScreen();
+      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
     }
   }catch(e){
-    sdot('err','Error al actualizar');
-    toast('⚠ Error: '+e.message);
+    if(e.status===401){
+      // Token inválido — limpiar y mostrar advertencia para que reconecten
+      S.driveToken=null; localStorage.removeItem(TKEY);
+      showStaleWarning();
+      sdot('err','Reconecta Drive');
+      toast('⚠️ Sesión de Drive expirada. Toca "Reconectar".');
+    } else {
+      sdot('err','Error al actualizar');
+      toast('⚠ Error: '+e.message);
+    }
   } finally {
     if(btn){btn.innerHTML='🔄';btn.style.pointerEvents='auto';}
   }

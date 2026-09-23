@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '147';
+    window.ANACS_VERSION = '150';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -7685,12 +7685,28 @@ class Scheduler {
 
     // ── HELPER: dibuja la caja de Payment Options compacta con iconos de tarjetas ──
     drawPaymentOptions(doc, x, y, width, invoiceNumber, clientName, amount) {
-        const h = 38;
+        const h = 42;
+        const workerUrl = (window.ANACS_CONFIG && window.ANACS_CONFIG.stripeWorkerUrl) || '';
+
         doc.setDrawColor(39, 174, 96);
         doc.setFillColor(240, 255, 244);
         doc.setLineWidth(1.5);
         doc.roundedRect(x, y, width, h, 2, 2, 'FD');
         doc.setLineWidth(0.2);
+
+        // ── Sin Worker URL: mostrar aviso en el PDF en lugar de links rotos ──
+        if (!workerUrl) {
+            doc.setFontSize(9); doc.setFont(undefined, 'bold');
+            doc.setTextColor(180, 50, 50);
+            doc.text('PAYMENT OPTIONS', x + 4, y + 8);
+            doc.setFontSize(7.5); doc.setFont(undefined, 'normal');
+            doc.setTextColor(100, 100, 100);
+            doc.text('Online payment links not configured.', x + 4, y + 16);
+            doc.text('To pay: mail check to 388 Downsville Rd, Robinson TX 76706', x + 4, y + 23);
+            doc.text('Make checks payable to "Ana\'s Cleaning Services"', x + 4, y + 30);
+            doc.setFont(undefined, 'normal'); doc.setTextColor(0, 0, 0);
+            return;
+        }
 
         doc.setFontSize(9);
         doc.setFont(undefined, 'bold');
@@ -7760,17 +7776,23 @@ class Scheduler {
         // Línea 2: Tarjeta con link
         doc.setFontSize(8); doc.setFont(undefined, 'bold');
         doc.setTextColor(41, 128, 185);
-        doc.text('CREDIT/DEBIT CARD:', x + 4, y + 21);
+        doc.text('CREDIT/DEBIT CARD (3% fee):', x + 4, y + 21);
         const clientSafe = (clientName || '').replace(/[^a-zA-Z0-9 ]/g, '').trim().replace(/ /g, '+');
-        const payUrl = ((window.ANACS_CONFIG && window.ANACS_CONFIG.stripeWorkerUrl) || '') + '/pay-invoice?inv=' + invoiceNumber + '&client=' + clientSafe + '&amount=' + parseFloat(amount || 0).toFixed(2);
-        doc.textWithLink('CLICK HERE TO PAY SECURELY ONLINE', x + 55, y + 21, { url: payUrl });
+        const payUrl = ((window.ANACS_CONFIG && window.ANACS_CONFIG.stripeWorkerUrl) || '') + '/pay-invoice?inv=' + invoiceNumber + '&client=' + clientSafe + '&amount=' + parseFloat(amount || 0).toFixed(2) + '&method=card';
+        doc.textWithLink('CLICK HERE TO PAY SECURELY ONLINE', x + 68, y + 21, { url: payUrl });
 
-        // Nota pequeña
+        // Línea 3: ACH / Bank Transfer (sin cargo)
+        doc.setFontSize(8); doc.setFont(undefined, 'bold');
+        doc.setTextColor(39, 174, 96);
+        doc.text('ACH BANK TRANSFER (no fee):', x + 4, y + 28);
+        const achUrl = ((window.ANACS_CONFIG && window.ANACS_CONFIG.stripeWorkerUrl) || '') + '/pay-invoice?inv=' + invoiceNumber + '&client=' + clientSafe + '&amount=' + parseFloat(amount || 0).toFixed(2) + '&method=ach';
+        doc.textWithLink('CLICK HERE TO PAY BY BANK TRANSFER', x + 72, y + 28, { url: achUrl });
+
+        // Notas (2 líneas para que no desborden el ancho de la caja)
         doc.setFontSize(6.5); doc.setFont(undefined, 'normal');
         doc.setTextColor(100, 100, 100);
-        doc.text('Secure payment powered by Stripe. Accepted: Visa, Mastercard, Amex, Discover, and more.', x + 4, y + 28);
-        doc.setFontSize(6); doc.setTextColor(160, 80, 0);
-        doc.text('Note: A 3% processing fee applies to credit/debit card payments.', x + 4, y + 33);
+        doc.text('Secure online payment powered by Stripe. Accepted: Visa, Mastercard, Amex, Discover.', x + 4, y + 35);
+        doc.text('Credit/debit card includes a 3% processing fee. ACH bank transfer is free — no extra charge.', x + 4, y + 39);
 
         doc.setFont(undefined, 'normal');
         doc.setTextColor(0, 0, 0);
@@ -16532,12 +16554,24 @@ Motivo de cancelación (opcional):`);
         const startDate = document.getElementById('invoiceStart').value;
         const endDate = document.getElementById('invoiceEnd').value;
         const template = document.querySelector('input[name="invoiceTemplate"]:checked').value;
-        
+
+        // Advertir si el Worker URL no está configurado (los links de pago quedarán rotos)
+        const workerUrl = (window.ANACS_CONFIG && window.ANACS_CONFIG.stripeWorkerUrl) || '';
+        if (!workerUrl) {
+            const ok = confirm(
+                '⚠️ Stripe Worker URL no está configurado.\n\n' +
+                'Los links de pago del PDF quedarán sin funcionar (el cliente no podrá pagar en línea).\n\n' +
+                'Configúralo en: Configuración → Stripe → Dirección del Worker\n\n' +
+                '¿Deseas continuar y generar el PDF de todas formas?'
+            );
+            if (!ok) return;
+        }
+
         if (!clientId) {
             alert('Por favor selecciona un cliente');
             return;
         }
-        
+
         if (!startDate || !endDate) {
             alert('Por favor selecciona las fechas');
             return;
@@ -17031,7 +17065,7 @@ Motivo de cancelación (opcional):`);
         doc.text(client.name, 20, yStart + 7);
         if (client.address) doc.text(client.address, 20, yStart + 12);
         const cityLine = [client.city, client.state, client.zip].filter(Boolean).join(', ');
-        const _telPart = client.phone ? ('Tel: ' + client.phone) : '';
+        const _telPart = client.phone ? ('Cel: ' + client.phone) : '';
         const _line3 = [cityLine, _telPart].filter(Boolean).join('   -   ');
         if (_line3) doc.text(_line3, 20, yStart + 17);
         if (client.email) {
@@ -17168,7 +17202,7 @@ Motivo de cancelación (opcional):`);
         // Empujar el total hacia la parte inferior de la página
         const pageHeight = doc.internal.pageSize.getHeight();
         const noteOffset = (applyTax && taxRate > 0) ? 44 : 37;
-        const totalNeeded = noteOffset + 38 + 5;
+        const totalNeeded = noteOffset + 42 + 5;
         const minY = pageHeight - totalNeeded;
         if (y > minY) { doc.addPage(); y = 20; }
         else { y = minY; } // Siempre al fondo de la página
@@ -17533,7 +17567,7 @@ Motivo de cancelación (opcional):`);
         doc.text(client.name, 20, yStart + 7);
         if (client.address) doc.text(client.address, 20, yStart + 12);
         const cityLine = [client.city, client.state, client.zip].filter(Boolean).join(', ');
-        const _telPart = client.phone ? ('Tel: ' + client.phone) : '';
+        const _telPart = client.phone ? ('Cel: ' + client.phone) : '';
         const _line3 = [cityLine, _telPart].filter(Boolean).join('   -   ');
         if (_line3) doc.text(_line3, 20, yStart + 17);
         if (client.email) {
@@ -17629,7 +17663,7 @@ Motivo de cancelación (opcional):`);
         // Empujar el total hacia arriba para que quepan: bloque total + "Thank you" + caja Payment Options (26mm)
         const pageHeight2 = doc.internal.pageSize.getHeight();
         const totalBlockHeight2 = (applyTax && taxRate > 0) ? 25 : 15;
-        const noteBoxHeight2 = 32;
+        const noteBoxHeight2 = 42;
         const thankYouOffset2 = (applyTax && taxRate > 0) ? 37 : 30;
         const noteOffset2 = (applyTax && taxRate > 0) ? 44 : 37;
         const totalNeeded2 = noteOffset2 + noteBoxHeight2 + 5;
@@ -22417,6 +22451,7 @@ document.addEventListener('click', function(e) {
                         <option value="cash">💵 Cash</option>
                         <option value="check">🏦 Check</option>
                         <option value="credit">💳 Credit Card</option>
+                        <option value="ach">🏛️ ACH / Bank Transfer</option>
                         <option value="zelle">📱 Zelle</option>
                         <option value="other">Otro</option>
                     </select>
