@@ -1,4 +1,4 @@
 {
-  "version": "152",
-  "notas": "Tax desactivado por default en clientes nuevos"
+  "version": "155",
+  "notas": "Migración: Tax OFF en todos los clientes existentes (se ejecuta una sola vez)"
 }

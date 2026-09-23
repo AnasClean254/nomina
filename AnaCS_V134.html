@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '152';
+    window.ANACS_VERSION = '155';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -2148,6 +2148,22 @@ class Scheduler {
         if (feeFixed > 0) {
             localStorage.setItem('v35_clis', JSON.stringify(this.clis));
             console.log(`✅ ${feeFixed} clientes migrados fee→price`);
+        }
+
+        // ✅ MIGRACIÓN: Tax OFF en todos los clientes (Ana no cobra impuestos por default).
+        // Corre una sola vez: pone cobraImpuestos=false en cualquier cliente que no lo
+        // tenga explícitamente en false. El flag en localStorage evita que se repita.
+        if (!localStorage.getItem('v35_taxMigrated')) {
+            let taxFixed = 0;
+            this.clis = this.clis.map(c => {
+                if (c.cobraImpuestos !== false) {
+                    c.cobraImpuestos = false;
+                    taxFixed++;
+                }
+                return c;
+            });
+            localStorage.setItem('v35_taxMigrated', 'true');
+            if (taxFixed > 0) console.log(`✅ MIGRACIÓN tax: ${taxFixed} clientes → cobraImpuestos: false`);
         }
 
         // Guardar cambios si hubo migración.
@@ -8699,7 +8715,7 @@ class Scheduler {
         const chk = document.getElementById(idCheckbox);
         const rate = document.getElementById(idTasa);
         if (!chk || !cli) return;
-        chk.checked = cli.cobraImpuestos !== false;
+        chk.checked = cli.cobraImpuestos === true;
         if (rate) rate.value = parseFloat(cli.taxRate) || 8.25;
         if (typeof this[nombreToggle] === 'function') this[nombreToggle]();
     }
@@ -12015,6 +12031,8 @@ Motivo de cancelación (opcional):`);
             // Limpiar propiedades
             const pl = document.getElementById('propFieldsList');
             if(pl) pl.innerHTML = '';
+            if(document.getElementById('cliApplyTax')) document.getElementById('cliApplyTax').checked = false;
+            if(document.getElementById('cliTaxRate')) document.getElementById('cliTaxRate').value = 8.25;
             document.getElementById('nc').focus();
         } else {
             this.cancelCliForm();
@@ -12190,6 +12208,8 @@ Motivo de cancelación (opcional):`);
         if(document.getElementById('cliPaymentTerms')) document.getElementById('cliPaymentTerms').value = '15';
         if(document.getElementById('regenBlock')) document.getElementById('regenBlock').style.display = 'none';
         if(document.getElementById('cliFormTitle')) document.getElementById('cliFormTitle').textContent = '➕ Nuevo Cliente';
+        if(document.getElementById('cliApplyTax')) document.getElementById('cliApplyTax').checked = false;
+        if(document.getElementById('cliTaxRate')) document.getElementById('cliTaxRate').value = 8.25;
         // Limpiar propiedades
         const _cancelPropList = document.getElementById('propFieldsList');
         if(_cancelPropList) _cancelPropList.innerHTML = '';
@@ -12434,6 +12454,8 @@ Motivo de cancelación (opcional):`);
             document.getElementById('cliServiceType').value = 'residencial';
             document.getElementById('cliBillingPeriod').value = 'monthly';
             if(document.getElementById('cliMultiProp')) document.getElementById('cliMultiProp').checked = false;
+            if(document.getElementById('cliApplyTax')) document.getElementById('cliApplyTax').checked = false;
+            if(document.getElementById('cliTaxRate')) document.getElementById('cliTaxRate').value = 8.25;
             this._toggleClientPriceRecur(false);
             document.getElementById('editCliId').value = '';
             document.getElementById('regenBlock').style.display = 'none';
@@ -12578,7 +12600,7 @@ Motivo de cancelación (opcional):`);
                 document.getElementById('cliTaxRate').value = cli.taxRate !== undefined ? cli.taxRate : 8.25;
             }
             if (document.getElementById('cliApplyTax')) {
-                document.getElementById('cliApplyTax').checked = (cli.cobraImpuestos !== false);
+                document.getElementById('cliApplyTax').checked = (cli.cobraImpuestos === true);
             }
             document.getElementById('editCliId').value = cli.id;
             // Bloque de regeneración
@@ -14462,7 +14484,7 @@ Motivo de cancelación (opcional):`);
         const applyTaxCheckbox = document.getElementById('invoiceApplyTax');
         const taxRateInput = document.getElementById('invoiceTaxRate');
         if (applyTaxCheckbox && taxRateInput) {
-            const cobra = (cli.cobraImpuestos !== false);
+            const cobra = (cli.cobraImpuestos === true);
             applyTaxCheckbox.checked = cobra;
             if (cobra) {
                 taxRateInput.value = (cli.taxRate !== undefined && cli.taxRate > 0) ? cli.taxRate : 8.25;
@@ -14728,7 +14750,7 @@ Motivo de cancelación (opcional):`);
             const mCb = document.getElementById('manualInvApplyTax');
             const mRate = document.getElementById('manualInvTaxRate');
             if (mCb && mRate) {
-                const cobra = (cliM.cobraImpuestos !== false);
+                const cobra = (cliM.cobraImpuestos === true);
                 mCb.checked = cobra;
                 if (cobra) mRate.value = (cliM.taxRate !== undefined && cliM.taxRate > 0) ? cliM.taxRate : 8.25;
                 const mc = document.getElementById('manualTaxFieldContainer');
