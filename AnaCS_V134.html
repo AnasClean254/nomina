@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '155';
+    window.ANACS_VERSION = '156';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -1997,6 +1997,7 @@ class Scheduler {
         this.serviceLog = JSON.parse(localStorage.getItem('v35_serviceLog') || '[]');
         this.servs = JSON.parse(localStorage.getItem('v35_servs')) || [];
         this.gruposHistorial = JSON.parse(localStorage.getItem('v35_gruposHistorial')) || {};
+        this.responsables = JSON.parse(localStorage.getItem('v35_responsables') || '{}');
         this.grupos = JSON.parse(localStorage.getItem('v35_grupos')) || {
             "Grupo A":["","","","",""], "Grupo B":["","","","",""]
         };
@@ -2983,6 +2984,11 @@ class Scheduler {
         Object.values(state).forEach(arr => arr.forEach(id => asignadas.add(String(id))));
         state['__sin__'] = this.emps.filter(e => !asignadas.has(String(e.id))).map(e => String(e.id));
         this._rotState = state;
+        // Inicializar responsables para esta fecha
+        this._rotResponsables = {};
+        Object.keys(this.grupos).forEach(g => {
+            this._rotResponsables[g] = ((this.responsables||{})[fecha]||{})[g] || null;
+        });
     }
 
     _rotUpdateMsg() {
@@ -3010,9 +3016,26 @@ class Scheduler {
                 const sel = String(this._rotSelected) === String(id);
                 return `<div draggable="true" ondragstart="app._rotDragStart(event,'${id}')" onclick="event.stopPropagation(); app._rotTapChip('${id}')" style="background:${sel?'#f1c40f':'#fff'};border:2px solid ${sel?'#f39c12':color};border-radius:8px;padding:7px 10px;margin:4px 0;cursor:pointer;font-size:0.85rem;color:#2c3e50;user-select:none;">${sel?'✋ ':''}${nombre}</div>`;
             }).join('') || `<div style="font-size:0.75rem;color:#bbb;padding:6px;">— vacío —</div>`;
+            // Selector de responsable (solo grupos reales, no __sin__)
+            const respSelector = esSin ? '' : (() => {
+                const empIds = this._rotState[g] || [];
+                const resp = (this._rotResponsables || {})[g] || '';
+                const opts = empIds.length === 0
+                    ? '<option value="">— sin miembros —</option>'
+                    : '<option value="">— ninguna —</option>' + empIds.map(id => {
+                        const e2 = this.emps.find(x => String(x.id) === String(id));
+                        const nb = e2 ? e2.name : '¿?';
+                        return `<option value="${id}" ${String(resp) === String(id) ? 'selected' : ''}>${nb}</option>`;
+                    }).join('');
+                return `<div style="margin-top:8px;border-top:1px dashed #ddd;padding-top:6px;" onclick="event.stopPropagation()">
+                    <div style="font-size:0.7rem;color:#888;margin-bottom:3px;">⭐ Responsable del Día</div>
+                    <select onchange="event.stopPropagation();app._rotSetResponsable('${g}',this.value)" style="width:100%;font-size:0.8rem;padding:3px;border-radius:4px;border:1px solid #ddd;background:#fff;">${opts}</select>
+                </div>`;
+            })();
             return `<div ondragover="event.preventDefault()" ondrop="app._rotDrop(event,'${g}')" onclick="app._rotTapColumn('${g}')" style="flex:1;min-width:150px;background:#f8f9fa;border-top:4px solid ${color};border-radius:8px;padding:8px;min-height:90px;">
                 <div style="font-weight:700;color:${color};font-size:0.9rem;margin-bottom:6px;text-align:center;">${titulo} <span style="color:#999;font-weight:400;">(${(this._rotState[g]||[]).length})</span></div>
                 ${chips}
+                ${respSelector}
             </div>`;
         }).join('');
     }
@@ -3032,6 +3055,7 @@ class Scheduler {
     _rotDrop(ev, destGrupo) { ev.preventDefault(); const empId = ev.dataTransfer.getData('text/plain'); if (empId) this._rotMove(empId, destGrupo); }
     _rotTapChip(empId) { this._rotSelected = (String(this._rotSelected) === String(empId)) ? null : String(empId); this._rotRender(); }
     _rotTapColumn(destGrupo) { if (this._rotSelected) this._rotMove(this._rotSelected, destGrupo); }
+    _rotSetResponsable(grupo, empId) { if (!this._rotResponsables) this._rotResponsables = {}; this._rotResponsables[grupo] = empId || null; }
 
     _rotSetFecha(fecha) {
         if (!fecha) return;
@@ -3060,6 +3084,18 @@ class Scheduler {
             if (fecha === hoy) this.grupos[g] = roster.slice();
         });
         localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+        // Guardar responsable del día por grupo
+        if (!this.responsables) this.responsables = {};
+        if (!this.responsables[fecha]) this.responsables[fecha] = {};
+        Object.keys(this.grupos).forEach(g => {
+            const resp = (this._rotResponsables || {})[g];
+            if (resp) {
+                this.responsables[fecha][g] = resp;
+            } else {
+                delete this.responsables[fecha][g];
+            }
+        });
+        localStorage.setItem('v35_responsables', JSON.stringify(this.responsables));
         if (fecha === hoy) localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
         this.save();
         document.getElementById('rotacionModal')?.remove();
@@ -19905,6 +19941,7 @@ Motivo de cancelación (opcional):`);
                 clavesSuplente: JSON.parse(localStorage.getItem('ana_clavesSuplente') || '[]'),
                 serviceCatalog: this.serviceCatalog || [],
                 estimates: this.estimates || [],
+                responsables: this.responsables || {},
             };
             const fileName = 'anaCS_sync.json';
             const searchRes = await fetch(
@@ -20195,6 +20232,7 @@ Motivo de cancelación (opcional):`);
                 if (data.customColors)     localStorage.setItem('customColors', data.customColors);
                 if (data.serviceCatalog)   { this.serviceCatalog = data.serviceCatalog; localStorage.setItem('v35_serviceCatalog', JSON.stringify(this.serviceCatalog)); }
                 if (data.estimates)        { this.estimates = data.estimates; localStorage.setItem('v35_estimates', JSON.stringify(this.estimates)); }
+                if (data.responsables)     { this.responsables = data.responsables; localStorage.setItem('v35_responsables', JSON.stringify(this.responsables)); }
                 // esto aquí, las tarjetas se calculan con lo que había ANTES de conectar a
                 // Drive, y una factura enviada desde otro dispositivo (que este todavía no
                 // conocía) se sigue mostrando como pendiente cada vez que se recarga la
@@ -20264,6 +20302,13 @@ Motivo de cancelación (opcional):`);
             localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
             this.gruposHistorial = this.mergeGruposHistorial(winner.gruposHistorial, loser.gruposHistorial);
             localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+            // RESPONSABLES: merge por fecha (igual que gruposHistorial — gana el lado ganador en conflicto de grupo)
+            const _winResp = localWins ? (this.responsables||{}) : (data.responsables||{});
+            const _losResp = localWins ? (data.responsables||{}) : (this.responsables||{});
+            const _respDates = new Set([...Object.keys(_winResp), ...Object.keys(_losResp)]);
+            this.responsables = {};
+            _respDates.forEach(fq => { this.responsables[fq] = Object.assign({}, (_losResp[fq]||{}), (_winResp[fq]||{})); });
+            localStorage.setItem('v35_responsables', JSON.stringify(this.responsables));
 
             // Para facturas: merge especial — el status de pago SIEMPRE viene de Drive
             // ÚNICAMENTE cuando es un pago real de Stripe (el Worker actualiza Drive

@@ -1,4 +1,4 @@
 {
-  "version": "155",
-  "notas": "Migración: Tax OFF en todos los clientes existentes (se ejecuta una sola vez)"
+  "version": "156",
+  "notas": "Nueva función: Responsable del Día — Ana designa una empleada por grupo en el modal de rotación"
 }

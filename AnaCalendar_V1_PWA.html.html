@@ -1,0 +1,1783 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>AnaCalendar · Ana's Cleaning</title>
+<meta name="theme-color" content="#3498db">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AnaCalendar">
+<link rel="manifest" id="pwaManifest">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'><rect width='180' height='180' rx='40' fill='%230f1117'/><text x='90' y='125' font-size='100' text-anchor='middle'>📅</text></svg>">
+<script>
+const _manifest={
+  name:"AnaCalendar · Ana's Cleaning",short_name:"AnaCalendar",
+  description:"Tu horario de servicios — Ana's Cleaning Services",
+  start_url:"./",display:"standalone",
+  background_color:"#0f1117",theme_color:"#3498db",orientation:"portrait",
+  icons:[
+    {src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%230f1117'/><text x='96' y='130' font-size='110' text-anchor='middle'>📅</text></svg>",sizes:"192x192",type:"image/svg+xml"},
+    {src:"data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%230f1117'/><text x='256' y='360' font-size='300' text-anchor='middle'>📅</text></svg>",sizes:"512x512",type:"image/svg+xml"}
+  ]
+};
+const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
+document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
+
+
+const APP_VERSION = '2.3.2';
+const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
+
+async function checkForUpdate() {
+  try {
+    const res = await fetch(APP_URL + '?_=' + Date.now(), {cache:'no-store'});
+    const text = await res.text();
+    const match = text.match(/APP_VERSION = '([^']+)'/);
+    if (match && match[1] !== APP_VERSION) {
+      const banner = document.createElement('div');
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#3498db;color:white;padding:12px 16px;z-index:9999;display:flex;justify-content:space-between;align-items:center;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+      banner.innerHTML = '🔄 Nueva versión disponible <button onclick="caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>window.location.reload(true))" style="background:white;color:#3498db;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">Actualizar</button>';
+      document.body.appendChild(banner);
+    }
+  } catch(e) {}
+}
+
+// Desregistrar cualquier Service Worker previo para siempre cargar versión fresca
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister()));
+}
+let _installPrompt=null;
+const _isIOS=(/iPhone|iPad|iPod/.test(navigator.userAgent))&&!window.MSStream;
+const _isAndroid=/Android/.test(navigator.userAgent);
+const _isStandalone=()=>window.matchMedia('(display-mode:standalone)').matches||!!navigator.standalone;
+window.addEventListener('beforeinstallprompt',e=>{e.preventDefault(); _installPrompt=e; }); // Guardar prompt para Android
+function showInstallBanner(){
+  if(document.getElementById('_pwaBanner'))return;
+  if(_isStandalone())return; // Ya está instalado, no mostrar
+  const b=document.createElement('div');b.id='_pwaBanner';
+  b.style.cssText='position:fixed;bottom:80px;left:16px;right:16px;max-width:398px;margin:0 auto;background:#0c2a3a;border:1.5px solid #3498db;border-radius:14px;padding:14px;z-index:500;font-family:Barlow,sans-serif;box-shadow:0 4px 24px rgba(0,0,0,.5)';
+  if(_isIOS){
+    // iOS Safari: instrucciones manuales para Share → Add to Home Screen
+    b.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:#3498db">📲 Agregar al inicio (iPhone)</div>
+        <button onclick="dismissBanner()" style="background:none;border:none;color:#94a3b8;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;">✕</button>
+      </div>
+      <div style="font-size:13px;color:#94a3b8;line-height:1.6;">
+        1. Toca el botón <strong style="color:#3498db;">Compartir</strong> &nbsp;⬆️&nbsp; (barra inferior de Safari)<br>
+        2. Baja y toca <strong style="color:#3498db;">"Agregar a inicio"</strong> o <strong style="color:#3498db;">"Add to Home Screen"</strong><br>
+        3. Toca <strong style="color:#f1f5f9;">Agregar</strong> — la app quedará en tu pantalla de inicio
+      </div>
+      <div style="font-size:11px;color:#64748b;margin-top:8px;">⚠ Solo funciona desde <strong>Safari</strong>. Chrome/Firefox en iPhone no permiten instalación.</div>`;
+  } else {
+    // Android / escritorio: mostrar botón nativo
+    b.innerHTML=`<div style="display:flex;align-items:center;justify-content:space-between;gap:10px"><div><div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:16px;color:#3498db">📲 Instalar AnaCalendar</div><div style="font-size:11px;color:#94a3b8;margin-top:2px">Agrega al inicio para acceso rápido</div></div><div style="display:flex;gap:7px"><button onclick="doInstall()" style="background:#3498db;border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;padding:8px 14px;border-radius:8px;cursor:pointer">Instalar</button><button onclick="dismissBanner()" style="background:none;border:1px solid #2e3349;color:#94a3b8;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;padding:8px 10px;border-radius:8px;cursor:pointer">✕</button></div></div>`;
+  }
+  document.body.appendChild(b);
+}
+function doInstall(){if(_installPrompt){_installPrompt.prompt();_installPrompt.userChoice.then(()=>{_installPrompt=null;dismissBanner();});}else{showInstallBanner();}}
+function dismissBanner(){const b=document.getElementById('_pwaBanner');if(b)b.remove();}
+window.addEventListener('appinstalled',()=>{dismissBanner();});
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0f1117;--s1:#1a1d27;--s2:#22263a;--border:#2e3349;--blue:#3b82f6;--green:#60a5fa;--gbg:#1e2d3d;--yellow:#f59e0b;--ybg:#451a03;--text:#f1f5f9;--muted:#94a3b8;--brand:#3498db;--bbg:#0c2a3a;--sms:#10b981;--smsbg:#064e3b}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh;max-width:430px;margin:0 auto;padding-bottom:76px}
+.screen{display:none}.screen.active{display:block}
+
+/* ── HEADER ── */
+.hdr{background:var(--s1);border-bottom:1px solid var(--border);padding:12px 16px;position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:21px;letter-spacing:-.5px}.logo em{color:var(--brand);font-style:normal}
+.badge{font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 9px;border-radius:20px;text-transform:uppercase;background:var(--bbg);color:var(--brand);border:1px solid var(--brand)}
+.hdr-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:5px 10px;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Barlow',sans-serif}
+.sync{display:flex;align-items:center;gap:7px;padding:7px 16px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border)}
+.sdot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex-shrink:0}.sdot.ok{background:var(--green)}.sdot.err{background:#ef4444}.sdot.spin{background:var(--yellow);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ── SETUP / WELCOME ── */
+.setup{padding:28px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;min-height:92vh;justify-content:center}
+.setup-logo{font-family:'Barlow Condensed',sans-serif;font-size:54px;font-weight:800;letter-spacing:-2px;line-height:1}.setup-logo em{color:var(--brand);font-style:normal}
+.setup-co{font-size:13px;color:var(--brand);font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-top:4px;text-align:center}
+.setup-sub{font-size:12px;color:var(--muted);text-align:center;line-height:1.6;margin-top:-8px}
+.card{background:var(--s1);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:360px}
+.card h3{font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;letter-spacing:.4px}
+select,input[type=date]{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:11px 13px;font-size:15px;font-family:'Barlow',sans-serif;appearance:none;-webkit-appearance:none;margin-bottom:14px}
+select:focus,input:focus{outline:none;border-color:var(--brand)}
+.btn-drive{width:100%;padding:14px;border-radius:11px;background:#4285f4;border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:10px}
+.btn-drive.connected{background:var(--gbg);border:1px solid var(--green);color:var(--green)}
+.btn{width:100%;padding:14px;border-radius:11px;background:var(--brand);border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;cursor:pointer}.btn:active{opacity:.8}.btn:disabled{opacity:.4;cursor:not-allowed}
+.ds{font-size:12px;color:var(--muted);text-align:center;line-height:1.6;padding:8px 12px;background:var(--s2);border-radius:8px;margin-bottom:14px}.ds.ok{color:var(--green);background:var(--gbg)}.ds.err{color:#ef4444;background:#450a0a}
+
+/* Employee search input */
+.emp-search{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);border-radius:9px;padding:11px 13px;font-size:15px;font-family:'Barlow',sans-serif;margin-bottom:8px}
+.emp-search:focus{outline:none;border-color:var(--brand)}
+.emp-list{max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:9px;margin-bottom:14px;background:var(--s2)}
+.emp-item{padding:11px 14px;cursor:pointer;font-size:15px;border-bottom:1px solid var(--border);transition:background .1s}
+.emp-item:last-child{border-bottom:none}
+.emp-item:active,.emp-item.selected{background:var(--bbg);color:var(--brand)}
+.emp-item .emp-grp{font-size:11px;color:var(--muted);margin-top:2px}
+.emp-selected{display:flex;align-items:center;justify-content:space-between;background:var(--bbg);border:1px solid var(--brand);border-radius:9px;padding:11px 14px;margin-bottom:14px}
+.emp-selected-name{font-size:15px;font-weight:600;color:var(--brand)}
+.emp-selected-grp{font-size:11px;color:var(--muted);margin-top:2px}
+.emp-change{background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;padding:0}
+
+/* ── WEEK NAV / DAY STRIP ── */
+.week-nav{display:flex;align-items:center;justify-content:space-between;padding:10px 16px 0}
+.week-label{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800}
+.week-tabs{display:flex;background:var(--s2);border-radius:8px;overflow:hidden;border:1px solid var(--border)}
+.wtab{padding:5px 14px;font-size:12px;font-weight:600;font-family:'Barlow Condensed',sans-serif;cursor:pointer;color:var(--muted);letter-spacing:.5px}.wtab.active{background:var(--brand);color:#fff}
+.day-strip{display:flex;padding:10px 16px 6px;overflow-x:auto;scrollbar-width:none}.day-strip::-webkit-scrollbar{display:none}
+.dp{min-width:48px;padding:6px 4px;border-radius:10px;text-align:center;cursor:pointer;flex-shrink:0;border:1.5px solid transparent;transition:all .15s}.dp.today{border-color:var(--brand)}.dp.sel{background:var(--brand)}
+.dp .dn{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}.dp.sel .dn,.dp.sel .dd{color:#fff}.dp .dd{font-size:17px;font-weight:700;font-family:'Barlow Condensed',sans-serif}
+.dpdot{width:5px;height:5px;border-radius:50%;margin:2px auto 0}.dp.sel .dpdot{background:rgba(255,255,255,.5)}
+
+/* ── AGENDA (read-only) ── */
+.agenda{padding:10px 16px 0}.grp-lbl{font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
+.ag-grid{display:grid;grid-template-columns:36px 1fr}.tcol{display:flex;flex-direction:column}
+.tslot{font-size:10px;color:var(--muted);padding-top:4px;text-align:right;padding-right:8px;height:auto;min-height:76px;flex-shrink:0}
+.bcol{display:flex;flex-direction:column;gap:8px;padding-bottom:16px}
+
+/* Service card - read-only */
+.sb{border-radius:11px;overflow:hidden;border:1.5px solid var(--border)}
+.sb.pending .sh{background:var(--s2);border-left:4px solid var(--border)}
+.sb.active .sh{background:var(--ybg);border-left:4px solid var(--yellow)}
+.sb.done .sh{background:var(--gbg);border-left:4px solid var(--green)}
+.sb.active{border-color:var(--yellow)}.sb.done{border-color:var(--green)}
+.sh{padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start}
+.si{flex:1;min-width:0}.sn{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sb.active .sn{color:var(--yellow)}.sb.done .sn{color:var(--green)}
+.str{font-size:11px;margin-top:3px}.sb.pending .str{color:var(--muted)}.sb.active .str{color:#fcd34d}.sb.done .str{color:#93c5fd}
+.sadr{font-size:11px;color:var(--muted);margin-top:2px}
+.sr{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;margin-left:8px}
+.stb{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 7px;border-radius:20px}
+.stp{background:var(--s2);color:var(--muted)}.sta{background:var(--ybg);color:var(--yellow)}.std{background:#052e16;color:#4ade80;border:1px solid #4ade80}
+.chev{font-size:15px;color:var(--muted);transition:transform .2s}.sb.open .chev{transform:rotate(180deg)}
+.sp{display:none;border-top:1px solid var(--border);background:var(--s1);padding:12px}.sb.open .sp{display:block}
+
+/* Time display boxes (read-only) */
+.tr2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:6px}
+.tb{background:var(--s2);border-radius:9px;padding:10px;text-align:center}
+.tbl{font-size:10px;color:var(--muted);margin-bottom:4px}
+.tbv{font-size:22px;font-weight:700;font-family:'Barlow Condensed',sans-serif}
+.tb.has .tbv{color:var(--text)}.tb.empty .tbv{color:var(--border)}
+.tbs{font-size:9px;color:var(--muted);margin-top:2px}
+.dur-row{text-align:center;padding:6px;font-size:12px;color:var(--muted)}
+.dur-row span{color:var(--text);font-weight:600}
+
+/* Shop info card (read-only) */
+.shop-info{background:var(--s2);border:1.5px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.shop-info.active{border-color:var(--green);background:var(--gbg)}
+.shop-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0}
+.shop-lbl{font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:var(--text)}
+.shop-time{font-size:14px;font-weight:700;font-family:'Barlow Condensed',sans-serif;color:var(--green)}
+.shop-none{font-size:12px;color:var(--muted)}
+.shop-divider{border:none;border-top:1px solid var(--border);margin:6px 0}
+
+/* Week grid */
+.wg{padding:10px 16px}.wgh{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:5px}.wgdh{text-align:center;font-size:10px;color:var(--muted);font-weight:600}
+.wgc-wrap{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.wgc{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:5px 3px;min-height:64px;cursor:pointer}.wgc.today{border-color:var(--brand)}.wgc.sel{border-color:var(--brand);background:var(--s2)}
+.wgdn{font-size:9px;color:var(--muted);text-align:center}.wgdd{font-size:15px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;margin-bottom:3px}.wgc.today .wgdd{color:var(--brand)}
+
+/* Bottom nav */
+.bnav{display:none!important}
+.bnav-i{display:flex}.ni{flex:1;text-align:center;cursor:pointer;padding:3px 0;display:flex;flex-direction:column;align-items:center;gap:2px}
+.ni-ic{font-size:19px}.ni-lb{font-size:10px;color:var(--muted);font-weight:600;letter-spacing:.4px}.ni.active .ni-lb{color:var(--brand)}
+
+/* Settings panel */
+#sp{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:100;display:none;align-items:flex-end}#sp.open{display:flex}
+.ssh{background:var(--s1);border-top:1px solid var(--border);border-radius:20px 20px 0 0;padding:22px 18px 38px;width:100%;max-width:430px;margin:0 auto}
+.ssh h3{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:800;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.xb{background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer}
+.sett-emp{background:var(--s2);border:1px solid var(--border);border-radius:11px;padding:14px;margin-bottom:14px}
+.sett-emp-name{font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700;color:var(--brand)}
+.sett-emp-grp{font-size:12px;color:var(--muted);margin-top:3px}
+.btn-outline{width:100%;padding:13px;border-radius:11px;background:none;border:1px solid var(--border);color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:8px}
+.btn-outline:active{border-color:var(--brand);color:var(--brand)}
+
+/* Empty state */
+.no-sv{padding:32px 0;text-align:center;color:var(--muted);font-size:14px;line-height:1.8}.no-sv strong{color:var(--text);font-size:16px;display:block;margin-bottom:6px}
+
+/* Toast */
+.toast{position:fixed;bottom:86px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:9px 16px;font-size:13px;font-weight:600;color:var(--text);opacity:0;transition:all .28s;pointer-events:none;z-index:300;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* Refresh spinner */
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+.spinning{animation:spin .8s linear infinite;display:inline-block}
+</style>
+</head>
+<body>
+
+<!-- ══ SCREEN: SETUP / EMPLOYEE SELECTION ══ -->
+<div id="scrSetup" class="screen active">
+  <div class="setup">
+    <div>
+      <div class="setup-logo">Ana's<em>Calendar</em></div>
+      <div class="setup-co">🌸 Ana's Cleaning Services</div>
+    </div>
+    <div class="setup-sub">Tu horario de servicios</div>
+
+    <div class="card">
+      <h3>Google Drive</h3>
+      <div class="ds" id="driveStatus">Sin conectar — toca para autenticar</div>
+      <button class="btn-drive" id="btnDrive" onclick="connectDrive()">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M6.28 3l5.72 9.9L6.28 3zm-3.7 6.42L.86 13.1c-.4.69-.4 1.53 0 2.22l2.97 5.14h5.94L6.28 15.2 2.58 9.42zm18.84 0L17.72 3l-5.72 9.9 3.44 5.95h5.94l2.97-5.14c.4-.69.4-1.53 0-2.22l-3.69-3.07zm-7.12 8.76H9l-2.22 3.84h10.44l-2.22-3.84z"/></svg>
+        Conectar Drive
+      </button>
+
+      <div id="empSection" style="display:none">
+        <h3>¿Quién eres?</h3>
+        <input type="text" class="emp-search" id="empSearch" placeholder="Busca tu nombre…" oninput="filterEmps()" autocomplete="off">
+        <div class="emp-list" id="empList"></div>
+      </div>
+
+      <div id="empSelected" style="display:none">
+        <h3>Empleado</h3>
+        <div class="emp-selected">
+          <div>
+            <div class="emp-selected-name" id="selEmpName">—</div>
+            <div class="emp-selected-grp" id="selEmpGrp">—</div>
+          </div>
+          <button class="emp-change" onclick="changeEmp()">Cambiar</button>
+        </div>
+      </div>
+
+      <button class="btn" id="btnStart" onclick="startCalendar()" disabled>📅 VER MI CALENDARIO</button>
+
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:4px">
+        <button onclick="loadLocal()" style="width:100%;padding:10px;border-radius:9px;background:none;border:1px solid var(--border);color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;cursor:pointer">📱 Usar localStorage</button>
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--muted);text-align:center;line-height:1.7;max-width:300px">
+      Lee <strong style="color:var(--text)">anaCS_sync.json</strong> desde Drive.<br>Solo lectura — no modifica nada.
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCREEN: AGENDA ══ -->
+<div id="scrAgenda" class="screen">
+  <div class="hdr">
+    <div style="display:flex;align-items:center;gap:9px">
+      <div class="logo">Ana's<em>Calendar</em></div>
+      <div class="badge">ANA'S</div>
+    </div>
+    <div style="display:flex;gap:6px">
+      <button class="hdr-btn" onclick="refreshData()" id="btnRefresh" title="Actualizar">🔄</button>
+      <button class="hdr-btn" id="btnNotes" onclick="openNotesPanel()" title="Notas del supervisor" style="display:none;position:relative;">📝<span id="notesBadge" style="position:absolute;top:-4px;right:-4px;background:#e74c3c;color:white;border-radius:50%;width:14px;height:14px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;"></span></button>
+      <button class="hdr-btn" id="btnSuplente" onclick="openSuplenteModal()" title="Modo Suplente" style="display:none;">🔑</button>
+      <button class="hdr-btn" id="btnSupervisor" onclick="openSupervisorModal()" title="Modo Supervisor" style="display:none;">🔐</button>
+      <button class="hdr-btn" onclick="openSett()">⚙</button>
+      <button id="btnDriveHeader" onclick="connectDriveFromHeader()" 
+        style="border:none;border-radius:8px;padding:5px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;background:#ef4444;color:white;">
+        ☁️ Drive
+      </button>
+    </div>
+  </div>
+  <div class="sync"><div class="sdot" id="syncDot"></div><span id="syncLbl">—</span></div>
+  <div class="week-nav">
+    <div class="week-label" id="weekLabel" style="display:flex;align-items:center;gap:5px;cursor:pointer;">
+      <span id="weekLabelText">—</span>
+      <span style="font-size:0.7rem;opacity:0.6;">✏️</span>
+    </div>
+    <div class="week-tabs">
+      <div class="wtab active" id="tabDay" onclick="setView('day')">DÍA</div>
+      <div class="wtab" id="tabWeek" onclick="setView('week')">SEMANA</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:4px;padding:0 8px;">
+    <button onclick="navWeek(-1)" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:4px 8px;">◀</button>
+    <div class="day-strip" id="dayStrip" style="flex:1;overflow-x:auto;"></div>
+    <button onclick="navWeek(1)" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:4px 8px;">▶</button>
+    <button onclick="irAHoy()" style="background:var(--brand);color:white;border:none;border-radius:6px;padding:4px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;">Hoy</button>
+  </div>
+  <div id="viewDay"><div class="agenda" id="agendaEl"></div></div>
+  <div id="viewWeek" style="display:none"><div class="wg"><div class="wgh" id="wgHead"></div><div class="wgc-wrap" id="wgCells"></div></div></div>
+</div>
+
+<!-- ══ BOTTOM NAV ══ -->
+<div class="bnav" id="bnav">
+  <div class="bnav-i">
+    <div class="ni active" id="niAg" onclick="showTab('agenda')"><div class="ni-ic">📅</div><div class="ni-lb">AGENDA</div></div>
+    <div class="ni" id="niInfo" onclick="showTab('info')"><div class="ni-ic">👤</div><div class="ni-lb" id="niInfoLbl">YO</div></div>
+  </div>
+</div>
+
+<!-- ══ SCREEN: INFO (mi perfil) ══ -->
+<div id="scrInfo" class="screen">
+  <div class="hdr">
+    <div class="logo">Ana's<em>Calendar</em></div>
+  </div>
+  <div style="padding:20px 16px">
+    <h2 style="font-family:'Barlow Condensed',sans-serif;font-size:26px;font-weight:800;margin-bottom:16px">👤 Mi Perfil</h2>
+    <div style="background:var(--s1);border:1px solid var(--border);border-radius:13px;padding:18px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Nombre</div>
+      <div id="infoName" style="font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;color:var(--brand)">—</div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin:12px 0 6px">Grupo asignado</div>
+      <div id="infoGrp" style="font-family:'Barlow Condensed',sans-serif;font-size:18px;font-weight:700">—</div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin:12px 0 6px">Compañeros de grupo</div>
+      <div id="infoTeam" style="font-size:13px;color:var(--muted);line-height:1.8">—</div>
+    </div>
+    <button class="btn-outline" onclick="changeEmpFromInfo()">🔄 Cambiar empleado</button>
+  </div>
+</div>
+
+<!-- ══ SETTINGS SHEET ══ -->
+<div id="sp" onclick="if(event.target.id==='sp')closeSett()">
+  <div class="ssh">
+    <h3>⚙ Configuración <button class="xb" onclick="closeSett()">✕</button></h3>
+  <div style="font-size:0.75rem;color:#888;margin-bottom:10px;">Versión: <strong id="appVerLabel"></strong></div>
+    <div class="sett-emp">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:.5px">EMPLEADO ACTIVO</div>
+      <div class="sett-emp-name" id="settEmpName">—</div>
+      <div class="sett-emp-grp" id="settEmpGrp">—</div>
+    </div>
+    <button class="btn-outline" onclick="changeEmpFromSett()">👤 Cambiar empleado</button>
+    <button class="btn-outline" onclick="refreshData();closeSett()">🔄 Actualizar datos</button>
+    <button class="btn-outline" onclick="disconnectDrive()" style="border-color:#e74c3c;color:#e74c3c;">🔌 Cambiar cuenta de Drive</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Modal Modo Suplente -->
+<div id="suplenteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:16px;width:90%;max-width:340px;padding:24px;">
+    <h3 style="margin:0 0 6px;color:#e67e22;">🔑 Modo Suplente</h3>
+    <p style="font-size:0.83rem;color:#666;margin:0 0 16px;">Ingresa la clave de 4 dígitos proporcionada por el supervisor.</p>
+    <input type="password" id="suplentePin" maxlength="4" placeholder="••••"
+      style="width:100%;padding:14px;border:2px solid #e67e22;border-radius:8px;font-size:1.8rem;text-align:center;letter-spacing:8px;box-sizing:border-box;margin-bottom:10px;"
+      oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <div id="suplenteError" style="color:#e74c3c;font-size:0.82rem;min-height:18px;margin-bottom:10px;text-align:center;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeSuplenteModal()" style="flex:1;padding:12px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;cursor:pointer;font-weight:700;">Cancelar</button>
+      <button onclick="activarModoSuplente()" style="flex:2;padding:12px;background:#e67e22;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.95rem;">✅ Activar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Modo Supervisor -->
+<div id="supervisorModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:3000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:16px;width:90%;max-width:340px;padding:24px;">
+    <h3 style="margin:0 0 6px;color:#6c3483;">🔐 Modo Supervisor</h3>
+    <p style="font-size:0.83rem;color:#666;margin:0 0 16px;">Ingresa el PIN del supervisor para activar la edición del calendario.</p>
+    <input type="password" id="supervisorPinInput" maxlength="8" placeholder="••••"
+      style="width:100%;padding:14px;border:2px solid #6c3483;border-radius:8px;font-size:1.8rem;text-align:center;letter-spacing:8px;box-sizing:border-box;margin-bottom:10px;"
+      oninput="this.value=this.value.replace(/[^0-9]/g,'')">
+    <div id="supervisorPinError" style="color:#e74c3c;font-size:0.82rem;min-height:18px;margin-bottom:10px;text-align:center;"></div>
+    <div style="display:flex;gap:8px;">
+      <button onclick="closeSupervisorModal()" style="flex:1;padding:12px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:8px;cursor:pointer;font-weight:700;">Cancelar</button>
+      <button onclick="activarModoSupervisor()" style="flex:2;padding:12px;background:#6c3483;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:700;font-size:0.95rem;">✅ Activar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Panel de Notas del Supervisor -->
+<div id="notesPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:3000;align-items:flex-end;justify-content:center;">
+  <div style="background:white;border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:75vh;overflow-y:auto;padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 style="margin:0;color:#2c3e50;">📝 Notas del Supervisor</h3>
+      <button onclick="closeNotesPanel()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
+    </div>
+    <div id="notesPanelContent"></div>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID='701976049654-i973ja306ann8aicdid54lpmnn3u64pb.apps.googleusercontent.com';
+const SCOPES='https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly';
+const FOLDER='AnasCleaningApp', FILE='anaCS_sync.json', RFILE='quiktrack_ana_reports.json';
+const RPTS_KEY='qt_bra_reports';
+const SESS='ac_bra_sess', TKEY='anas_drive_token', TEXP='anas_drive_token_expiry', LSYNC='ac_last_drive_sync';
+const DAYS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+const MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+// App state
+const S={
+  driveToken:null, folderId:null, reportsFileId:null,
+  grupos:{}, servs:[], clis:[], emps:[], reports:{}, responsables:{},
+  empId:null, empName:'', group:'',
+  selectedDate:'', weekStart:'', view:'day'
+};
+
+// All employees flattened with their group
+let allEmpsList = [];
+
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible'){
+    updateDriveHeaderBtn();
+    // refreshData() se encarga de re-auth silencioso si el token expiró
+    setTimeout(()=>{ try{ refreshData() }catch(e){} }, 800);
+  }
+});
+
+// Auto-sync cada 3 minutos
+setInterval(()=>{ try{ if(S.driveToken && S.folderId) refreshData(); }catch(e){} }, 3 * 60 * 1000);
+
+window.addEventListener('DOMContentLoaded',()=>{
+  setTimeout(checkForUpdate, 3000);
+  const tok=localStorage.getItem(TKEY), exp=parseInt(localStorage.getItem(TEXP)||'0');
+  if(tok && Date.now()<exp){
+    S.driveToken=tok; markConnected();
+    loadSyncFile().then(()=>{
+      tryRestoreSession();
+    });
+  } else {
+    // Token expirado — restaurar sesión local primero, luego reconectar Drive
+    tryRestoreSession();
+    // Si hubo sesión guardada, intentar reconectar Drive automáticamente
+    if(tok && typeof google !== 'undefined'){
+      setTimeout(()=>{
+        try{
+          const tc2=google.accounts.oauth2.initTokenClient({
+            client_id:CLIENT_ID, scope:SCOPES,
+            callback:async(r)=>{
+              if(r.error) return;
+              S.driveToken=r.access_token;
+              localStorage.setItem(TKEY,r.access_token);
+              localStorage.setItem(TEXP,(Date.now()+(r.expires_in||3600)*1000).toString());
+              markConnected();
+              await loadSyncFile();
+            }
+          });
+          tc2.requestAccessToken({prompt:''});
+        }catch(e){}
+      }, 1000);
+    }
+  }
+});
+
+function tryRestoreSession(){
+  try{
+    const sess=JSON.parse(localStorage.getItem(SESS)||'null');
+    if(sess && sess.empId && sess.group){
+      Object.assign(S, sess);
+      if(S.emps && S.emps.length) buildEmpsList();
+      showEmpSelected(S.empName, S.group);
+      launch(false);
+      const tok=localStorage.getItem(TKEY);
+      // Siempre intentar refreshData — si el token expiró, refreshData hará re-auth silencioso
+      if(tok){ setTimeout(()=>refreshData(), 1500); }
+      setTimeout(updateDriveHeaderBtn, 500);
+      try{checkBtnSuplente();}catch(e){} try{checkBtnSupervisor();}catch(e2){}
+      return;
+    }
+  }catch(e){}
+}
+
+/* ── DRIVE AUTH ── */
+let tc=null;
+function connectDrive(){
+  if(S.driveToken){loadSyncFile();return;}
+  if(typeof google==='undefined'){setDS('err','⚠ Google API no cargó');return;}
+
+  // Intenta autenticación silenciosa primero; solo muestra pantalla de cuenta
+  // si Google devuelve interaction_required (primera vez o sesión expirada).
+  const _onToken = async(r)=>{
+    if(r.error){
+      // interaction_required / access_denied → necesita pantalla de cuenta
+      const needsUI = ['interaction_required','user_cancelled_auth_flow','access_denied'].includes(r.error);
+      if(needsUI && !_connectDriveForcedUI){
+        _connectDriveForcedUI = true;
+        tc.requestAccessToken({prompt:'select_account', login_hint:'anacsrobinson2026@gmail.com'});
+      } else if(!needsUI){
+        setDS('err','⚠ '+r.error);
+      }
+      return;
+    }
+    S.driveToken=r.access_token;
+    localStorage.setItem(TKEY,r.access_token);
+    localStorage.setItem(TEXP,(Date.now()+(r.expires_in||3600)*1000).toString());
+    markConnected();
+    await loadSyncFile();
+    // Subir horarios pendientes en localStorage que no se pudieron subir antes
+    if(S.group){ setTimeout(function(){ try{ saveHorariosToDrive(); }catch(e){} }, 1000); }
+    // Iniciar refresh silencioso cada 50 minutos
+    startSilentRefresh();
+  };
+
+  let _connectDriveForcedUI = false;
+  tc = google.accounts.oauth2.initTokenClient({client_id:CLIENT_ID, scope:SCOPES, callback:_onToken});
+  // Primer intento: silencioso (sin pantalla de verificación si ya hay sesión de Google activa)
+  tc.requestAccessToken({prompt:'', login_hint:'anacsrobinson2026@gmail.com'});
+}
+
+let _silentRefreshInterval = null;
+function startSilentRefresh(){
+  if(_silentRefreshInterval) clearInterval(_silentRefreshInterval);
+  _silentRefreshInterval = setInterval(function(){
+    if(typeof google==='undefined' || !tc) return;
+    try{
+      // Solicitar nuevo token silenciosamente sin prompt
+      const tcSilent = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        prompt: '',
+        callback: function(r){
+          if(r.error){ 
+            console.warn('Silent refresh failed:', r.error);
+            sdot('err','Reconecta Drive');
+            return; 
+          }
+          S.driveToken = r.access_token;
+          localStorage.setItem(TKEY, r.access_token);
+          localStorage.setItem(TEXP, (Date.now()+(r.expires_in||3600)*1000).toString());
+          console.log('Token renovado silenciosamente');
+        }
+      });
+      tcSilent.requestAccessToken({prompt:''});
+    }catch(e){ console.warn('Silent refresh error:', e); }
+  }, 50 * 60 * 1000); // cada 50 minutos
+}
+function markConnected(){
+  const b=document.getElementById('btnDrive');
+  b.classList.add('connected');
+  b.innerHTML='✅ Drive conectado';
+  updateDriveHeaderBtn();
+}
+
+async function loadSyncFile(){
+  setDS('spin','Buscando datos…');
+  try{
+    const fr=await dGet(`https://www.googleapis.com/drive/v3/files?q=name='${FOLDER}'+and+mimeType='application/vnd.google-apps.folder'+and+trashed=false&fields=files(id)`);
+    if(!fr.files||!fr.files.length){setDS('err',`⚠ Carpeta "${FOLDER}" no encontrada`);return;}
+    S.folderId=fr.files[0].id;
+    const sr=await dGet(`https://www.googleapis.com/drive/v3/files?q=name='${FILE}'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id,modifiedTime)`);
+    if(!sr.files||!sr.files.length){setDS('err',`⚠ ${FILE} no encontrado`);return;}
+    const data=await dGet(`https://www.googleapis.com/drive/v3/files/${sr.files[0].id}?alt=media`);
+    if(!data||data.exportType!=='anaCS_sync'){setDS('err','⚠ Archivo inválido');return;}
+    S.grupos=data.grupos||{}; S.servs=data.servs||[]; S.clis=data.clis||[]; S.emps=data.emps||[];
+    S.cellNotes=data.cellNotes||{};
+    if(data.clavesSuplente) S.clavesSuplente=data.clavesSuplente;
+    if(data.supervisorPin) S.supervisorPin=data.supervisorPin;
+    const mod=new Date(sr.files[0].modifiedTime).toLocaleString('es-MX',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+    localStorage.setItem(LSYNC, Date.now().toString());
+    hideStaleWarning();
+    setDS('ok',`✅ ${S.servs.length} servicios · ${mod}`);
+    // Si ya hay grupo seleccionado (sesión restaurada), descargar horarios
+    try{ await loadHorariosFromDrive(); }catch(e){}
+    buildEmpsList();
+    // Validar que el grupo guardado siga existiendo en los datos frescos
+    if(S.empId && S.group && !S.grupos[S.group]){
+      // El grupo fue renombrado o el empleado cambió de grupo — pedir re-selección
+      toast(`⚠️ Tu grupo "${S.group}" cambió. Por favor selecciona tu nombre de nuevo.`);
+      S.empId=null; S.empName=''; S.group='';
+      localStorage.removeItem(SESS);
+      showEmpSection();
+      renderView();
+      try{checkNotesBadge();}catch(e2){}
+      return;
+    }
+    // Solo mostrar pantalla de selección si NO hay empleado ya seleccionado
+    if(!S.empId){
+      showEmpSection();
+    } else {
+      showEmpSelected(S.empName, S.group);
+    }
+    renderView();
+    try{checkNotesBadge();}catch(e2){}
+  }catch(e){setDS('err','⚠ '+e.message);if(e.status===401){S.driveToken=null;localStorage.removeItem(TKEY);}}
+  try{checkNotesBadge();}catch(e3){}
+}
+
+async function dGet(url){
+  const r=await fetch(url,{headers:{Authorization:`Bearer ${S.driveToken}`}});
+  if(!r.ok){const e=new Error(await r.text());e.status=r.status;throw e;}
+  return r.json();
+}
+
+async function saveHorariosToDrive(){
+  if(!S.driveToken||!S.folderId||!S.selectedDate) return;
+  const exp=parseInt(localStorage.getItem(TEXP)||'0');
+  if(exp && Date.now() > exp){
+    S.driveToken=null;
+    sdot('err','Token expirado — reconecta Drive');
+    toast('⚠️ Token expirado. Reconecta Drive para subir horarios.');
+    return;
+  }
+  try{
+    var date=S.selectedDate;
+    var fname=horariosFile(date), key=horariosKey(date);
+    var data=JSON.parse(localStorage.getItem(key)||'{}');
+    if(!Object.keys(data).length) return;
+    // Merge con Drive para no sobreescribir datos de otros empleados
+    var sr=await dGet("https://www.googleapis.com/drive/v3/files?q=name='"+fname+"'+and+'"+S.folderId+"'+in+parents+and+trashed=false&fields=files(id)");
+    var merged=Object.assign({},data);
+    if(sr.files&&sr.files.length){
+      try{
+        var driveData=await dGet('https://www.googleapis.com/drive/v3/files/'+sr.files[0].id+'?alt=media');
+        // Merge: para cada empId en Drive, conservar si no está en local
+        Object.keys(driveData||{}).forEach(function(eid){
+          if(!merged[eid]) merged[eid]=driveData[eid];
+          else{
+            // Local gana si es más reciente
+            var lt=new Date(merged[eid].savedAt||0).getTime();
+            var dt=new Date(driveData[eid].savedAt||0).getTime();
+            if(dt>lt) merged[eid]=driveData[eid];
+          }
+        });
+      }catch(e2){}
+    }
+    var form=new FormData(), blob=new Blob([JSON.stringify(merged)],{type:'application/json'});
+    var url2,method;
+    if(sr.files&&sr.files.length){
+      form.append('metadata',new Blob([JSON.stringify({name:fname})],{type:'application/json'}));
+      form.append('file',blob);
+      url2='https://www.googleapis.com/upload/drive/v3/files/'+sr.files[0].id+'?uploadType=multipart';
+      method='PATCH';
+    } else {
+      form.append('metadata',new Blob([JSON.stringify({name:fname,parents:[S.folderId]})],{type:'application/json'}));
+      form.append('file',blob);
+      url2='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+      method='POST';
+    }
+    await fetch(url2,{method:method,headers:{Authorization:'Bearer '+S.driveToken},body:form});
+    sdot('ok','Sync '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){
+    console.warn('saveHorariosToDrive:',e.message);
+    if(e.status===401){
+      S.driveToken=null;
+      localStorage.removeItem(TKEY);
+      toast('⚠️ Token expirado. Reconecta Drive para subir horarios.');
+      sdot('err','Reconecta Drive');
+    }
+  }
+}
+
+async function saveReportsToDrive(){
+  if(!S.driveToken || !S.folderId) return;
+  try {
+    const localRpts = suplenteGetReports();
+    // Solo subir si hay datos locales para guardar
+    if(!localRpts || Object.keys(localRpts).length === 0) return;
+    // Mezclar con lo que ya está en Drive para no sobreescribir
+    const sr = await dGet(`https://www.googleapis.com/drive/v3/files?q=name='quiktrack_reports.json'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id)`);
+    let allRpts = localRpts;
+    if(sr.files && sr.files.length){
+      try {
+        const driveRpts = await dGet(`https://www.googleapis.com/drive/v3/files/${sr.files[0].id}?alt=media`);
+        // Mezclar Drive + local (local tiene prioridad)
+        allRpts = {...(driveRpts||{})};
+        Object.keys(localRpts).forEach(date=>{
+          if(!allRpts[date]) allRpts[date]={};
+          Object.keys(localRpts[date]).forEach(group=>{
+            if(!allRpts[date][group]) allRpts[date][group]=localRpts[date][group];
+            else {
+              localRpts[date][group].services.forEach(ls=>{
+                const idx=allRpts[date][group].services.findIndex(s=>String(s.id)===String(ls.id));
+                if(idx>=0) allRpts[date][group].services[idx]=ls;
+                else allRpts[date][group].services.push(ls);
+              });
+            }
+          });
+        });
+      } catch(e2){}
+    }
+    const blob = new Blob([JSON.stringify(allRpts)], {type:'application/json'});
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({name:'quiktrack_reports.json'})], {type:'application/json'}));
+    form.append('file', blob);
+    let url, method;
+    if(sr.files && sr.files.length){
+      url = `https://www.googleapis.com/upload/drive/v3/files/${sr.files[0].id}?uploadType=multipart`;
+      method = 'PATCH';
+    } else {
+      url = `https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart`;
+      method = 'POST';
+      form.set('metadata', new Blob([JSON.stringify({name:'quiktrack_reports.json', parents:[S.folderId]})], {type:'application/json'}));
+    }
+    await fetch(url, {method, headers:{Authorization:`Bearer ${S.driveToken}`}, body:form});
+    toast('✅ Reporte guardado en Drive');
+  } catch(e) {
+    toast('⚠️ Error guardando reporte: ' + e.message);
+  }
+}
+
+async function saveSyncToDrive(){
+  if(!S.driveToken || !S.folderId) { toast('⚠️ Conecta Drive primero'); return false; }
+  try {
+    // Buscar el archivo en Drive
+    const sr = await dGet(`https://www.googleapis.com/drive/v3/files?q=name='anaCS_sync.json'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id)`);
+    if(!sr.files||!sr.files.length){ toast('⚠️ No se encontró anaCS_sync.json'); return false; }
+    const fileId = sr.files[0].id;
+    // Construir el JSON actualizado
+    const data = {
+      exportType: 'anaCS_sync',
+      exportDate: new Date().toISOString(),
+      lastSavedAt: new Date().toISOString(),
+      emps: S.emps, clis: S.clis, servs: S.servs,
+      grupos: S.grupos, cellNotes: S.cellNotes||{},
+      supervisorPin: S.supervisorPin||'1234',
+      clavesSuplente: S.clavesSuplente||[]
+    };
+    const blob = new Blob([JSON.stringify(data)], {type:'application/json'});
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({name:'anaCS_sync.json'})], {type:'application/json'}));
+    form.append('file', blob);
+    const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
+      {method:'PATCH', headers:{Authorization:`Bearer ${S.driveToken}`}, body:form});
+    if(!res.ok) throw new Error(await res.text());
+    toast('✅ Cambios guardados en Drive');
+    return true;
+  } catch(e) {
+    toast('❌ Error al guardar: ' + e.message);
+    return false;
+  }
+}
+async function loadHorariosFromDrive(){
+  if(!S.driveToken || !S.folderId) return;
+  try{
+    // Cargar archivos de las últimas 2 semanas + próximas 2 semanas
+    const dates=[];
+    const base=new Date(today()+'T12:00:00');
+    for(let i=-14;i<=14;i++){
+      const d=new Date(base); d.setDate(d.getDate()+i);
+      dates.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+    }
+    S.reports={};
+    await Promise.all(dates.map(async function(date){
+      var fname=horariosFile(date), key=horariosKey(date);
+      var local=JSON.parse(localStorage.getItem(key)||'{}');
+      try{
+        var sr=await dGet("https://www.googleapis.com/drive/v3/files?q=name='"+fname+"'+and+'"+S.folderId+"'+in+parents+and+trashed=false&fields=files(id)");
+        if(!sr.files||!sr.files.length){
+          // No en Drive — guardar local si hay datos
+          if(Object.keys(local).length){
+            if(!S.reports[date]) S.reports[date]={};
+            Object.keys(local).forEach(function(eid){ S.reports[date][eid]=local[eid]; });
+          }
+          return;
+        }
+        var drive=await dGet('https://www.googleapis.com/drive/v3/files/'+sr.files[0].id+'?alt=media');
+        // Merge: para cada empId, el más reciente gana
+        var merged=Object.assign({},drive||{});
+        Object.keys(local).forEach(function(eid){
+          var lt=new Date((local[eid]||{}).savedAt||0).getTime();
+          var dt=new Date((merged[eid]||{}).savedAt||0).getTime();
+          if(lt>=dt) merged[eid]=local[eid];
+        });
+        localStorage.setItem(key,JSON.stringify(merged));
+        if(!S.reports[date]) S.reports[date]={};
+        Object.keys(merged).forEach(function(eid){ S.reports[date][eid]=merged[eid]; });
+      }catch(e2){
+        // Error descargando — usar local
+        if(Object.keys(local).length){
+          if(!S.reports[date]) S.reports[date]={};
+          Object.keys(local).forEach(function(eid){ S.reports[date][eid]=local[eid]; });
+        }
+      }
+    }));
+    toast('✅ Horarios sincronizados');
+  }catch(e){ console.warn('loadHorariosFromDrive:',e.message); }
+}
+
+
+function updateDriveHeaderBtn(){
+  const btn = document.getElementById('btnDriveHeader');
+  if(!btn) return;
+  const exp = parseInt(localStorage.getItem(TEXP)||'0');
+  if(S.driveToken && exp && Date.now() < exp){
+    btn.style.background = '#22c55e'; // Verde — conectado
+    btn.textContent = '☁️ Drive ✓';
+    btn.title = 'Drive conectado — toca para reconectar';
+  } else if(S.driveToken && (!exp || Date.now() >= exp)){
+    btn.style.background = '#ef4444'; // Rojo — token expirado
+    btn.textContent = '☁️ Drive ⚠';
+    btn.title = 'Token expirado — toca para reconectar';
+  } else {
+    btn.style.background = '#ef4444'; // Rojo — desconectado
+    btn.textContent = '☁️ Drive';
+    btn.title = 'Toca para conectar Drive';
+  }
+}
+
+function connectDriveFromHeader(){
+  // Si token válido — reconectar de todas formas para refrescar
+  S.driveToken = null;
+  localStorage.removeItem(TKEY);
+  const btn = document.getElementById('btnDriveHeader');
+  if(btn){ btn.style.background = '#f59e0b'; btn.textContent = '☁️ Conectando...'; }
+  connectDrive();
+}
+
+
+function setDS(t,m){
+  const el=document.getElementById('driveStatus');
+  el.textContent=m; el.className='ds'+(t==='ok'?' ok':t==='err'?' err':'');
+  sdot(t);
+}
+function sdot(t,m){
+  const d=document.getElementById('syncDot'),l=document.getElementById('syncLbl');
+  if(d)d.className='sdot '+(t==='ok'?'ok':t==='err'?'err':t==='spin'?'spin':'');
+  if(l&&m)l.textContent=m;
+}
+
+/* ── STALE DATA WARNING ── */
+function showStaleWarning(){
+  if(document.getElementById('_staleWarn')) return;
+  const agenda=document.getElementById('scrAgenda');
+  if(!agenda||!agenda.classList.contains('active')) return;
+  const w=document.createElement('div');
+  w.id='_staleWarn';
+  w.style.cssText='position:sticky;top:42px;left:0;right:0;background:#7c2d12;border-bottom:2px solid #f59e0b;padding:10px 16px;z-index:35;display:flex;align-items:center;justify-content:space-between;font-family:Barlow,sans-serif;font-size:12px;color:#fed7aa;gap:8px;';
+  const lsync=parseInt(localStorage.getItem(LSYNC)||'0');
+  let agoText='desconocido';
+  if(lsync){const m=Math.round((Date.now()-lsync)/60000);agoText=m<60?`hace ${m} min`:`hace ${Math.round(m/60)}h`;}
+  w.innerHTML=`<span>⚠️ <strong>Sin conexión a Drive</strong> — estos datos son locales (${agoText}). Podrían faltar servicios del día.</span>`+
+    `<button onclick="connectDrive()" style="background:#f59e0b;color:#0f1117;border:none;border-radius:6px;font-size:11px;font-weight:800;padding:5px 11px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;white-space:nowrap;flex-shrink:0;">🔄 Reconectar</button>`;
+  const sync=agenda.querySelector('.sync');
+  if(sync) sync.after(w); else agenda.prepend(w);
+}
+function hideStaleWarning(){
+  const w=document.getElementById('_staleWarn');
+  if(w) w.remove();
+}
+
+/* ── EMPLOYEE LIST ── */
+function buildEmpsList(){
+  allEmpsList=[];
+  Object.keys(S.grupos).forEach(grp=>{
+    const memberIds=(S.grupos[grp]||[]).map(String);
+    memberIds.forEach(mid=>{
+      const emp=S.emps.find(e=>String(e.id)===mid);
+      if(emp){
+        const name=(emp.name||(emp.firstName+' '+(emp.lastName||'')).trim()).trim();
+        if(name) allEmpsList.push({id:mid, name, group:grp});
+      }
+    });
+  });
+  allEmpsList.sort((a,b)=>a.name.localeCompare(b.name));
+  renderEmpList('');
+  // Si hay un empleado guardado, verificar que siga en la lista
+  if(S.empId){
+    const stillExists=allEmpsList.find(e=>String(e.id)===String(S.empId));
+    if(stillExists && stillExists.group !== S.group){
+      // El empleado cambió de grupo en los datos frescos → actualizar
+      S.group = stillExists.group;
+      saveSess();
+    }
+  }
+}
+
+function showEmpSection(){
+  document.getElementById('empSection').style.display='block';
+  // Add listener to weekLabel if not already added
+  const wl = document.getElementById('weekLabel');
+  if (wl && !wl._hasEmpListener) {
+    wl._hasEmpListener = true;
+    wl.addEventListener('click', function(){ showEmpSection(); });
+  }
+  // If we already have a saved employee, show selected state
+  if(S.empId){
+    showEmpSelected(S.empName, S.group);
+  }
+}
+
+function renderEmpList(filter){
+  const list=document.getElementById('empList');
+  const filtered=filter
+    ? allEmpsList.filter(e=>e.name.toLowerCase().includes(filter.toLowerCase()))
+    : allEmpsList;
+  if(!filtered.length){
+    list.innerHTML='<div style="padding:12px 14px;font-size:13px;color:var(--muted)">No se encontró ningún empleado</div>';
+    return;
+  }
+  list.innerHTML=filtered.map(e=>`
+    <div class="emp-item" onclick="selectEmp('${e.id}','${e.name.replace(/'/g,"\\'")}','${e.group.replace(/'/g,"\\'")}')">
+      <div>${e.name}</div>
+      <div class="emp-grp">👥 ${e.group}</div>
+    </div>`).join('');
+}
+
+function filterEmps(){
+  const q=document.getElementById('empSearch').value;
+  renderEmpList(q);
+}
+
+function selectEmp(id, name, group){
+  S.empId=id; S.empName=name; S.group=group;
+  showEmpSelected(name, group);
+  document.getElementById('btnStart').disabled=false;
+  toast(`✅ ${name} seleccionado/a`);
+}
+
+function showEmpSelected(name, group){
+  document.getElementById('empSection').style.display='none';
+  document.getElementById('empSelected').style.display='block';
+  document.getElementById('selEmpName').textContent=name;
+  document.getElementById('selEmpGrp').textContent='👥 '+group;
+  const niLbl=document.getElementById('niInfoLbl');
+  if(niLbl) niLbl.textContent=name.split(' ')[0]; // primer nombre
+  document.getElementById('btnStart').disabled=false;
+}
+
+function changeEmp(){
+  document.getElementById('empSelected').style.display='none';
+  document.getElementById('empSection').style.display='block';
+  document.getElementById('empSearch').value='';
+  renderEmpList('');
+  document.getElementById('btnStart').disabled=true;
+  S.empId=null; S.empName=''; S.group='';
+}
+
+/* ── START ── */
+function startCalendar(){
+  if(!S.empId){toast('⚠ Selecciona tu nombre primero');return;}
+  S.selectedDate=today();
+  S.weekStart=mondayOf(S.selectedDate);
+  S.view='day';
+  launch(true);
+}
+
+function launch(save){
+  if(save) saveSess();
+  document.getElementById('scrSetup').classList.remove('active');
+  document.getElementById('scrAgenda').classList.add('active');
+  document.getElementById('bnav').style.display='block';
+  sdot('ok', S.driveToken?`Drive · ${FILE}`:'Datos locales');
+  document.getElementById('syncLbl').textContent=S.driveToken?`Drive · ${FILE}`:'Datos locales';
+  buildStrip(); renderView();
+  updateInfoScreen();
+  try{checkNotesBadge();}catch(e){}
+  // Si no hay Drive activo al lanzar, avisar que los datos pueden estar desactualizados
+  if(!S.driveToken){ setTimeout(showStaleWarning, 400); }
+}
+
+/* ── WEEK STRIP ── */
+function navWeek(delta){
+  S.weekStart=addDays(S.weekStart, delta*7);
+  saveSess(); buildStrip();
+}
+
+function irAHoy(){
+  S.selectedDate=today();
+  S.weekStart=mondayOf(today());
+  saveSess(); buildStrip(); renderView();
+}
+
+function buildStrip(){
+  const wl = document.getElementById('weekLabel');
+  if (wl && !wl._hasEmpListener) {
+    wl._hasEmpListener = true;
+    wl.addEventListener('click', function(){ showEmpSection(); });
+  }
+  const strip=document.getElementById('dayStrip'); strip.innerHTML='';
+  const td=today();
+  for(let i=0;i<14;i++){
+    const d=addDays(S.weekStart,i), svcs=getSvcs(d);
+    const rpts=getReportsForDay(d);
+    const done=svcs.some(s=>rpts[s.id]?.status==='done');
+    const act=svcs.some(s=>rpts[s.id]?.status==='active');
+    const dc=done?'var(--green)':act?'var(--yellow)':svcs.length?'var(--brand)':'transparent';
+    const dObj=new Date(d+'T12:00:00'), pill=document.createElement('div');
+    pill.className='dp'+(d===td?' today':'')+(d===S.selectedDate?' sel':'');
+    pill.innerHTML=`<div class="dn">${DAYS[dObj.getDay()]}</div><div class="dd">${dObj.getDate()}</div><div class="dpdot" style="background:${dc}"></div>`;
+    pill.onclick=()=>{S.selectedDate=d;saveSess();buildStrip();renderView();};
+    strip.appendChild(pill);
+  }
+  const pills=strip.querySelectorAll('.dp'), idx=[...pills].findIndex(p=>p.classList.contains('sel'));
+  if(idx>=0) pills[idx].scrollIntoView({inline:'center',behavior:'smooth'});
+}
+
+function setView(v){
+  S.view=v;
+  document.getElementById('tabDay').classList.toggle('active',v==='day');
+  document.getElementById('tabWeek').classList.toggle('active',v==='week');
+  document.getElementById('viewDay').style.display=v==='day'?'block':'none';
+  document.getElementById('viewWeek').style.display=v==='week'?'block':'none';
+  renderView();
+}
+function esResponsable(){
+  const hoy=today();
+  return !!(S.responsables&&S.responsables[hoy]&&S.group&&String(S.responsables[hoy][S.group])===String(S.empId));
+}
+
+function renderView(){
+  const d=new Date(S.selectedDate+'T12:00:00');
+  const ws=new Date(S.weekStart+'T12:00:00'), we=new Date(ws); we.setDate(we.getDate()+13);
+  const monthLabel = ws.getMonth()===we.getMonth()
+    ? MON[ws.getMonth()]+' '+ws.getFullYear()
+    : MON[ws.getMonth()]+' – '+MON[we.getMonth()]+' '+we.getFullYear();
+  const firstName = (S.empName||'').split(' ')[0];
+  const grpLabel = S.group ? S.group.replace('Grupo ','G') : '';
+  const empGrpLabel = (grpLabel && firstName) ? `${grpLabel} · ${firstName}` : (grpLabel || firstName || monthLabel);
+  const wlt = document.getElementById('weekLabelText');
+  if (wlt) wlt.textContent = empGrpLabel + ' · ' + monthLabel;
+  S.view==='day'?renderAgenda():renderWeek();
+}
+
+/* ── AGENDA (read-only) ── */
+function getReportsForDay(date){
+  if(!S.reports||!S.reports[date]) return {};
+  // Combinar registros de todos los empleados del grupo
+  var acc={};
+  Object.values(S.reports[date]).forEach(function(empData){
+    if(empData&&empData.services) empData.services.forEach(function(svc){
+      if(!acc[svc.id] || (svc.checkin && !acc[svc.id].checkin) || (svc.checkout && !acc[svc.id].checkout)){
+        acc[svc.id]=svc;
+      }
+    });
+  });
+  return acc;
+}
+
+function renderAgenda(){
+  const el=document.getElementById('agendaEl'); el.innerHTML='';
+  const svcs=getSvcs(S.selectedDate);
+  const rpts=getReportsForDay(S.selectedDate);
+  // Combinar shopOut/shopBack de todos los empleados del grupo
+  var dayRpt=null;
+  if(S.reports&&S.reports[S.selectedDate]){
+    dayRpt=Object.assign({},S.reports[S.selectedDate][S.empId]||Object.values(S.reports[S.selectedDate])[0]||{});
+    Object.values(S.reports[S.selectedDate]).forEach(function(empData){
+      if(!dayRpt.shopOut && empData.shopOut) dayRpt.shopOut=empData.shopOut;
+      if(!dayRpt.shopBack && empData.shopBack) dayRpt.shopBack=empData.shopBack;
+    });
+  }
+
+  if(!svcs.length){
+    el.innerHTML=`<div class="no-sv"><strong>Sin servicios</strong>No hay servicios para hoy.<br>¡Día libre! 🎉</div>`;
+    return;
+  }
+
+  el.innerHTML="";
+
+  // ── Banner: Responsable del Día ──
+  {
+    const soy=esResponsable();
+    const hoy=today();
+    const respId=S.responsables&&S.responsables[hoy]&&S.group?S.responsables[hoy][S.group]:null;
+    const respEmp=respId?(S.emps||[]).find(e=>String(e.id)===String(respId)):null;
+    const banner=document.createElement('div');
+    if(soy){
+      banner.style.cssText='background:linear-gradient(135deg,#27ae60,#2ecc71);color:white;padding:10px 14px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.88rem;';
+      banner.innerHTML='⭐ Eres la Responsable del Día — registra los horarios del grupo';
+    } else if(respEmp){
+      banner.style.cssText='background:var(--s2);border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:10px;margin-bottom:10px;font-size:0.82rem;';
+      banner.innerHTML=`⭐ Responsable hoy: <strong style="color:var(--text)">${respEmp.name}</strong>`;
+    }
+    if(banner.innerHTML) el.appendChild(banner);
+  }
+
+  // ── Banda delgada: Salida del Shop (arriba) ──
+  {
+    const soVal=dayRpt?.shopOut||'';
+    const canEdit=esResponsable();
+    const bandOut=document.createElement('div');
+    bandOut.id='shopOutBand';
+    bandOut.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-bottom:8px;background:var(--s2);border:1px solid '+(soVal?'#f59e0b':'var(--border)')+';border-radius:10px;'+(canEdit?'cursor:pointer;':'');
+    bandOut.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:13px;">🚐</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Salida del Shop</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${soVal?'#f59e0b':'var(--muted)'};">${soVal?fmt12(soVal):(canEdit?'— Toca para registrar':'—')}</span>
+        ${canEdit?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
+      </div>`;
+    if(canEdit) bandOut.onclick=()=>openShopTimeEditor('shopOut', soVal);
+    el.appendChild(bandOut);
+  }
+
+  const grid=document.createElement('div'); grid.className='ag-grid';
+  const tc=document.createElement('div'); tc.className='tcol';
+  const bc=document.createElement('div'); bc.className='bcol';
+
+  svcs.forEach(svc=>{
+    const rpt=rpts[svc.id]||{status:'pending',checkin:null,checkout:null};
+    // Buscar si el servicio está cancelado en S.servs
+    const origSvc=(S.servs||[]).find(s=>String(s.id)===String(svc.id));
+    const isCancelled=!!(origSvc&&origSvc.cancelled);
+    const st=isCancelled?'cancelled':(rpt.status||'pending');
+    const sc=st==='done'?'std':st==='active'?'sta':st==='cancelled'?'stp':'stp';
+    const sx=st==='done'?'Terminado':st==='active'?'En servicio':st==='cancelled'?'❌ Cancelado':'Pendiente';
+
+    const tl=document.createElement('div');
+    tl.className='tslot';
+    tl.textContent=svc.scheduledStart?fmt12s(svc.scheduledStart):'';
+    tc.appendChild(tl);
+
+    const blk=document.createElement('div');
+    blk.className=`sb ${st}`;
+    blk.id=`blk_${svc.id}`;
+    if(isCancelled){
+      blk.style.opacity='0.6';
+      blk.style.textDecoration='line-through';
+      blk.style.textDecorationColor='#ef4444';
+      blk.style.textDecorationThickness='2px';
+      blk.style.border='1px solid #ef4444';
+    }
+
+    const timeStr=bts(svc,rpt);
+    const hasCheckin=!!(rpt.checkin);
+    const hasCheckout=!!(rpt.checkout);
+    const dur=(rpt.checkin&&rpt.checkout)?calcDur(rpt.checkin,rpt.checkout):null;
+    const sid=String(svc.id).replace(/[^a-zA-Z0-9]/g,'_');
+    window._sids=window._sids||{}; window._sids[sid]=svc.id;
+
+    blk.innerHTML=`
+      <div class="sh" onclick="tog('${String(svc.id).replace(/[^a-zA-Z0-9]/g,'_')}')">
+        <div class="si">
+          <div class="sn">${svc.clientName}</div>
+          <div class="str">${timeStr}</div>
+          <div class="sadr">${svc.address}</div>
+          ${svc.airbnbNote?`<div style="font-size:0.75rem;color:#e65100;margin-top:2px;font-weight:600;">📝 ${{checkout:'🧳 Checkout',checkin:'🔑 Checkin',same_day:'🔄 C+C mismo día',checkout_later:'📅 Checkin posterior',checkin_later:'📅 Checkout anterior'}[svc.airbnbNote]||svc.airbnbNote}</div>`:''}
+        </div>
+        <div class="sr">
+          <div class="stb ${sc}">${sx}</div>
+          <div class="chev">▾</div>
+        </div>
+      </div>
+      <div class="sp">
+        ${checkSupervisorActivo()?`
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button onclick="supvMoveGroup('${svc.id}')" style="flex:1;padding:6px;background:#6c3483;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:700;">👥 Cambiar Grupo</button>
+          <button onclick="supvMoveDate('${svc.id}')" style="flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:700;">📅 Cambiar Fecha</button>
+        </div>
+      `:''}
+      ${esResponsable()?`
+        <div class="tr2">
+          <div class="tb ${hasCheckin?'has':'empty'}">
+            <div class="tbl">🟡 Llegada</div>
+            <input type="time" id="cin_${sid}" value="${rpt.checkin||''}" style="width:100%;background:transparent;border:none;border-bottom:1.5px solid ${hasCheckin?'var(--yellow)':'var(--border)'};color:${hasCheckin?'var(--text)':'var(--muted)'};font-size:18px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:4px 0;outline:none;">
+            <button onclick="var v=document.getElementById('cin_${sid}').value;if(!v){var n=new Date();v=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');document.getElementById('cin_${sid}').value=v;}suplenteUpdTime(window._sids['${sid}'],'checkin',v);renderView();" style="width:100%;margin-top:6px;padding:10px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem;">💾 Guardar Llegada</button>
+          </div>
+          <div class="tb ${hasCheckout?'has':'empty'}">
+            <div class="tbl">🟢 Salida</div>
+            <input type="time" id="cout_${sid}" value="${rpt.checkout||''}" style="width:100%;background:transparent;border:none;border-bottom:1.5px solid ${hasCheckout?'var(--green)':'var(--border)'};color:${hasCheckout?'var(--text)':'var(--muted)'};font-size:18px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:4px 0;outline:none;">
+            <button onclick="var v=document.getElementById('cout_${sid}').value;if(!v){var n=new Date();v=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');document.getElementById('cout_${sid}').value=v;}suplenteUpdTime(window._sids['${sid}'],'checkout',v);renderView();" style="width:100%;margin-top:6px;padding:10px;background:#22c55e;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem;">💾 Guardar Salida</button>
+          </div>
+        </div>` : `
+        <div class="tr2">
+          <div class="tb ${hasCheckin?'has':'empty'}">
+            <div class="tbl">🟡 Llegada</div>
+            <div class="tbv">${hasCheckin?fmt12(rpt.checkin):'—'}</div>
+            <div class="tbs">${hasCheckin?'registrada':'sin registrar'}</div>
+          </div>
+          <div class="tb ${hasCheckout?'has':'empty'}">
+            <div class="tbl">🟢 Salida</div>
+            <div class="tbv">${hasCheckout?fmt12(rpt.checkout):'—'}</div>
+            <div class="tbs">${hasCheckout?(dur||'—'):'sin registrar'}</div>
+          </div>
+        </div>
+        ${dur?`<div class="dur-row">⏱ Duración: <span>${dur}</span></div>`:''}
+        ${rpt.note?`<div style="font-size:12px;color:var(--muted);padding:6px 8px;background:var(--s2);border-radius:7px;margin-top:6px">📝 ${rpt.note}</div>`:''}
+        `}
+      </div>`;
+
+    bc.appendChild(blk);
+  });
+
+  grid.appendChild(tc); grid.appendChild(bc); el.appendChild(grid);
+
+  // ── Banda delgada: Regreso al Shop (abajo) ──
+  {
+    const sbVal=dayRpt?.shopBack||'';
+    const soVal=dayRpt?.shopOut||'';
+    const canEditBack=esResponsable();
+    const bandBack=document.createElement('div');
+    bandBack.id='shopBackBand';
+    bandBack.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-top:8px;background:var(--s2);border:1px solid '+(sbVal?'#22c55e':'var(--border)')+';border-radius:10px;'+(canEditBack?'cursor:pointer;':'');
+    bandBack.innerHTML=`
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:13px;">🏠</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Regreso al Shop</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${sbVal?'#22c55e':'var(--muted)'};">${sbVal?fmt12(sbVal):(canEditBack?'— Toca para registrar':'—')}</span>
+        ${soVal&&sbVal?`<span style="font-size:11px;color:var(--muted);">${calcDur(soVal,sbVal)}</span>`:''}
+        ${canEditBack?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
+      </div>`;
+    if(canEditBack) bandBack.onclick=()=>openShopTimeEditor('shopBack', sbVal);
+    el.appendChild(bandBack);
+  }
+
+  // ── NOTAS DEL SUPERVISOR AL FINAL DEL DÍA ──
+  const dayNotes = (S.cellNotes || {})[S.selectedDate + '__' + S.group] || [];
+  if (dayNotes.length > 0) {
+    const notesDiv = document.createElement('div');
+    notesDiv.style.cssText = 'margin:16px 0 8px;border-radius:10px;overflow:hidden;';
+    notesDiv.innerHTML = `
+      <div style="background:#f39c12;color:white;padding:8px 14px;font-size:0.82rem;font-weight:700;">
+        📋 Notas del Supervisor (${dayNotes.length})
+      </div>
+      ${dayNotes.map(n => `
+        <div style="background:#fff8e1;border-left:3px solid #f39c12;padding:10px 14px;font-size:0.88rem;color:#333;border-bottom:1px solid #ffeaa7;">
+          ${n}
+        </div>
+      `).join('')}
+    `;
+    el.appendChild(notesDiv);
+  }
+}
+
+function tog(id){document.getElementById(`blk_${id}`)?.classList.toggle('open');}
+
+function horariosKey(date){ return 'ana_horarios_'+date; }
+function horariosFile(date){ return 'ana_horarios_'+date+'.json'; }
+
+function suplenteGetReports(){
+  try{ return JSON.parse(localStorage.getItem(horariosKey(S.selectedDate||today()))||'{}'); }catch(e){ return {}; }
+}
+function suplenteUpdTime(id, field, val){
+  var date=S.selectedDate, empId=S.empId, group=S.group;
+  if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
+  var key=horariosKey(date);
+  var all=JSON.parse(localStorage.getItem(key)||'{}');
+  if(!all[empId]) all[empId]={empId:empId,empName:S.empName||'',group:group,services:[],savedAt:''};
+  var svc=all[empId].services.find(function(s){return String(s.id)===String(id);});
+  if(!svc){
+    // Si el servicio pertenece a otra empleada del grupo, no duplicar
+    var isOtherEmp=false;
+    Object.keys(all).forEach(function(eid){
+      if(eid!==empId && all[eid].services && all[eid].services.find(function(s){return String(s.id)===String(id);})){
+        isOtherEmp=true;
+      }
+    });
+    if(isOtherEmp){ toast('⚠ Servicio registrado por otra empleada'); return; }
+    var orig=(S.servs||[]).find(function(s){return String(s.id)===String(id);});
+    var cli=orig?(S.clis||[]).find(function(c){return String(c.id)===String(orig.cliId);})||{}:{};
+    svc={id:String(id),clientName:cli.name||'',address:[cli.address,cli.city].filter(Boolean).join(', '),checkin:'',checkout:'',status:'pending',note:''};
+    all[empId].services.push(svc);
+  }
+  svc[field]=val;
+  svc.status=(svc.checkin&&svc.checkout)?'done':(svc.checkin?'active':'pending');
+  all[empId].savedAt=new Date().toISOString();
+  localStorage.setItem(key,JSON.stringify(all));
+  if(!S.reports) S.reports={};
+  if(!S.reports[date]) S.reports[date]={};
+  S.reports[date][empId]=all[empId];
+  toast('✅ '+(field==='checkin'?'Llegada':'Salida')+' guardada');
+  setTimeout(function(){try{saveHorariosToDrive();}catch(e){}},300);
+}
+function suplenteUpdNote(id, val){
+  suplenteUpdTime(id,'note',val);
+}
+
+function openShopTimeEditor(field, currentVal){
+  // Remover modal anterior si existe
+  var old=document.getElementById('shopTimeModal'); if(old) old.remove();
+  var label=field==='shopOut'?'🚐 Salida del Shop':'🏠 Regreso al Shop';
+  var color=field==='shopOut'?'#f59e0b':'#22c55e';
+  var now=new Date();
+  var nowStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  var modal=document.createElement('div');
+  modal.id='shopTimeModal';
+  modal.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML=`
+    <div style="background:var(--bg);border-radius:16px;padding:24px;width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.4);">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--text);margin-bottom:16px;text-align:center;">${label}</div>
+      <input type="time" id="shopTimeInput" value="${currentVal||nowStr}"
+        style="width:100%;background:transparent;border:none;border-bottom:2px solid ${color};color:var(--text);font-size:28px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:8px 0;outline:none;margin-bottom:16px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <button onclick="document.getElementById('shopTimeModal').remove();"
+          style="padding:12px;background:var(--s2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:700;cursor:pointer;font-size:0.9rem;">Cancelar</button>
+        <button onclick="var v=document.getElementById('shopTimeInput').value;if(!v){var n=new Date();v=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}saveShopTime('${field}',null,v);document.getElementById('shopTimeModal').remove();"
+          style="padding:12px;background:${color};color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.9rem;">💾 Guardar</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  // Cerrar al tocar fuera
+  modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
+}
+
+function saveShopTime(field, inputId, directVal){
+  var date=S.selectedDate, empId=S.empId, group=S.group;
+  if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
+  var val = directVal || (inputId ? (document.getElementById(inputId)||{}).value : '');
+  if(!val){
+    var n=new Date();
+    val=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+  }
+  var key=horariosKey(date);
+  var all=JSON.parse(localStorage.getItem(key)||'{}');
+  if(!all[empId]) all[empId]={empId:empId,empName:S.empName||'',group:group,services:[],savedAt:''};
+  all[empId][field]=val;
+  all[empId].savedAt=new Date().toISOString();
+  localStorage.setItem(key,JSON.stringify(all));
+  if(!S.reports) S.reports={};
+  if(!S.reports[date]) S.reports[date]={};
+  S.reports[date][empId]=all[empId];
+  toast('✅ '+(field==='shopOut'?'Salida del Shop':'Regreso al Shop')+' guardado: '+val);
+  setTimeout(function(){try{saveHorariosToDrive();}catch(e){}},300);
+  renderView();
+}
+
+/* ── WEEK VIEW ── */
+function renderWeek(){
+  const hd=document.getElementById('wgHead'), cl=document.getElementById('wgCells');
+  hd.innerHTML=cl.innerHTML=''; const td=today();
+  for(let i=0;i<7;i++){
+    const d=addDays(S.weekStart,i), dObj=new Date(d+'T12:00:00'), svcs=getSvcs(d);
+    const rpts=getReportsForDay(d);
+    const th=document.createElement('div'); th.className='wgdh'; th.textContent=DAYS[dObj.getDay()]; hd.appendChild(th);
+    const c=document.createElement('div'); c.className='wgc'+(d===td?' today':'')+(d===S.selectedDate?' sel':'');
+    let inner=`<div class="wgdn"></div><div class="wgdd">${dObj.getDate()}</div>`;
+    svcs.slice(0,3).forEach(s=>{
+      const r=rpts[s.id]||{};
+      const bg=r.status==='done'?'#14532d':r.status==='active'?'#451a03':'var(--s2)';
+      const col=r.status==='done'?'#22c55e':r.status==='active'?'#f59e0b':'var(--muted)';
+      inner+=`<div style="background:${bg};color:${col};border-radius:4px;padding:2px 4px;font-size:9px;margin-bottom:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">${s.clientName.split(' ')[0]}</div>`;
+    });
+    if(svcs.length>3) inner+=`<div style="font-size:9px;color:var(--muted);text-align:center">+${svcs.length-3}</div>`;
+    c.innerHTML=inner;
+    c.onclick=()=>{S.selectedDate=d;S.view='day';saveSess();setView('day');buildStrip();};
+    cl.appendChild(c);
+  }
+}
+
+/* ── GET SERVICES ── */
+function getSvcs(date){
+  const members=(S.grupos[S.group]||[]).map(String);
+  return S.servs
+    .filter(s=>s.date===date && (s.empId===S.group||members.includes(String(s.empId))))
+    .sort((a,b)=>{
+      const ta=a.timeStart||'',tb=b.timeStart||'';
+      if(ta&&tb) return ta.localeCompare(tb);
+      if(ta&&!tb) return -1; if(!ta&&tb) return 1;
+      return (parseInt(a.priority)||999)-(parseInt(b.priority)||999);
+    })
+    .map(s=>{
+      const c=S.clis.find(x=>String(x.id)===String(s.cliId))||{};
+      // Renglón 1: quién y, si el cliente tiene varias propiedades, CUÁL.
+      // Se decide por si hay un identificador distinto del nombre, no por el
+      // tipo de cliente: una AirBnB mal marcada como "semanal" seguía siendo
+      // una unidad de un edificio y su número hace falta igual.
+      const _prop = String(s.propId || c.propId || '').trim();
+      const _esUnidad = _prop && _prop.toLowerCase() !== String(c.name || '').trim().toLowerCase();
+      const clientName = _esUnidad
+        ? `${c.name} · ${_prop}`
+        : (c.name || `Cliente ${s.cliId}`);
+
+      // Renglón 2: la calle de verdad. Antes aquí se repetía el identificador
+      // de la propiedad, así que la empleada nunca veía a dónde ir. Se prefiere
+      // la dirección de la propiedad y, si no tiene, la del cliente. Se recorta
+      // el ", TX ..." final porque en la pantalla del celular sólo roba espacio.
+      const _propAddr = String(c.propAddress || '').trim();
+      let address = _propAddr
+        ? _propAddr.replace(/,\s*TX\b.*$/i, '').trim()
+        : [c.address, c.city].filter(Boolean).join(', ');
+      return{id:String(s.id),clientName,address,phone:c.tel||c.phone||'',scheduledStart:s.timeStart||'',scheduledEnd:s.timeEnd||'',priority:s.priority||'',airbnbNote:s.airbnbNote||''};
+    });
+}
+
+function bts(svc,rpt){
+  const sc=svc.scheduledStart?`${fmt12(svc.scheduledStart)}${svc.scheduledEnd?' – '+fmt12(svc.scheduledEnd):''}`:' Sin horario';
+  if(rpt.checkin&&!rpt.checkout) return `Llegó ${fmt12(rpt.checkin)} · ${sc}`;
+  if(rpt.checkin&&rpt.checkout) return `${fmt12(rpt.checkin)} → ${fmt12(rpt.checkout)} · ${calcDur(rpt.checkin,rpt.checkout)}`;
+  return sc;
+}
+
+/* ── INFO SCREEN ── */
+function updateInfoScreen(){
+  document.getElementById('infoName').textContent=S.empName||'—';
+  document.getElementById('infoGrp').textContent=S.group?'👥 '+S.group:'—';
+  document.getElementById('settEmpName').textContent=S.empName||'—';
+  document.getElementById('settEmpGrp').textContent=S.group?'👥 '+S.group:'—';
+  // Team members
+  const members=(S.grupos[S.group]||[]).map(String);
+  const teammates=members
+    .filter(mid=>String(mid)!==String(S.empId))
+    .map(mid=>{
+      const emp=S.emps.find(e=>String(e.id)===String(mid));
+      return emp?(emp.name||(emp.firstName+' '+(emp.lastName||'')).trim()).trim():null;
+    }).filter(Boolean);
+  document.getElementById('infoTeam').textContent=teammates.length?teammates.join(', '):'Solo en tu grupo';
+}
+
+function showTab(t){
+  document.getElementById('scrAgenda').classList.toggle('active',t==='agenda');
+  document.getElementById('scrInfo').classList.toggle('active',t==='info');
+  document.getElementById('niAg').classList.toggle('active',t==='agenda');
+  document.getElementById('niInfo').classList.toggle('active',t==='info');
+}
+
+function changeEmpFromInfo(){showTab('agenda');goSetup();}
+function changeEmpFromSett(){closeSett();goSetup();}
+
+function goSetup(){
+  ['scrAgenda','scrInfo'].forEach(id=>document.getElementById(id).classList.remove('active'));
+  document.getElementById('scrSetup').classList.add('active');
+  document.getElementById('bnav').style.display='none';
+  if(allEmpsList.length) showEmpSection();
+}
+
+/* ── SETTINGS ── */
+function openSett(){
+  document.getElementById('sp').classList.add('open');
+  const lbl=document.getElementById('appVerLabel');
+  if(lbl) lbl.textContent=APP_VERSION;
+}
+function closeSett(){document.getElementById('sp').classList.remove('open');}
+
+function disconnectDrive(){
+  localStorage.removeItem('anas_drive_token');
+  localStorage.removeItem('anas_drive_token_expiry');
+  S.driveToken=null; S.folderId=null; S.reportsFileId=null;
+  closeSett();
+  toast('🔌 Drive desconectado — reconecta para cambiar cuenta');
+  setTimeout(()=>goSetup(), 1200);
+}
+
+/* ── REFRESH ── */
+async function refreshData(){
+  const btn=document.getElementById('btnRefresh');
+  if(btn){btn.innerHTML='<span class="spinning">🔄</span>';btn.style.pointerEvents='none';}
+  try{
+    // ── Paso 1: Re-auth silencioso si el token falta o expiró ──────────────
+    const tokenExp=parseInt(localStorage.getItem(TEXP)||'0');
+    const tokenExpired=!S.driveToken||(tokenExp && Date.now() > tokenExp - 60000);
+    if(tokenExpired && localStorage.getItem(TKEY) && typeof google!=='undefined'){
+      sdot('spin','Reconectando…');
+      await new Promise((resolve)=>{
+        try{
+          const tcR=google.accounts.oauth2.initTokenClient({
+            client_id:CLIENT_ID, scope:SCOPES, prompt:'',
+            callback:function(r){
+              if(!r.error){
+                S.driveToken=r.access_token;
+                localStorage.setItem(TKEY,r.access_token);
+                localStorage.setItem(TEXP,(Date.now()+(r.expires_in||3600)*1000).toString());
+                markConnected();
+              } else {
+                // Si Google exige interacción (sesión cerrada), limpiar token
+                if(['interaction_required','user_cancelled_auth_flow','access_denied'].includes(r.error)){
+                  S.driveToken=null;
+                }
+              }
+              resolve();
+            }
+          });
+          tcR.requestAccessToken({prompt:''});
+        }catch(e){ resolve(); }
+      });
+    }
+
+    // ── Paso 2: Sincronizar con Drive o caer a datos locales ───────────────
+    if(S.driveToken && S.folderId){
+      // Token OK + carpeta conocida → refrescar datos de Drive
+      sdot('spin','Actualizando…');
+      document.getElementById('syncLbl').textContent='Actualizando…';
+      const sr=await dGet(`https://www.googleapis.com/drive/v3/files?q=name='${FILE}'+and+'${S.folderId}'+in+parents+and+trashed=false&fields=files(id,modifiedTime)`);
+      if(sr.files&&sr.files.length){
+        const data=await dGet(`https://www.googleapis.com/drive/v3/files/${sr.files[0].id}?alt=media`);
+        if(data&&data.exportType==='anaCS_sync'){
+          S.servs=data.servs||[]; S.clis=data.clis||[]; S.grupos=data.grupos||{}; S.emps=data.emps||[];
+          S.cellNotes=data.cellNotes||{};
+          S.responsables=data.responsables||{};
+          if(data.supervisorPin) S.supervisorPin=data.supervisorPin;
+          if(data.clavesSuplente) S.clavesSuplente=data.clavesSuplente;
+        }
+      }
+      try{ await loadHorariosFromDrive(); }catch(e){}
+      const mod=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});
+      localStorage.setItem(LSYNC, Date.now().toString());
+      hideStaleWarning();
+      sdot('ok','Actualizado '+mod);
+      document.getElementById('syncLbl').textContent='Actualizado '+mod;
+      saveSess(); buildStrip(); renderView(); updateInfoScreen();
+      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
+      toast('✅ Datos actualizados');
+
+    } else if(S.driveToken && !S.folderId){
+      // Token OK pero carpeta no localizada — correr loadSyncFile completo
+      await loadSyncFile();
+      if(btn){btn.innerHTML='🔄';btn.style.pointerEvents='auto';}
+      return;
+
+    } else {
+      // Sin Drive — datos locales; mostrar advertencia prominente
+      showStaleWarning();
+      try{
+        S.reports={};
+        const base=new Date(today()+'T12:00:00');
+        for(var i=-14;i<=14;i++){
+          const d=new Date(base); d.setDate(d.getDate()+i);
+          const dateStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+          const key=horariosKey(dateStr);
+          const local=JSON.parse(localStorage.getItem(key)||'{}');
+          if(Object.keys(local).length){
+            S.reports[dateStr]={};
+            Object.keys(local).forEach(function(eid){ S.reports[dateStr][eid]=local[eid]; });
+          }
+        }
+      }catch(ex){}
+      sdot('err','Sin Drive');
+      document.getElementById('syncLbl').textContent='Sin Drive — datos locales';
+      saveSess(); buildStrip(); renderView(); updateInfoScreen();
+      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
+    }
+  }catch(e){
+    if(e.status===401){
+      // Token inválido — limpiar y mostrar advertencia para que reconecten
+      S.driveToken=null; localStorage.removeItem(TKEY);
+      showStaleWarning();
+      sdot('err','Reconecta Drive');
+      toast('⚠️ Sesión de Drive expirada. Toca "Reconectar".');
+    } else {
+      sdot('err','Error al actualizar');
+      toast('⚠ Error: '+e.message);
+    }
+  } finally {
+    if(btn){btn.innerHTML='🔄';btn.style.pointerEvents='auto';}
+  }
+}
+
+/* ── LOAD FROM LOCALSTORAGE ── */
+function loadLocal(){
+  try{
+    const g=JSON.parse(localStorage.getItem('v35_grupos')||'null');
+    if(!g||!Object.keys(g).length){toast('⚠ Abre el Scheduler primero');return;}
+    S.grupos=g;
+    S.servs=JSON.parse(localStorage.getItem('v35_servs')||'[]');
+    S.clis=JSON.parse(localStorage.getItem('v35_clis')||'[]');
+    S.emps=JSON.parse(localStorage.getItem('v35_emps')||'[]');
+    // Read reports too
+    try{
+      const rpts2=JSON.parse(localStorage.getItem('qt_bra_reports')||'{}');
+      S.reports={};
+      Object.values(rpts2).forEach(dayData=>{
+        Object.values(dayData).forEach(grpData=>{
+          if(grpData.services) grpData.services.forEach(s=>{ S.reports[String(s.id)]=s; });
+        });
+      });
+    }catch(e){}
+    setDS('ok',`📱 ${S.servs.length} servicios cargados`);
+    buildEmpsList(); showEmpSection();
+    toast('✅ Datos del Scheduler cargados');
+  }catch(e){toast('⚠ Error leyendo localStorage');}
+}
+
+/* ── MODO SUPERVISOR ── */
+function checkSupervisorActivo(){
+  const data=JSON.parse(localStorage.getItem('anas_supervisor_activo')||'null');
+  if(!data) return false;
+  if(data.fecha !== today()){ localStorage.removeItem('anas_supervisor_activo'); return false; }
+  return true;
+}
+
+function checkBtnSupervisor(){
+  const btn=document.getElementById('btnSupervisor');
+  if(!btn) return;
+  const pin = S.supervisorPin || localStorage.getItem('anas_supervisorPin');
+  if(pin){
+    btn.style.display='flex';
+    if(checkSupervisorActivo()){
+      btn.style.background='#6c3483';
+      btn.style.color='white';
+      btn.title='✅ Modo Supervisor Activo';
+    } else {
+      btn.style.background='';
+      btn.style.color='';
+    }
+  } else {
+    btn.style.display='none';
+  }
+}
+
+function openSupervisorModal(){
+  if(checkSupervisorActivo()){
+    if(confirm('✅ Modo Supervisor está activo para hoy.\n\n¿Deseas desactivarlo?')){
+      localStorage.removeItem('anas_supervisor_activo');
+      checkBtnSupervisor();
+      renderView();
+      toast('🔐 Modo Supervisor desactivado');
+    }
+    return;
+  }
+  document.getElementById('supervisorPinInput').value='';
+  document.getElementById('supervisorPinError').textContent='';
+  document.getElementById('supervisorModal').style.display='flex';
+  setTimeout(()=>document.getElementById('supervisorPinInput').focus(),100);
+}
+
+function closeSupervisorModal(){
+  document.getElementById('supervisorModal').style.display='none';
+}
+
+function activarModoSupervisor(){
+  const pin=document.getElementById('supervisorPinInput').value.trim();
+  const err=document.getElementById('supervisorPinError');
+  const correctPin = S.supervisorPin || localStorage.getItem('anas_supervisorPin') || '1234';
+  if(!pin){ err.textContent='⚠️ Ingresa el PIN.'; return; }
+  if(pin !== correctPin){ err.textContent='❌ PIN incorrecto.'; document.getElementById('supervisorPinInput').value=''; return; }
+  localStorage.setItem('anas_supervisor_activo', JSON.stringify({fecha:today(), activadaA:new Date().toLocaleTimeString('es-MX')}));
+  closeSupervisorModal();
+  checkBtnSupervisor();
+  renderView();
+  toast('✅ Modo Supervisor activado para hoy');
+}
+
+function supvMoveGroup(svcId){
+  const grupos = Object.keys(S.grupos||{});
+  const opciones = grupos.join('\n');
+  const nuevo = prompt(`Mover servicio a qué grupo?\n\n${opciones}\n\nEscribe el nombre del grupo:`);
+  if(!nuevo || !grupos.includes(nuevo)) { toast('⚠️ Grupo inválido'); return; }
+  const svc = (S.servs||[]).find(s=>String(s.id)===String(svcId));
+  if(!svc) return;
+  svc.empId = nuevo;
+  svc.grupo = nuevo;
+  renderView();
+  saveSyncToDrive();
+}
+
+function supvMoveDate(svcId){
+  const svc = (S.servs||[]).find(s=>String(s.id)===String(svcId));
+  if(!svc) return;
+  const nueva = prompt(`Nueva fecha para el servicio:\n(Formato: YYYY-MM-DD)\nFecha actual: ${svc.date}`);
+  if(!nueva) return;
+  // Validar formato fecha
+  const dateRegex = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+  if(!dateRegex.test(nueva)) { toast('⚠️ Formato inválido. Usa YYYY-MM-DD'); return; }
+  svc.date = nueva;
+  S.selectedDate = nueva;
+  renderView();
+  saveSyncToDrive();
+}
+
+/* ── MODO SUPLENTE ── */
+function checkSuplenteActivo(){
+  const data = JSON.parse(localStorage.getItem('anas_suplente_activo')||'null');
+  if(!data) return false;
+  // Verificar que sea del día actual y no haya pasado medianoche
+  if(data.fecha !== today()) {
+    localStorage.removeItem('anas_suplente_activo');
+    return false;
+  }
+  return true;
+}
+
+function checkBtnSuplente(){
+  const btn = document.getElementById('btnSuplente');
+  if(!btn) return;
+  const claves = S.clavesSuplente || [];
+  const tieneClaves = claves.some(c => c.estado === 'activa');
+  // Mostrar botón solo si hay claves activas disponibles o ya está activo el modo
+  if(tieneClaves || checkSuplenteActivo()){
+    btn.style.display = 'flex';
+    if(checkSuplenteActivo()){
+      btn.style.background = '#e67e22';
+      btn.style.color = 'white';
+      btn.title = '✅ Modo Suplente Activo';
+    }
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function openSuplenteModal(){
+  if(checkSuplenteActivo()){
+    if(confirm('✅ Modo Suplente está activo para hoy.\n\n¿Deseas desactivarlo?')){
+      localStorage.removeItem('anas_suplente_activo');
+      checkBtnSuplente();
+      renderView();
+      toast('🔑 Modo Suplente desactivado');
+    }
+    return;
+  }
+  document.getElementById('suplentePin').value='';
+  document.getElementById('suplenteError').textContent='';
+  document.getElementById('suplenteModal').style.display='flex';
+  setTimeout(()=>document.getElementById('suplentePin').focus(),100);
+}
+
+function closeSuplenteModal(){
+  document.getElementById('suplenteModal').style.display='none';
+}
+
+function activarModoSuplente(){
+  const pin = document.getElementById('suplentePin').value.trim();
+  const err = document.getElementById('suplenteError');
+  if(pin.length !== 4){ err.textContent='⚠️ Ingresa 4 dígitos.'; return; }
+  const claves = S.clavesSuplente || [];
+  const idx = claves.findIndex(c => c.clave === pin && c.estado === 'activa');
+  if(idx === -1){ err.textContent='❌ Clave incorrecta o ya utilizada.'; document.getElementById('suplentePin').value=''; return; }
+  // Marcar clave como usada
+  claves[idx].estado = 'usada';
+  claves[idx].usada = today();
+  S.clavesSuplente = claves;
+  localStorage.setItem('anas_suplente_activo', JSON.stringify({ fecha: today(), activadaA: new Date().toLocaleTimeString('es-MX') }));
+  closeSuplenteModal();
+  checkBtnSuplente();
+  renderView();
+  toast('✅ Modo Suplente activado para hoy');
+}
+
+/* ── NOTAS SUPERVISOR ── */
+function getNotesForGroup(group, date){
+  const notes = S.cellNotes || {};
+  const result = [];
+  const ws = S.weekStart || date;
+  for(let i=0;i<7;i++){
+    const d=new Date(ws+'T12:00:00'); d.setDate(d.getDate()+i);
+    const dStr=d.toLocaleDateString('en-CA');
+    const key=dStr+'__'+group;
+    if(notes[key]&&notes[key].length) result.push({date:dStr,notes:notes[key]});
+  }
+  return result;
+}
+
+function checkNotesBadge(){
+  const group=S.group||''; const date=S.selectedDate||'';
+  const weekNotes=getNotesForGroup(group,date);
+  const btn=document.getElementById('btnNotes');
+  const badge=document.getElementById('notesBadge');
+  if(!btn) return;
+  const total=weekNotes.reduce((s,d)=>s+d.notes.length,0);
+  if(total>0){ btn.style.display='flex'; badge.textContent=total>9?'9+':total; }
+  else { btn.style.display='none'; }
+}
+
+function openNotesPanel(){
+  const group=S.group||''; const date=S.selectedDate||'';
+  const weekNotes=getNotesForGroup(group,date);
+  const content=document.getElementById('notesPanelContent');
+  const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  if(!weekNotes.length){
+    content.innerHTML='<p style="color:#888;text-align:center;padding:20px;">Sin notas para esta semana.</p>';
+  } else {
+    content.innerHTML=weekNotes.map(d=>{
+      const dObj=new Date(d.date+'T12:00:00');
+      const label=`${dias[dObj.getDay()]} ${dObj.getDate()} de ${meses[dObj.getMonth()]}`;
+      const isToday=d.date===date;
+      return `<div style="margin-bottom:14px;">
+        <div style="font-size:0.82rem;font-weight:700;color:${isToday?'#e74c3c':'#3498db'};margin-bottom:6px;">${isToday?'📅 HOY — ':''}${label}</div>
+        ${d.notes.map(n=>`<div style="background:#fff8e1;border-left:3px solid #f39c12;padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:4px;font-size:0.88rem;color:#333;">${n}</div>`).join('')}
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('notesPanel').style.display='flex';
+}
+
+function closeNotesPanel(){ document.getElementById('notesPanel').style.display='none'; }
+
+/* ── SESSION ── */
+function saveSess(){
+  try{
+    localStorage.setItem(SESS, JSON.stringify({
+      empId:S.empId, empName:S.empName, group:S.group,
+      selectedDate:S.selectedDate, weekStart:S.weekStart, view:S.view,
+      grupos:S.grupos, servs:S.servs, clis:S.clis, emps:S.emps,
+      reports:S.reports
+    }));
+  }catch(e){}
+}
+
+/* ── UTILS ── */
+function today(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function mondayOf(d){const dt=new Date(d+'T12:00:00'),day=dt.getDay();dt.setDate(dt.getDate()+(day===0?-6:1-day));return dt.toISOString().split('T')[0];}
+function addDays(d,n){const dt=new Date(d+'T12:00:00');dt.setDate(dt.getDate()+n);return dt.toISOString().split('T')[0];}
+function toMins(t){if(!t)return 0;const[h,m]=t.split(':').map(Number);return h*60+m;}
+function fmt12(t){if(!t)return'';const[h24,m]=t.split(':').map(Number),am=h24>=12?'PM':'AM',h=h24%12||12;return`${h}:${m.toString().padStart(2,'0')} ${am}`;}
+function fmt12s(t){if(!t)return'';const[h24]=t.split(':').map(Number),am=h24>=12?'pm':'am',h=h24%12||12;return`${h}${am}`;}
+function calcDur(s,e){const m=toMins(e)-toMins(s);if(m<=0)return'—';return Math.floor(m/60)>0?`${Math.floor(m/60)}h ${m%60}min`:`${m}min`;}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
+</script>
+</body>
+</html>
