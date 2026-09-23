@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '151';
+    window.ANACS_VERSION = '152';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -1495,7 +1495,7 @@
                                 </select>
                                 <div style="grid-column:span 2; background:#eff6ff; border:1px solid #3b82f6; border-radius:6px; padding:8px; margin-top:6px;">
                                     <label style="font-size:0.85rem; font-weight:700; color:#1d4ed8; display:flex; align-items:center; gap:8px; cursor:pointer;">
-                                        <input type="checkbox" id="cliApplyTax" checked style="width:16px; height:16px; accent-color:#3b82f6;">
+                                        <input type="checkbox" id="cliApplyTax" style="width:16px; height:16px; accent-color:#3b82f6;">
                                         🏛️ Cobrar impuesto a este cliente
                                     </label>
                                     <div style="font-size:0.72rem; color:#3b5b9a; margin-top:4px;">Activado por defecto. <b>Desmárcalo para clientes EXENTOS</b> (iglesias, etc.). Al facturar, este dato se aplica solo — ya no hay que acordarse de marcarlo cada vez.</div>
@@ -12229,7 +12229,7 @@ Motivo de cancelación (opcional):`);
                 const autoCharge = document.getElementById('cliAutoCharge') ? document.getElementById('cliAutoCharge').checked : (this.clis[idx].autoCharge || false);
                 const stripeCustomerId = document.getElementById('cliStripeCustomerId') ? document.getElementById('cliStripeCustomerId').value.trim() : (this.clis[idx].stripeCustomerId || '');
                 const taxRate = document.getElementById('cliTaxRate') ? parseFloat(document.getElementById('cliTaxRate').value) || 8.25 : (this.clis[idx].taxRate || 8.25);
-                const cobraImpuestos = document.getElementById('cliApplyTax') ? document.getElementById('cliApplyTax').checked : (this.clis[idx].cobraImpuestos !== false);
+                const cobraImpuestos = document.getElementById('cliApplyTax') ? document.getElementById('cliApplyTax').checked : (this.clis[idx].cobraImpuestos === true);
                 const excludeInvoicing = document.getElementById('cliExcludeInvoicing') ? document.getElementById('cliExcludeInvoicing').checked : (this.clis[idx].excludeInvoicing || false);
                 const abrirManual = document.getElementById('cliAbrirManual') ? document.getElementById('cliAbrirManual').checked : (this.clis[idx].abrirManual || false);
                 const servicePaused = document.getElementById('cliServicePaused') ? document.getElementById('cliServicePaused').checked : (this.clis[idx].servicePaused || false);
