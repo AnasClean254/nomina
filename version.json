@@ -1,4 +1,4 @@
 {
-  "version": "147",
-  "notas": "Candado se libera al cerrar la app — sin espera entre dispositivos"
+  "version": "151",
+  "notas": "Cel: en datos del cliente • Links de pago: tarjeta (3%) y ACH sin cargo"
 }
