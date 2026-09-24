@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.4.5';
+const APP_VERSION = '2.4.6';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -1396,11 +1396,13 @@ function openShopTimeEditor(field, currentVal){
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:17px;font-weight:700;color:var(--text);margin-bottom:16px;text-align:center;">${label}</div>
       <input type="time" id="shopTimeInput" value="${currentVal||nowStr}"
         style="width:100%;background:transparent;border:none;border-bottom:2px solid ${color};color:var(--text);font-size:28px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:8px 0;outline:none;margin-bottom:16px;">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+        <button onclick="saveShopTime('${field}',null,'');document.getElementById('shopTimeModal').remove();"
+          style="padding:12px;background:var(--s2);color:#ef4444;border:1px solid #ef4444;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.85rem;">🗑 Borrar</button>
         <button onclick="document.getElementById('shopTimeModal').remove();"
-          style="padding:12px;background:var(--s2);color:var(--text);border:1px solid var(--border);border-radius:10px;font-weight:700;cursor:pointer;font-size:0.9rem;">Cancelar</button>
+          style="padding:12px;background:var(--s2);color:var(--muted);border:1px solid var(--border);border-radius:10px;font-weight:700;cursor:pointer;font-size:0.85rem;">Cancelar</button>
         <button onclick="var v=document.getElementById('shopTimeInput').value;if(!v){var n=new Date();v=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');}saveShopTime('${field}',null,v);document.getElementById('shopTimeModal').remove();"
-          style="padding:12px;background:${color};color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.9rem;">💾 Guardar</button>
+          style="padding:12px;background:${color};color:white;border:none;border-radius:10px;font-weight:700;cursor:pointer;font-size:0.85rem;">💾 Guardar</button>
       </div>
     </div>`;
   document.body.appendChild(modal);
@@ -1411,8 +1413,9 @@ function openShopTimeEditor(field, currentVal){
 function saveShopTime(field, inputId, directVal){
   var date=S.selectedDate, empId=S.empId, group=S.group;
   if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
-  var val = directVal || (inputId ? (document.getElementById(inputId)||{}).value : '');
-  if(!val){
+  var isBorrar = (directVal === '');
+  var val = isBorrar ? '' : (directVal || (inputId ? (document.getElementById(inputId)||{}).value : ''));
+  if(!isBorrar && !val){
     var n=new Date();
     val=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
   }
@@ -1425,7 +1428,7 @@ function saveShopTime(field, inputId, directVal){
   if(!S.reports) S.reports={};
   if(!S.reports[date]) S.reports[date]={};
   S.reports[date][empId]=all[empId];
-  toast('✅ '+(field==='shopOut'?'Salida del Shop':'Regreso al Shop')+' guardado: '+val);
+  toast(isBorrar?'🗑 '+(field==='shopOut'?'Salida del Shop':'Regreso al Shop')+' borrado':'✅ '+(field==='shopOut'?'Salida del Shop':'Regreso al Shop')+' guardado: '+val);
   setTimeout(function(){try{saveHorariosToDrive();}catch(e){}},300);
   renderView();
 }
