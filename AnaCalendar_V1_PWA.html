@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.4.3';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -1094,7 +1094,9 @@ function renderAgenda(){
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${soVal?'#f59e0b':'var(--muted)'};">${soVal?fmt12(soVal):(canEdit?'— Toca para registrar':'—')}</span>
         ${canEdit?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
       </div>`;
-    if(canEdit) bandOut.onclick=()=>openShopTimeEditor('shopOut', soVal);
+    if(canEdit) bandOut.onclick=soVal
+      ? ()=>openShopTimeEditor('shopOut', soVal)
+      : ()=>{var n=new Date();saveShopTime('shopOut',null,String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'));};
     el.appendChild(bandOut);
   }
 
@@ -1133,7 +1135,7 @@ function renderAgenda(){
     const hasCheckin=!!(rpt.checkin);
     const hasCheckout=!!(rpt.checkout);
     const dur=(rpt.checkin&&rpt.checkout)?calcDur(rpt.checkin,rpt.checkout):null;
-    const canEdit=esResponsable()||!hasCheckin||!!myRpts[String(svc.id)];
+    const canEdit=esResponsable();
     window._sids=window._sids||{}; window._sids[sid]=svc.id;
 
     blk.innerHTML=`
@@ -1157,15 +1159,21 @@ function renderAgenda(){
         </div>
       `:''}
       <div class="tr2">
-          <div class="tb ${hasCheckin?'has':'empty'}" ${canEdit?`onclick="openTimePicker('${sid}','checkin','${rpt.checkin||''}','🟡 Llegada')" style="cursor:pointer;"`:''}">
-            <div class="tbl">🟡 Llegada</div>
+          <div class="tb ${hasCheckin?'has':'empty'}" ${canEdit?(hasCheckin?`onclick="openTimePicker('${sid}','checkin','${rpt.checkin||''}','🟡 Llegada')" style="cursor:pointer;"`:`onclick="autoCaptura('${sid}','checkin')" style="cursor:pointer;"`):''}">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="tbl">🟡 Llegada</div>
+              ${canEdit?`<span style="font-size:11px;color:var(--muted);">${hasCheckin?'✏️':'⏰'}</span>`:''}
+            </div>
             <div class="tbv" style="color:${hasCheckin?'var(--text)':'var(--muted)'};">${hasCheckin?fmt12(rpt.checkin):'—'}</div>
-            <div class="tbs">${canEdit?(hasCheckin?'registrada · ✏️ editar':'⏰ toca para registrar'):(hasCheckin?'registrada':'sin registrar')}</div>
+            <div class="tbs">${canEdit?(hasCheckin?'toca para editar':'toca para registrar ahora'):(hasCheckin?'registrada':'sin registrar')}</div>
           </div>
-          <div class="tb ${hasCheckout?'has':'empty'}" ${canEdit?`onclick="openTimePicker('${sid}','checkout','${rpt.checkout||''}','🟢 Salida')" style="cursor:pointer;"`:''}">
-            <div class="tbl">🟢 Salida</div>
+          <div class="tb ${hasCheckout?'has':'empty'}" ${canEdit?(hasCheckout?`onclick="openTimePicker('${sid}','checkout','${rpt.checkout||''}','🟢 Salida')" style="cursor:pointer;"`:`onclick="autoCaptura('${sid}','checkout')" style="cursor:pointer;"`):''}">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div class="tbl">🟢 Salida</div>
+              ${canEdit?`<span style="font-size:11px;color:var(--muted);">${hasCheckout?'✏️':'⏰'}</span>`:''}
+            </div>
             <div class="tbv" style="color:${hasCheckout?'var(--text)':'var(--muted)'};">${hasCheckout?fmt12(rpt.checkout):'—'}</div>
-            <div class="tbs">${canEdit?(hasCheckout?'registrada · ✏️ editar':'⏰ toca para registrar'):(hasCheckout?(dur||'—'):'sin registrar')}</div>
+            <div class="tbs">${canEdit?(hasCheckout?'toca para editar':'toca para registrar ahora'):(hasCheckout?(dur||'—'):'sin registrar')}</div>
           </div>
         </div>
         ${dur?`<div class="dur-row">⏱ Duración: <span>${dur}</span></div>`:''}
@@ -1195,7 +1203,9 @@ function renderAgenda(){
         ${soVal&&sbVal?`<span style="font-size:11px;color:var(--muted);">${calcDur(soVal,sbVal)}</span>`:''}
         ${canEditBack?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
       </div>`;
-    if(canEditBack) bandBack.onclick=()=>openShopTimeEditor('shopBack', sbVal);
+    if(canEditBack) bandBack.onclick=sbVal
+      ? ()=>openShopTimeEditor('shopBack', sbVal)
+      : ()=>{var n=new Date();saveShopTime('shopBack',null,String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0'));};
     el.appendChild(bandBack);
   }
 
@@ -1262,6 +1272,15 @@ function suplenteUpdTime(id, field, val){
 }
 function suplenteUpdNote(id, val){
   suplenteUpdTime(id,'note',val);
+}
+
+/* ── AUTO-CAPTURA HORA ACTUAL ── */
+function autoCaptura(sid, field){
+  var now=new Date();
+  var val=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  var origId=window._sids&&window._sids[sid]?window._sids[sid]:sid;
+  suplenteUpdTime(origId, field, val);
+  renderView();
 }
 
 /* ── CUSTOM TIME PICKER ── */
