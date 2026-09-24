@@ -1,4 +1,4 @@
 {
-  "version": "162",
-  "notas": "AnaCS: corrige horas nocturnas en reporte de producción; corrige bloques de servicio que no se expandían"
+  "version": "164",
+  "notas": "AnaCS: sync con Nómina ahora elimina empleadas borradas de Scheduler"
 }

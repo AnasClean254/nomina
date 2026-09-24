@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '162';
+    window.ANACS_VERSION = '164';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -2977,8 +2977,12 @@ class Scheduler {
 
     _rotBuildState(fecha) {
         const state = {};
+        // Solo mostrar empleadas que aún existen en this.emps (filtrar borradas de Nómina)
+        const empIds = new Set((this.emps || []).map(e => String(e.id)));
         Object.keys(this.grupos).forEach(g => {
-            state[g] = this._rosterParaFecha(g, fecha).filter(id => id && id !== '').map(String);
+            state[g] = this._rosterParaFecha(g, fecha)
+                .filter(id => id && id !== '' && empIds.has(String(id)))
+                .map(String);
         });
         const asignadas = new Set();
         Object.values(state).forEach(arr => arr.forEach(id => asignadas.add(String(id))));
@@ -20050,6 +20054,13 @@ Motivo de cancelación (opcional):`);
                     empsAdded++;
                 }
             });
+
+            // Eliminar de this.emps las empleadas que ya no existen en la Nómina
+            const nominaNombres = new Set(empList.map(ne => (ne.name || '').trim().toLowerCase()));
+            const antesTotal = this.emps.length;
+            this.emps = this.emps.filter(e => nominaNombres.has((e.name || '').trim().toLowerCase()));
+            const eliminadas = antesTotal - this.emps.length;
+            if (eliminadas > 0) empsUpdated += eliminadas;
 
             if (empsAdded > 0 || empsUpdated > 0) {
                 this.save();
