@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.3.7';
+const APP_VERSION = '2.3.9';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -1031,10 +1031,20 @@ function getReportsForDay(date){
   return acc;
 }
 
+function getMyReportsForDay(date){
+  if(!S.reports||!S.reports[date]||!S.empId) return {};
+  var myData=S.reports[date][S.empId];
+  if(!myData||!myData.services) return {};
+  var acc={};
+  myData.services.forEach(function(s){ acc[String(s.id)]=s; });
+  return acc;
+}
+
 function renderAgenda(){
   const el=document.getElementById('agendaEl'); el.innerHTML='';
   const svcs=getSvcs(S.selectedDate);
   const rpts=getReportsForDay(S.selectedDate);
+  const myRpts=getMyReportsForDay(S.selectedDate);
   // Combinar shopOut/shopBack de todos los empleados del grupo
   var dayRpt=null;
   if(S.reports&&S.reports[S.selectedDate]){
@@ -1108,7 +1118,7 @@ function renderAgenda(){
 
     const blk=document.createElement('div');
     blk.className=`sb ${st}`;
-    blk.id=`blk_${svc.id}`;
+    blk.id=`blk_${sid}`;  // usa sid saneado igual que tog()
     if(isCancelled){
       blk.style.opacity='0.6';
       blk.style.textDecoration='line-through';
@@ -1121,6 +1131,7 @@ function renderAgenda(){
     const hasCheckin=!!(rpt.checkin);
     const hasCheckout=!!(rpt.checkout);
     const dur=(rpt.checkin&&rpt.checkout)?calcDur(rpt.checkin,rpt.checkout):null;
+    const canEdit=esResponsable()||!hasCheckin||!!myRpts[String(svc.id)];
     const sid=String(svc.id).replace(/[^a-zA-Z0-9]/g,'_');
     window._sids=window._sids||{}; window._sids[sid]=svc.id;
 
@@ -1144,34 +1155,20 @@ function renderAgenda(){
           <button onclick="supvMoveDate('${svc.id}')" style="flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:700;">📅 Cambiar Fecha</button>
         </div>
       `:''}
-      ${esResponsable()?`
-        <div class="tr2">
-          <div class="tb ${hasCheckin?'has':'empty'}">
+      <div class="tr2">
+          <div class="tb ${hasCheckin?'has':'empty'}" ${canEdit?`onclick="openTimePicker('${sid}','checkin','${rpt.checkin||''}','🟡 Llegada')" style="cursor:pointer;"`:''}">
             <div class="tbl">🟡 Llegada</div>
-            <input type="time" id="cin_${sid}" value="${rpt.checkin||''}" style="width:100%;background:transparent;border:none;border-bottom:1.5px solid ${hasCheckin?'var(--yellow)':'var(--border)'};color:${hasCheckin?'var(--text)':'var(--muted)'};font-size:18px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:4px 0;outline:none;">
-            <button onclick="var v=document.getElementById('cin_${sid}').value;if(!v){var n=new Date();v=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');document.getElementById('cin_${sid}').value=v;}suplenteUpdTime(window._sids['${sid}'],'checkin',v);renderView();" style="width:100%;margin-top:6px;padding:10px;background:#f59e0b;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem;">💾 Guardar Llegada</button>
+            <div class="tbv" style="color:${hasCheckin?'var(--text)':'var(--muted)'};">${hasCheckin?fmt12(rpt.checkin):'—'}</div>
+            <div class="tbs">${canEdit?(hasCheckin?'registrada · ✏️ editar':'⏰ toca para registrar'):(hasCheckin?'registrada':'sin registrar')}</div>
           </div>
-          <div class="tb ${hasCheckout?'has':'empty'}">
+          <div class="tb ${hasCheckout?'has':'empty'}" ${canEdit?`onclick="openTimePicker('${sid}','checkout','${rpt.checkout||''}','🟢 Salida')" style="cursor:pointer;"`:''}">
             <div class="tbl">🟢 Salida</div>
-            <input type="time" id="cout_${sid}" value="${rpt.checkout||''}" style="width:100%;background:transparent;border:none;border-bottom:1.5px solid ${hasCheckout?'var(--green)':'var(--border)'};color:${hasCheckout?'var(--text)':'var(--muted)'};font-size:18px;font-weight:700;font-family:'Barlow Condensed',sans-serif;text-align:center;padding:4px 0;outline:none;">
-            <button onclick="var v=document.getElementById('cout_${sid}').value;if(!v){var n=new Date();v=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');document.getElementById('cout_${sid}').value=v;}suplenteUpdTime(window._sids['${sid}'],'checkout',v);renderView();" style="width:100%;margin-top:6px;padding:10px;background:#22c55e;color:white;border:none;border-radius:8px;font-weight:700;cursor:pointer;font-size:0.95rem;">💾 Guardar Salida</button>
-          </div>
-        </div>` : `
-        <div class="tr2">
-          <div class="tb ${hasCheckin?'has':'empty'}">
-            <div class="tbl">🟡 Llegada</div>
-            <div class="tbv">${hasCheckin?fmt12(rpt.checkin):'—'}</div>
-            <div class="tbs">${hasCheckin?'registrada':'sin registrar'}</div>
-          </div>
-          <div class="tb ${hasCheckout?'has':'empty'}">
-            <div class="tbl">🟢 Salida</div>
-            <div class="tbv">${hasCheckout?fmt12(rpt.checkout):'—'}</div>
-            <div class="tbs">${hasCheckout?(dur||'—'):'sin registrar'}</div>
+            <div class="tbv" style="color:${hasCheckout?'var(--text)':'var(--muted)'};">${hasCheckout?fmt12(rpt.checkout):'—'}</div>
+            <div class="tbs">${canEdit?(hasCheckout?'registrada · ✏️ editar':'⏰ toca para registrar'):(hasCheckout?(dur||'—'):'sin registrar')}</div>
           </div>
         </div>
         ${dur?`<div class="dur-row">⏱ Duración: <span>${dur}</span></div>`:''}
         ${rpt.note?`<div style="font-size:12px;color:var(--muted);padding:6px 8px;background:var(--s2);border-radius:7px;margin-top:6px">📝 ${rpt.note}</div>`:''}
-        `}
       </div>`;
 
     bc.appendChild(blk);
@@ -1265,6 +1262,91 @@ function suplenteUpdTime(id, field, val){
 function suplenteUpdNote(id, val){
   suplenteUpdTime(id,'note',val);
 }
+
+/* ── CUSTOM TIME PICKER ── */
+function openTimePicker(sid, field, currentVal, label){
+  var old=document.getElementById('_tpSheet'); if(old) old.remove();
+  var h24, m;
+  if(currentVal){ var p=currentVal.split(':').map(Number); h24=p[0]||0; m=p[1]||0; }
+  else { var now=new Date(); h24=now.getHours(); m=now.getMinutes(); }
+  var h12=h24%12||12, isAM=h24<12;
+  window._tp={sid:sid, field:field, h12:h12, m:m, isAM:isAM};
+  var sheet=document.createElement('div');
+  sheet.id='_tpSheet';
+  sheet.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:10000;display:flex;align-items:flex-end;';
+  sheet.addEventListener('click',function(e){if(e.target===sheet)_tpCancelar();});
+  var bAM='flex:1;border:none;border-radius:12px;font-size:17px;font-weight:700;cursor:pointer;padding:10px 0;font-family:Barlow Condensed,sans-serif;transition:background .15s,color .15s;';
+  sheet.innerHTML=`
+  <div style="width:100%;background:#0f172a;border-radius:22px 22px 0 0;overflow:hidden;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:18px 20px 14px;border-bottom:1px solid rgba(255,255,255,0.09);">
+      <span style="color:#fbbf24;font-size:26px;">⏰</span>
+      <span style="color:white;font-weight:700;font-size:19px;font-family:'Barlow Condensed',sans-serif;letter-spacing:.5px;">${label}</span>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;padding:26px 20px 22px;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+        <button onclick="_tpAdjH(1)" style="background:rgba(255,255,255,0.1);border:none;color:white;width:52px;height:38px;border-radius:10px;font-size:20px;cursor:pointer;">▲</button>
+        <input type="number" id="_tpHInp" min="1" max="12" value="${h12}"
+          style="width:90px;font-size:56px;font-weight:800;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.14);border-radius:14px;color:white;text-align:center;padding:6px 2px;font-family:'Barlow Condensed',sans-serif;outline:none;-moz-appearance:textfield;"
+          oninput="var v=parseInt(this.value);if(!isNaN(v)&&v>=1&&v<=12)window._tp.h12=v;">
+        <button onclick="_tpAdjH(-1)" style="background:rgba(255,255,255,0.1);border:none;color:white;width:52px;height:38px;border-radius:10px;font-size:20px;cursor:pointer;">▼</button>
+      </div>
+      <div style="font-size:56px;color:rgba(255,255,255,0.4);font-weight:300;font-family:'Barlow Condensed',sans-serif;margin-bottom:4px;">:</div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+        <button onclick="_tpAdjM(5)" style="background:rgba(255,255,255,0.1);border:none;color:white;width:52px;height:38px;border-radius:10px;font-size:20px;cursor:pointer;">▲</button>
+        <input type="number" id="_tpMInp" min="0" max="59" value="${String(m).padStart(2,'0')}"
+          style="width:90px;font-size:56px;font-weight:800;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.14);border-radius:14px;color:white;text-align:center;padding:6px 2px;font-family:'Barlow Condensed',sans-serif;outline:none;-moz-appearance:textfield;"
+          oninput="var v=parseInt(this.value);if(!isNaN(v)&&v>=0&&v<=59)window._tp.m=v;">
+        <button onclick="_tpAdjM(-5)" style="background:rgba(255,255,255,0.1);border:none;color:white;width:52px;height:38px;border-radius:10px;font-size:20px;cursor:pointer;">▼</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-left:6px;">
+        <button id="_tpAM" onclick="_tpSetAP(true)" style="${bAM}${isAM?'background:#fbbf24;color:#111;':'background:rgba(255,255,255,0.13);color:rgba(255,255,255,0.65);'}">AM</button>
+        <button id="_tpPM" onclick="_tpSetAP(false)" style="${bAM}${!isAM?'background:#fbbf24;color:#111;':'background:rgba(255,255,255,0.13);color:rgba(255,255,255,0.65);'}">PM</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:stretch;border-top:1px solid rgba(255,255,255,0.09);">
+      <button onclick="_tpBorrar()" style="flex:1;background:transparent;border:none;color:#f87171;font-weight:700;font-size:17px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;padding:18px 8px;min-width:0;">Borrar</button>
+      <div style="width:1px;background:rgba(255,255,255,0.09);margin:10px 0;"></div>
+      <button onclick="_tpCancelar()" style="flex:1;background:transparent;border:none;color:rgba(255,255,255,0.5);font-weight:600;font-size:17px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;padding:18px 8px;min-width:0;">Cancelar</button>
+      <div style="width:1px;background:rgba(255,255,255,0.09);margin:10px 0;"></div>
+      <button onclick="_tpEstablecer()" style="flex:1;background:transparent;border:none;color:#fbbf24;font-weight:800;font-size:17px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;padding:18px 8px;min-width:0;">Establecer</button>
+    </div>
+    <div style="height:max(env(safe-area-inset-bottom),12px);background:#0f172a;"></div>
+  </div>`;
+  document.body.appendChild(sheet);
+}
+function _tpAdjH(d){var tp=window._tp;tp.h12=tp.h12+d;if(tp.h12>12)tp.h12=1;if(tp.h12<1)tp.h12=12;document.getElementById('_tpHInp').value=tp.h12;}
+function _tpAdjM(d){var tp=window._tp;tp.m=(tp.m+d+60)%60;document.getElementById('_tpMInp').value=String(tp.m).padStart(2,'0');}
+function _tpSetAP(isAM){
+  window._tp.isAM=isAM;
+  var a=document.getElementById('_tpAM'),p=document.getElementById('_tpPM');
+  if(a){a.style.background=isAM?'#fbbf24':'rgba(255,255,255,0.13)';a.style.color=isAM?'#111':'rgba(255,255,255,0.65)';a.style.fontWeight=isAM?'800':'700';}
+  if(p){p.style.background=!isAM?'#fbbf24':'rgba(255,255,255,0.13)';p.style.color=!isAM?'#111':'rgba(255,255,255,0.65)';p.style.fontWeight=!isAM?'800':'700';}
+}
+function _tpEstablecer(){
+  var tp=window._tp;
+  var h=Math.min(12,Math.max(1,parseInt(document.getElementById('_tpHInp').value)||tp.h12));
+  var m=Math.min(59,Math.max(0,parseInt(document.getElementById('_tpMInp').value)||tp.m));
+  var h24=tp.isAM?(h===12?0:h):(h===12?12:h+12);
+  var val=String(h24).padStart(2,'0')+':'+String(m).padStart(2,'0');
+  suplenteUpdTime(window._sids[tp.sid],tp.field,val);
+  _tpClose(); renderView();
+}
+function _tpBorrar(){
+  var tp=window._tp, id=window._sids[tp.sid], date=S.selectedDate, empId=S.empId;
+  if(!id||!date||!empId){_tpClose();return;}
+  var key=horariosKey(date), all=JSON.parse(localStorage.getItem(key)||'{}');
+  if(all[empId]){
+    var svc=all[empId].services.find(function(s){return String(s.id)===String(id);});
+    if(svc){svc[tp.field]='';svc.status=svc.checkin&&svc.checkout?'done':svc.checkin?'active':'pending';all[empId].savedAt=new Date().toISOString();}
+    localStorage.setItem(key,JSON.stringify(all));
+    if(!S.reports)S.reports={};if(!S.reports[date])S.reports[date]={};S.reports[date][empId]=all[empId];
+    toast('🗑 '+(tp.field==='checkin'?'Llegada':'Salida')+' borrada');
+    setTimeout(function(){try{saveHorariosToDrive();}catch(e){}},300);
+  }
+  _tpClose(); renderView();
+}
+function _tpCancelar(){_tpClose();}
+function _tpClose(){var s=document.getElementById('_tpSheet');if(s)s.remove();window._tp=null;}
 
 function openShopTimeEditor(field, currentVal){
   // Remover modal anterior si existe

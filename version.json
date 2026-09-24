@@ -1,4 +1,4 @@
 {
-  "version": "158",
-  "notas": "Reporte de Producción: calcula horas correctamente cuando Salida es del día siguiente (cruce de medianoche)"
+  "version": "162",
+  "notas": "AnaCS: corrige horas nocturnas en reporte de producción; corrige bloques de servicio que no se expandían"
 }
