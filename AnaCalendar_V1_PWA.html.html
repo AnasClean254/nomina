@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.3.2';
+const APP_VERSION = '2.3.4';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -296,7 +296,10 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
     <button onclick="navWeek(1)" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;padding:4px 8px;">▶</button>
     <button onclick="irAHoy()" style="background:var(--brand);color:white;border:none;border-radius:6px;padding:4px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;">Hoy</button>
   </div>
-  <div id="viewDay"><div class="agenda" id="agendaEl"></div></div>
+  <div id="viewDay">
+    <div id="_dbgResp" style="font-size:0.65rem;color:#888;padding:4px 10px;background:#f8f9fa;border-bottom:1px solid #ddd;word-break:break-all;display:block;"></div>
+    <div class="agenda" id="agendaEl"></div>
+  </div>
   <div id="viewWeek" style="display:none"><div class="wg"><div class="wgh" id="wgHead"></div><div class="wgc-wrap" id="wgCells"></div></div></div>
 </div>
 
@@ -994,7 +997,11 @@ function setView(v){
 }
 function esResponsable(){
   const hoy=today();
-  return !!(S.responsables&&S.responsables[hoy]&&S.group&&String(S.responsables[hoy][S.group])===String(S.empId));
+  const resp=S.responsables&&S.responsables[hoy]&&S.group?S.responsables[hoy][S.group]:null;
+  // DEBUG TEMPORAL — quitar después
+  const dbg=document.getElementById('_dbgResp');
+  if(dbg) dbg.textContent=`🔍 hoy=${hoy} | grupo="${S.group}" | empId="${S.empId}" | resp="${resp}" | resp_raw=${JSON.stringify((S.responsables||{})[hoy]||{})}`;
+  return !!(resp && String(resp)===String(S.empId));
 }
 
 function renderView(){
@@ -1040,14 +1047,7 @@ function renderAgenda(){
     });
   }
 
-  if(!svcs.length){
-    el.innerHTML=`<div class="no-sv"><strong>Sin servicios</strong>No hay servicios para hoy.<br>¡Día libre! 🎉</div>`;
-    return;
-  }
-
-  el.innerHTML="";
-
-  // ── Banner: Responsable del Día ──
+  // ── Banner: Responsable del Día (siempre, aunque no haya servicios) ──
   {
     const soy=esResponsable();
     const hoy=today();
@@ -1062,6 +1062,11 @@ function renderAgenda(){
       banner.innerHTML=`⭐ Responsable hoy: <strong style="color:var(--text)">${respEmp.name}</strong>`;
     }
     if(banner.innerHTML) el.appendChild(banner);
+  }
+
+  if(!svcs.length){
+    el.appendChild(Object.assign(document.createElement('div'),{className:'no-sv',innerHTML:'<strong>Sin servicios</strong>No hay servicios para hoy.<br>¡Día libre! 🎉'}));
+    return;
   }
 
   // ── Banda delgada: Salida del Shop (arriba) ──
