@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.4.3';
+const APP_VERSION = '2.4.5';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -1091,8 +1091,8 @@ function renderAgenda(){
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Salida del Shop</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${soVal?'#f59e0b':'var(--muted)'};">${soVal?fmt12(soVal):(canEdit?'— Toca para registrar':'—')}</span>
-        ${canEdit?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
+        <span id="shopOutPreview" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${soVal?'#f59e0b':'var(--muted)'};">${soVal?fmt12(soVal):(canEdit?'<span data-shop-clock style="opacity:0.65;">—</span>':'—')}</span>
+        ${canEdit?`<span style="font-size:11px;color:var(--muted);">${soVal?'✏️':'⏰'}</span>`:''}
       </div>`;
     if(canEdit) bandOut.onclick=soVal
       ? ()=>openShopTimeEditor('shopOut', soVal)
@@ -1164,16 +1164,16 @@ function renderAgenda(){
               <div class="tbl">🟡 Llegada</div>
               ${canEdit?`<span style="font-size:11px;color:var(--muted);">${hasCheckin?'✏️':'⏰'}</span>`:''}
             </div>
-            <div class="tbv" style="color:${hasCheckin?'var(--text)':'var(--muted)'};">${hasCheckin?fmt12(rpt.checkin):'—'}</div>
-            <div class="tbs">${canEdit?(hasCheckin?'toca para editar':'toca para registrar ahora'):(hasCheckin?'registrada':'sin registrar')}</div>
+            <div class="tbv" style="color:${hasCheckin?'var(--text)':'var(--muted)'};" ${!hasCheckin&&canEdit?'data-tp="checkin"':''}>${hasCheckin?fmt12(rpt.checkin):'—'}</div>
+            <div class="tbs">${canEdit?(hasCheckin?'toca para editar':'toca para confirmar'):(hasCheckin?'registrada':'sin registrar')}</div>
           </div>
           <div class="tb ${hasCheckout?'has':'empty'}" ${canEdit?(hasCheckout?`onclick="openTimePicker('${sid}','checkout','${rpt.checkout||''}','🟢 Salida')" style="cursor:pointer;"`:`onclick="autoCaptura('${sid}','checkout')" style="cursor:pointer;"`):''}">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <div class="tbl">🟢 Salida</div>
               ${canEdit?`<span style="font-size:11px;color:var(--muted);">${hasCheckout?'✏️':'⏰'}</span>`:''}
             </div>
-            <div class="tbv" style="color:${hasCheckout?'var(--text)':'var(--muted)'};">${hasCheckout?fmt12(rpt.checkout):'—'}</div>
-            <div class="tbs">${canEdit?(hasCheckout?'toca para editar':'toca para registrar ahora'):(hasCheckout?(dur||'—'):'sin registrar')}</div>
+            <div class="tbv" style="color:${hasCheckout?'var(--text)':'var(--muted)'};" ${!hasCheckout&&canEdit?'data-tp="checkout"':''}>${hasCheckout?fmt12(rpt.checkout):'—'}</div>
+            <div class="tbs">${canEdit?(hasCheckout?'toca para editar':'toca para confirmar'):(hasCheckout?(dur||'—'):'sin registrar')}</div>
           </div>
         </div>
         ${dur?`<div class="dur-row">⏱ Duración: <span>${dur}</span></div>`:''}
@@ -1199,9 +1199,9 @@ function renderAgenda(){
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Regreso al Shop</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${sbVal?'#22c55e':'var(--muted)'};">${sbVal?fmt12(sbVal):(canEditBack?'— Toca para registrar':'—')}</span>
+        <span id="shopBackPreview" style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${sbVal?'#22c55e':'var(--muted)'};">${sbVal?fmt12(sbVal):(canEditBack?'<span data-shop-clock style="opacity:0.65;">—</span>':'—')}</span>
         ${soVal&&sbVal?`<span style="font-size:11px;color:var(--muted);">${calcDur(soVal,sbVal)}</span>`:''}
-        ${canEditBack?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
+        ${canEditBack?`<span style="font-size:11px;color:var(--muted);">${sbVal?'✏️':'⏰'}</span>`:''}
       </div>`;
     if(canEditBack) bandBack.onclick=sbVal
       ? ()=>openShopTimeEditor('shopBack', sbVal)
@@ -1228,7 +1228,20 @@ function renderAgenda(){
   }
 }
 
-function tog(id){document.getElementById(`blk_${id}`)?.classList.toggle('open');}
+function tog(id){
+  var blk=document.getElementById('blk_'+id);
+  if(!blk) return;
+  var opening=!blk.classList.contains('open');
+  blk.classList.toggle('open');
+  if(opening){
+    var now=new Date(), h=now.getHours(), m=now.getMinutes();
+    var h12=h%12||12, ap=h<12?'AM':'PM';
+    var timeStr=h12+':'+String(m).padStart(2,'0')+' '+ap;
+    blk.querySelectorAll('[data-tp]').forEach(function(el){
+      el.textContent=timeStr;
+    });
+  }
+}
 
 function horariosKey(date){ return 'ana_horarios_'+date; }
 function horariosFile(date){ return 'ana_horarios_'+date+'.json'; }
@@ -1416,6 +1429,20 @@ function saveShopTime(field, inputId, directVal){
   setTimeout(function(){try{saveHorariosToDrive();}catch(e){}},300);
   renderView();
 }
+
+/* ── RELOJ PREVIEW SHOP BANDS ── */
+function _shopClockTick(){
+  var n=new Date(), h=n.getHours()%12||12, m=n.getMinutes(), ap=n.getHours()<12?'AM':'PM';
+  var str=h+':'+String(m).padStart(2,'0')+' '+ap;
+  document.querySelectorAll('[data-shop-clock]').forEach(function(el){ el.textContent=str; });
+  // también los data-tp de servicios expandidos
+  document.querySelectorAll('.sb.open [data-tp]').forEach(function(el){ el.textContent=str; });
+}
+(function(){
+  _shopClockTick();
+  var ms=60000-new Date().getSeconds()*1000-new Date().getMilliseconds();
+  setTimeout(function(){ _shopClockTick(); setInterval(_shopClockTick,60000); }, ms);
+})();
 
 /* ── WEEK VIEW ── */
 function renderWeek(){
