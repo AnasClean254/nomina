@@ -1,4 +1,4 @@
 {
-  "version": "156",
-  "notas": "Nueva función: Responsable del Día — Ana designa una empleada por grupo en el modal de rotación"
+  "version": "158",
+  "notas": "Reporte de Producción: calcula horas correctamente cuando Salida es del día siguiente (cruce de medianoche)"
 }
