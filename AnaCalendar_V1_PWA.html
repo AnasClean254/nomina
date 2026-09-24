@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.3.1';
+const APP_VERSION = '2.3.6';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -400,7 +400,7 @@ const MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Di
 // App state
 const S={
   driveToken:null, folderId:null, reportsFileId:null,
-  grupos:{}, servs:[], clis:[], emps:[], reports:{},
+  grupos:{}, servs:[], clis:[], emps:[], reports:{}, responsables:{},
   empId:null, empName:'', group:'',
   selectedDate:'', weekStart:'', view:'day'
 };
@@ -553,6 +553,7 @@ async function loadSyncFile(){
     if(!data||data.exportType!=='anaCS_sync'){setDS('err','⚠ Archivo inválido');return;}
     S.grupos=data.grupos||{}; S.servs=data.servs||[]; S.clis=data.clis||[]; S.emps=data.emps||[];
     S.cellNotes=data.cellNotes||{};
+    S.responsables=data.responsables||{};   // ← fix v2.3.6: faltaba aquí
     if(data.clavesSuplente) S.clavesSuplente=data.clavesSuplente;
     if(data.supervisorPin) S.supervisorPin=data.supervisorPin;
     const mod=new Date(sr.files[0].modifiedTime).toLocaleString('es-MX',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
@@ -992,6 +993,12 @@ function setView(v){
   document.getElementById('viewWeek').style.display=v==='week'?'block':'none';
   renderView();
 }
+function esResponsable(){
+  const fecha=S.selectedDate||today();
+  const resp=S.responsables&&S.responsables[fecha]&&S.group?S.responsables[fecha][S.group]:null;
+  return !!(resp && String(resp)===String(S.empId));
+}
+
 function renderView(){
   const d=new Date(S.selectedDate+'T12:00:00');
   const ws=new Date(S.weekStart+'T12:00:00'), we=new Date(ws); we.setDate(we.getDate()+13);
@@ -1035,29 +1042,46 @@ function renderAgenda(){
     });
   }
 
-  if(!svcs.length){
-    el.innerHTML=`<div class="no-sv"><strong>Sin servicios</strong>No hay servicios para hoy.<br>¡Día libre! 🎉</div>`;
-    return;
+  // ── Banner: Responsable del Día (siempre, aunque no haya servicios) ──
+  {
+    const soy=esResponsable();
+    const fecha=S.selectedDate||today();
+    const respId=S.responsables&&S.responsables[fecha]&&S.group?S.responsables[fecha][S.group]:null;
+    const respEmp=respId?(S.emps||[]).find(e=>String(e.id)===String(respId)):null;
+    const esHoy=fecha===today();
+    const banner=document.createElement('div');
+    if(soy){
+      banner.style.cssText='background:linear-gradient(135deg,#27ae60,#2ecc71);color:white;padding:10px 14px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.88rem;';
+      banner.innerHTML=esHoy?'⭐ Eres la Responsable del Día — registra los horarios del grupo':'⭐ Fuiste la Responsable de este día';
+    } else if(respEmp){
+      banner.style.cssText='background:var(--s2);border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:10px;margin-bottom:10px;font-size:0.82rem;';
+      banner.innerHTML=`⭐ Responsable${esHoy?' hoy':''}: <strong style="color:var(--text)">${respEmp.name}</strong>`;
+    }
+    if(banner.innerHTML) el.appendChild(banner);
   }
 
-  el.innerHTML="";
+  if(!svcs.length){
+    el.appendChild(Object.assign(document.createElement('div'),{className:'no-sv',innerHTML:'<strong>Sin servicios</strong>No hay servicios para hoy.<br>¡Día libre! 🎉'}));
+    return;
+  }
 
   // ── Banda delgada: Salida del Shop (arriba) ──
   {
     const soVal=dayRpt?.shopOut||'';
+    const canEdit=esResponsable();
     const bandOut=document.createElement('div');
     bandOut.id='shopOutBand';
-    bandOut.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-bottom:8px;background:var(--s2);border:1px solid '+(soVal?'#f59e0b':'var(--border)')+';border-radius:10px;cursor:pointer;';
+    bandOut.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-bottom:8px;background:var(--s2);border:1px solid '+(soVal?'#f59e0b':'var(--border)')+';border-radius:10px;'+(canEdit?'cursor:pointer;':'');
     bandOut.innerHTML=`
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:13px;">🚐</span>
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Salida del Shop</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${soVal?'#f59e0b':'var(--muted)'};">${soVal?fmt12(soVal):'— Toca para registrar'}</span>
-        <span style="font-size:11px;color:var(--muted);">✏️</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${soVal?'#f59e0b':'var(--muted)'};">${soVal?fmt12(soVal):(canEdit?'— Toca para registrar':'—')}</span>
+        ${canEdit?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
       </div>`;
-    bandOut.onclick=()=>openShopTimeEditor('shopOut', soVal);
+    if(canEdit) bandOut.onclick=()=>openShopTimeEditor('shopOut', soVal);
     el.appendChild(bandOut);
   }
 
@@ -1117,7 +1141,7 @@ function renderAgenda(){
           <button onclick="supvMoveDate('${svc.id}')" style="flex:1;padding:6px;background:#3498db;color:white;border:none;border-radius:6px;cursor:pointer;font-size:0.75rem;font-weight:700;">📅 Cambiar Fecha</button>
         </div>
       `:''}
-      ${true?`
+      ${esResponsable()?`
         <div class="tr2">
           <div class="tb ${hasCheckin?'has':'empty'}">
             <div class="tbl">🟡 Llegada</div>
@@ -1156,20 +1180,21 @@ function renderAgenda(){
   {
     const sbVal=dayRpt?.shopBack||'';
     const soVal=dayRpt?.shopOut||'';
+    const canEditBack=esResponsable();
     const bandBack=document.createElement('div');
     bandBack.id='shopBackBand';
-    bandBack.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-top:8px;background:var(--s2);border:1px solid '+(sbVal?'#22c55e':'var(--border)')+';border-radius:10px;cursor:pointer;';
+    bandBack.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-top:8px;background:var(--s2);border:1px solid '+(sbVal?'#22c55e':'var(--border)')+';border-radius:10px;'+(canEditBack?'cursor:pointer;':'');
     bandBack.innerHTML=`
       <div style="display:flex;align-items:center;gap:8px;">
         <span style="font-size:13px;">🏠</span>
         <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Regreso al Shop</span>
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${sbVal?'#22c55e':'var(--muted)'};">${sbVal?fmt12(sbVal):'— Toca para registrar'}</span>
+        <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;color:${sbVal?'#22c55e':'var(--muted)'};">${sbVal?fmt12(sbVal):(canEditBack?'— Toca para registrar':'—')}</span>
         ${soVal&&sbVal?`<span style="font-size:11px;color:var(--muted);">${calcDur(soVal,sbVal)}</span>`:''}
-        <span style="font-size:11px;color:var(--muted);">✏️</span>
+        ${canEditBack?'<span style="font-size:11px;color:var(--muted);">✏️</span>':''}
       </div>`;
-    bandBack.onclick=()=>openShopTimeEditor('shopBack', sbVal);
+    if(canEditBack) bandBack.onclick=()=>openShopTimeEditor('shopBack', sbVal);
     el.appendChild(bandBack);
   }
 
@@ -1445,6 +1470,7 @@ async function refreshData(){
         if(data&&data.exportType==='anaCS_sync'){
           S.servs=data.servs||[]; S.clis=data.clis||[]; S.grupos=data.grupos||{}; S.emps=data.emps||[];
           S.cellNotes=data.cellNotes||{};
+          S.responsables=data.responsables||{};
           if(data.supervisorPin) S.supervisorPin=data.supervisorPin;
           if(data.clavesSuplente) S.clavesSuplente=data.clavesSuplente;
         }
