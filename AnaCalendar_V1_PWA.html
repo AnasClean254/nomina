@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.3.9';
+const APP_VERSION = '2.4.0';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 async function checkForUpdate() {
@@ -1111,6 +1111,8 @@ function renderAgenda(){
     const sc=st==='done'?'std':st==='active'?'sta':st==='cancelled'?'stp':'stp';
     const sx=st==='done'?'Terminado':st==='active'?'En servicio':st==='cancelled'?'❌ Cancelado':'Pendiente';
 
+    const sid=String(svc.id).replace(/[^a-zA-Z0-9]/g,'_');
+
     const tl=document.createElement('div');
     tl.className='tslot';
     tl.textContent=svc.scheduledStart?fmt12s(svc.scheduledStart):'';
@@ -1132,7 +1134,6 @@ function renderAgenda(){
     const hasCheckout=!!(rpt.checkout);
     const dur=(rpt.checkin&&rpt.checkout)?calcDur(rpt.checkin,rpt.checkout):null;
     const canEdit=esResponsable()||!hasCheckin||!!myRpts[String(svc.id)];
-    const sid=String(svc.id).replace(/[^a-zA-Z0-9]/g,'_');
     window._sids=window._sids||{}; window._sids[sid]=svc.id;
 
     blk.innerHTML=`
