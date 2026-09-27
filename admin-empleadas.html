@@ -156,7 +156,10 @@ async function cargarLista(){
     div.innerHTML = data.employees.map(e => `
       <div class="emp-row">
         <span class="emp-name">${e.name} <span style="color:#999;font-weight:400">(${e.id})</span>${e.is_admin ? '<span class="emp-badge">admin</span>' : ''}</span>
-        <button class="del-btn" onclick="eliminar('${e.id}')">Eliminar</button>
+        <span>
+          <button class="del-btn" style="color:var(--blue)" onclick="prepararEdicion('${e.id}','${e.name.replace(/'/g,"\\'")}')">Cambiar clave</button>
+          <button class="del-btn" onclick="eliminar('${e.id}')">Eliminar</button>
+        </span>
       </div>
     `).join('');
   }catch(e){
@@ -189,6 +192,17 @@ async function agregar(){
   }catch(e){
     msg.innerHTML = '<div class="msg err">Error de red: '+e.message+'</div>';
   }
+}
+
+function prepararEdicion(id, name){
+  document.getElementById('nominaSelect').value = '';
+  document.getElementById('newId').value = id;
+  document.getElementById('newName').value = name;
+  document.getElementById('newPass').value = '';
+  document.getElementById('newSchedulerEmpId').value = '';
+  document.getElementById('newPass').focus();
+  document.getElementById('addMsg').innerHTML = '<div class="msg ok">Editando a '+name+' — escribe la nueva contraseña y dale Agregar (se actualiza, no se duplica).</div>';
+  window.scrollTo({top:0, behavior:'smooth'});
 }
 
 async function eliminar(id){
