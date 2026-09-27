@@ -50,6 +50,16 @@
   <p class="sub" id="whoami"></p>
 
   <div class="card">
+    <h2>Agregar varias de un jalón</h2>
+    <p class="sub" style="margin-top:0">Pega 2 columnas copiadas de Excel: <b>Nombre</b> (tal como aparece en Nómina) y <b>PIN</b>. Una por línea.</p>
+    <textarea id="bulkBox" style="width:100%;min-height:110px;padding:10px;border:1px solid #ccc;border-radius:8px;font-size:14px;font-family:monospace;margin-top:4px" placeholder="Rosalba Gómez&#9;4821&#10;Juana Pérez&#9;7734"></textarea>
+    <button onclick="previewBulk()">Revisar coincidencias</button>
+    <div id="bulkPreview"></div>
+    <button id="bulkConfirmBtn" onclick="confirmBulk()" style="display:none;background:var(--green)">✅ Confirmar y agregar todas</button>
+    <div id="bulkMsg"></div>
+  </div>
+
+  <div class="card">
     <h2>Agregar empleada</h2>
     <label>Selecciona de la lista de Nómina (o escribe manual abajo si no aparece)</label>
     <select id="nominaSelect" onchange="seleccionarDeNomina()">
@@ -165,6 +175,78 @@ async function cargarLista(){
   }catch(e){
     div.innerHTML = '<div class="msg err">Error de red: '+e.message+'</div>';
   }
+}
+
+let BULK_ROWS = [];
+
+function fuzzyMatch(name){
+  const norm = s => (s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  const target = norm(name);
+  // 1) coincidencia exacta
+  let found = NOMINA_EMPS.find(e => norm(e.name) === target);
+  if(found) return found;
+  // 2) el nombre pegado está contenido en el de Nómina, o viceversa
+  found = NOMINA_EMPS.find(e => norm(e.name).includes(target) || target.includes(norm(e.name)));
+  if(found) return found;
+  // 3) coincide el primer nombre + primer apellido
+  const parts = target.split(/\s+/);
+  if(parts.length>=2){
+    found = NOMINA_EMPS.find(e => {
+      const eparts = norm(e.name).split(/\s+/);
+      return eparts.includes(parts[0]) && eparts.includes(parts[1]);
+    });
+    if(found) return found;
+  }
+  return null;
+}
+
+function previewBulk(){
+  const text = document.getElementById('bulkBox').value.trim();
+  const prev = document.getElementById('bulkPreview');
+  const confirmBtn = document.getElementById('bulkConfirmBtn');
+  if(!text){ prev.innerHTML='<div class="msg err">Pega primero nombre + PIN.</div>'; confirmBtn.style.display='none'; return; }
+  const lines = text.split(/\r?\n/).filter(l=>l.trim());
+  BULK_ROWS = [];
+  let html = '<div style="margin-top:10px">';
+  lines.forEach(line=>{
+    const cols = line.split('\t').map(c=>c.trim());
+    if(cols.length<2){ html += `<div class="msg err">⚠️ Línea incompleta: "${line}"</div>`; return; }
+    const [rawName, pin] = cols;
+    const match = fuzzyMatch(rawName);
+    if(match){
+      const id = normalizeId(match.name);
+      BULK_ROWS.push({ id, name: match.name, password: pin, schedulerEmpId: match.id });
+      html += `<div class="msg ok">✅ "${rawName}" → <b>${match.name}</b> (usuario: ${id})</div>`;
+    } else {
+      html += `<div class="msg err">❌ "${rawName}" — no encontrada en Nómina, se omite</div>`;
+    }
+  });
+  html += '</div>';
+  prev.innerHTML = html;
+  confirmBtn.style.display = BULK_ROWS.length ? 'block' : 'none';
+}
+
+async function confirmBulk(){
+  const msg = document.getElementById('bulkMsg');
+  msg.innerHTML = '';
+  let ok=0, fail=0, log='';
+  for(const row of BULK_ROWS){
+    try{
+      const r = await fetch(WORKER + '/api/admin/employees', {
+        method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},
+        body: JSON.stringify(row)
+      });
+      const data = await r.json();
+      if(r.ok){ ok++; log += `<div class="msg ok">✅ ${row.name}</div>`; }
+      else { fail++; log += `<div class="msg err">❌ ${row.name}: ${data.error||'error'}</div>`; }
+    }catch(e){ fail++; log += `<div class="msg err">❌ ${row.name}: ${e.message}</div>`; }
+  }
+  msg.innerHTML = `<p><b>${ok} agregadas, ${fail} con error.</b></p>` + log;
+  document.getElementById('bulkPreview').innerHTML = '';
+  document.getElementById('bulkConfirmBtn').style.display = 'none';
+  document.getElementById('bulkBox').value = '';
+  BULK_ROWS = [];
+  cargarLista();
 }
 
 async function agregar(){
