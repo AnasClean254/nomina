@@ -48,6 +48,7 @@
 <div id="app">
   <h1>👥 Empleadas — AnaCalendar</h1>
   <p class="sub" id="whoami"></p>
+  <button onclick="logoutAdmin()" style="background:#fff;color:var(--red);border:1px solid var(--red);width:auto;padding:8px 14px;font-size:13px;margin-top:0;margin-bottom:8px">🔌 Cerrar sesión</button>
 
   <div class="card">
     <h2>Agregar varias de un jalón</h2>
@@ -93,6 +94,14 @@ function normalizeId(name){
   base = base.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
   base = base.toLowerCase().replace(/[^a-z0-9]/g,'');
   return base || 'user';
+}
+
+function logoutAdmin(){
+  TOKEN=''; WORKER=''; WHOAMI='';
+  NOMINA_EMPS=[]; YA_REGISTRADAS=[]; BULK_ROWS=[];
+  document.getElementById('loginPass').value='';
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginBox').style.display='block';
 }
 
 async function login(){
