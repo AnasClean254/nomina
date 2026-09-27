@@ -34,8 +34,6 @@
   <h1>🔐 Panel de Empleadas</h1>
   <p class="sub">Solo la administradora puede entrar aquí.</p>
   <div class="card">
-    <label>URL del Worker</label>
-    <input id="workerUrl" placeholder="https://ana-calendar-worker.ranulfocast.workers.dev" value="https://ana-calendar-worker.ranulfocast.workers.dev">
     <label>Usuario</label>
     <input id="loginUser" placeholder="ej. ana">
     <label>Contraseña</label>
@@ -85,7 +83,7 @@
 </div>
 
 <script>
-let TOKEN = '', WORKER = '', WHOAMI = '';
+let TOKEN = '', WORKER = 'https://ana-calendar-worker.ranulfocast.workers.dev', WHOAMI = '';
 let NOMINA_EMPS = []; // lista cruda desde Nómina/Scheduler (vía /api/sync)
 let YA_REGISTRADAS = []; // ids que ya tienen cuenta en Calendar
 
@@ -97,7 +95,7 @@ function normalizeId(name){
 }
 
 function logoutAdmin(){
-  TOKEN=''; WORKER=''; WHOAMI='';
+  TOKEN=''; WHOAMI='';
   NOMINA_EMPS=[]; YA_REGISTRADAS=[]; BULK_ROWS=[];
   document.getElementById('loginPass').value='';
   document.getElementById('app').style.display='none';
@@ -105,7 +103,6 @@ function logoutAdmin(){
 }
 
 async function login(){
-  WORKER = document.getElementById('workerUrl').value.trim().replace(/\/$/,'');
   const username = document.getElementById('loginUser').value.trim();
   const password = document.getElementById('loginPass').value;
   const msg = document.getElementById('loginMsg');
