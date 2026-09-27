@@ -563,14 +563,20 @@ async function saveHorariosToDrive(){
     var data=JSON.parse(localStorage.getItem(key)||'{}');
     var mine=data[S.empId];
     if(!mine) return; // nada propio que subir todavía
-    await wPost('/api/horarios', {
+    var body={
       date: date,
       empId: S.empId,
       group: S.group,
-      services: mine.services||[],
-      shopOut: mine.shopOut,
-      shopBack: mine.shopBack
-    });
+      services: mine.services||[]
+    };
+    // shopOut/shopBack: solo se mandan si hay valor, o con bandera explícita
+    // de "borrar" cuando el propio usuario lo borró a propósito (nunca por
+    // string vacío accidental de un registro recién creado).
+    if(mine.shopOut) body.shopOut=mine.shopOut;
+    else if(mine._clearShopOut) body.clearShopOut=true;
+    if(mine.shopBack) body.shopBack=mine.shopBack;
+    else if(mine._clearShopBack) body.clearShopBack=true;
+    await wPost('/api/horarios', body);
     sdot('ok','Sync '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
     toast('☁️ Horarios subidos');
   }catch(e){
@@ -1356,6 +1362,8 @@ function saveShopTime(field, inputId, directVal){
   var all=JSON.parse(localStorage.getItem(key)||'{}');
   if(!all[empId]) all[empId]={empId:empId,empName:S.empName||'',group:group,services:[],savedAt:''};
   all[empId][field]=val;
+  if(isBorrar) all[empId]['_clear'+(field==='shopOut'?'ShopOut':'ShopBack')]=true;
+  else all[empId]['_clear'+(field==='shopOut'?'ShopOut':'ShopBack')]=false;
   all[empId].savedAt=new Date().toISOString();
   localStorage.setItem(key,JSON.stringify(all));
   if(!S.reports) S.reports={};
