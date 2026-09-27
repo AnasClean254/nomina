@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Administrar Empleadas — AnaCalendar</title>
+<style>
+  :root{--blue:#2f6fed;--red:#d0413a;--green:#1f8a52;--bg:#f5f6f8;--ink:#1a1d27}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,sans-serif;max-width:480px;margin:0 auto;padding:24px 18px 60px;background:var(--bg);color:var(--ink)}
+  h1{font-size:20px;margin-bottom:4px}
+  .sub{color:#666;font-size:13px;margin-bottom:20px}
+  label{display:block;margin-top:12px;font-size:13px;color:#555}
+  input{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;font-size:15px;margin-top:4px}
+  button{margin-top:16px;padding:11px 16px;border:none;border-radius:8px;background:var(--blue);color:#fff;cursor:pointer;font-weight:600;font-size:15px;width:100%}
+  button.secondary{background:#fff;color:var(--blue);border:1px solid var(--blue)}
+  .card{background:#fff;border-radius:12px;padding:16px;margin-top:16px;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+  .emp-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #eee}
+  .emp-row:last-child{border-bottom:none}
+  .emp-name{font-weight:600;font-size:14px}
+  .emp-badge{font-size:11px;color:var(--blue);background:#e8f0fe;padding:2px 8px;border-radius:10px;margin-left:6px}
+  .del-btn{background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;font-weight:600;width:auto;margin:0;padding:6px 10px}
+  .msg{margin-top:12px;font-size:13px;padding:10px;border-radius:8px}
+  .msg.ok{background:#eafaf1;color:var(--green)}
+  .msg.err{background:#fdecea;color:var(--red)}
+  #app{display:none}
+  #loginBox{}
+  h2{font-size:15px;margin-top:0}
+</style>
+</head>
+<body>
+
+<div id="loginBox">
+  <h1>🔐 Panel de Empleadas</h1>
+  <p class="sub">Solo la administradora puede entrar aquí.</p>
+  <div class="card">
+    <label>URL del Worker</label>
+    <input id="workerUrl" placeholder="https://ana-calendar-worker.ranulfocast.workers.dev" value="https://ana-calendar-worker.ranulfocast.workers.dev">
+    <label>Usuario</label>
+    <input id="loginUser" placeholder="ej. ana">
+    <label>Contraseña</label>
+    <input id="loginPass" type="password">
+    <button onclick="login()">Entrar</button>
+    <div id="loginMsg"></div>
+  </div>
+</div>
+
+<div id="app">
+  <h1>👥 Empleadas — AnaCalendar</h1>
+  <p class="sub" id="whoami"></p>
+
+  <div class="card">
+    <h2>Agregar empleada</h2>
+    <label>Selecciona de la lista de Nómina (o escribe manual abajo si no aparece)</label>
+    <select id="nominaSelect" onchange="seleccionarDeNomina()">
+      <option value="">— Elegir de Nómina —</option>
+    </select>
+    <label>Usuario (para entrar a Calendar, sin espacios)</label>
+    <input id="newId" placeholder="se sugiere solo al elegir de la lista">
+    <label>Nombre completo</label>
+    <input id="newName" placeholder="ej. Rosalba Gómez">
+    <label>Contraseña (ej. el mismo código que usa en Reloj Checador)</label>
+    <input id="newPass" placeholder="1234">
+    <input type="hidden" id="newSchedulerEmpId" value="">
+    <button onclick="agregar()">+ Agregar</button>
+    <div id="addMsg"></div>
+    <p class="sub" style="margin-top:8px;">⚠️ Si no la seleccionaste de la lista de Nómina, la app no va a poder mostrarle sus servicios asignados automáticamente.</p>
+  </div>
+
+  <div class="card">
+    <h2>Empleadas actuales</h2>
+    <div id="lista">Cargando...</div>
+  </div>
+</div>
+
+<script>
+let TOKEN = '', WORKER = '', WHOAMI = '';
+let NOMINA_EMPS = []; // lista cruda desde Nómina/Scheduler (vía /api/sync)
+let YA_REGISTRADAS = []; // ids que ya tienen cuenta en Calendar
+
+function normalizeId(name){
+  let base = (name||'').trim().split(/\s+/)[0] || 'user';
+  base = base.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  base = base.toLowerCase().replace(/[^a-z0-9]/g,'');
+  return base || 'user';
+}
+
+async function login(){
+  WORKER = document.getElementById('workerUrl').value.trim().replace(/\/$/,'');
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const msg = document.getElementById('loginMsg');
+  msg.innerHTML = '';
+  try{
+    const r = await fetch(WORKER + '/api/login', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({username, password})
+    });
+    const data = await r.json();
+    if(!r.ok){ msg.innerHTML = '<div class="msg err">'+(data.error||'Error')+'</div>'; return; }
+    if(!data.isAdmin){ msg.innerHTML = '<div class="msg err">Esta cuenta no tiene permiso de administradora.</div>'; return; }
+    TOKEN = data.token;
+    WHOAMI = data.empName;
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('whoami').textContent = 'Sesión: ' + WHOAMI;
+    cargarLista();
+    cargarNomina();
+  }catch(e){
+    msg.innerHTML = '<div class="msg err">Error de red: '+e.message+'</div>';
+  }
+}
+
+async function cargarNomina(){
+  const sel = document.getElementById('nominaSelect');
+  try{
+    const r = await fetch(WORKER + '/api/sync', { headers:{'Authorization':'Bearer '+TOKEN} });
+    const data = await r.json();
+    if(!r.ok || !data.emps) return; // si falla, no pasa nada — se sigue pudiendo agregar manual
+    NOMINA_EMPS = data.emps;
+    refrescarOpcionesNomina();
+  }catch(e){ /* silencioso: el formulario manual sigue funcionando */ }
+}
+
+function refrescarOpcionesNomina(){
+  const sel = document.getElementById('nominaSelect');
+  sel.innerHTML = '<option value="">— Elegir de Nómina —</option>';
+  NOMINA_EMPS.forEach((emp, i) => {
+    const yaTiene = YA_REGISTRADAS.includes(normalizeId(emp.name)) || YA_REGISTRADAS.some(id => id === emp.id);
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = emp.name + (yaTiene ? ' (ya tiene cuenta)' : '');
+    sel.appendChild(opt);
+  });
+}
+
+function seleccionarDeNomina(){
+  const idx = document.getElementById('nominaSelect').value;
+  if(idx === '') { document.getElementById('newSchedulerEmpId').value = ''; return; }
+  const emp = NOMINA_EMPS[idx];
+  document.getElementById('newName').value = emp.name;
+  document.getElementById('newId').value = normalizeId(emp.name);
+  document.getElementById('newSchedulerEmpId').value = emp.id;
+}
+
+async function cargarLista(){
+  const div = document.getElementById('lista');
+  div.textContent = 'Cargando...';
+  try{
+    const r = await fetch(WORKER + '/api/admin/employees', { headers:{'Authorization':'Bearer '+TOKEN} });
+    const data = await r.json();
+    if(!r.ok){ div.innerHTML = '<div class="msg err">'+(data.error||'Error')+'</div>'; return; }
+    if(!data.employees.length){ div.textContent = 'No hay empleadas registradas.'; YA_REGISTRADAS = []; refrescarOpcionesNomina(); return; }
+    YA_REGISTRADAS = data.employees.map(e => e.id);
+    refrescarOpcionesNomina();
+    div.innerHTML = data.employees.map(e => `
+      <div class="emp-row">
+        <span class="emp-name">${e.name} <span style="color:#999;font-weight:400">(${e.id})</span>${e.is_admin ? '<span class="emp-badge">admin</span>' : ''}</span>
+        <button class="del-btn" onclick="eliminar('${e.id}')">Eliminar</button>
+      </div>
+    `).join('');
+  }catch(e){
+    div.innerHTML = '<div class="msg err">Error de red: '+e.message+'</div>';
+  }
+}
+
+async function agregar(){
+  const id = document.getElementById('newId').value.trim();
+  const name = document.getElementById('newName').value.trim();
+  const password = document.getElementById('newPass').value.trim();
+  const schedulerEmpId = document.getElementById('newSchedulerEmpId').value.trim() || null;
+  const msg = document.getElementById('addMsg');
+  msg.innerHTML = '';
+  if(!id || !name || !password){ msg.innerHTML = '<div class="msg err">Llena los 3 campos.</div>'; return; }
+  try{
+    const r = await fetch(WORKER + '/api/admin/employees', {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},
+      body: JSON.stringify({id, name, password, schedulerEmpId})
+    });
+    const data = await r.json();
+    if(!r.ok){ msg.innerHTML = '<div class="msg err">'+(data.error||'Error')+'</div>'; return; }
+    msg.innerHTML = '<div class="msg ok">Agregada correctamente.</div>';
+    document.getElementById('newId').value = '';
+    document.getElementById('newName').value = '';
+    document.getElementById('newPass').value = '';
+    document.getElementById('newSchedulerEmpId').value = '';
+    document.getElementById('nominaSelect').value = '';
+    cargarLista();
+  }catch(e){
+    msg.innerHTML = '<div class="msg err">Error de red: '+e.message+'</div>';
+  }
+}
+
+async function eliminar(id){
+  if(!confirm('¿Seguro que quieres eliminar a "'+id+'"? Ya no podrá entrar a Calendar.')) return;
+  try{
+    const r = await fetch(WORKER + '/api/admin/employees/delete', {
+      method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},
+      body: JSON.stringify({id})
+    });
+    const data = await r.json();
+    if(!r.ok){ alert(data.error||'Error'); return; }
+    cargarLista();
+  }catch(e){
+    alert('Error de red: '+e.message);
+  }
+}
+</script>
+</body>
+</html>
