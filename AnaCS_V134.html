@@ -8964,7 +8964,7 @@ Motivo de cancelación (opcional):`);
         doc.text('TOTAL:', 130, y+8);
         doc.text(money(inv.total), 185, y+8, { align:'right' });
 
-        try { this.drawPaymentOptions(doc, 20, y + 14, 170, 'COMBINED', inv.clientName, inv.total); } catch(e){}
+        try { this.drawPaymentOptions(doc, 20, y + 14, 170, inv.invoiceNumber, inv.clientName, inv.total); } catch(e){}
         window.open(doc.output('bloburl'), '_blank');
     }
 
@@ -9706,7 +9706,7 @@ Motivo de cancelación (opcional):`);
         doc.text('TOTAL:', 130, y+8);
         doc.text(money(granTotal), 185, y+8, { align:'right' });
 
-        try { this.drawPaymentOptions(doc, 20, y + 14, 170, 'COMBINED', clientName, granTotal); }
+        try { this.drawPaymentOptions(doc, 20, y + 14, 170, invNum, clientName, granTotal); }
         catch(e) { console.warn('formas de pago:', e); }
 
         const totalVisitas = lineas.reduce((a,b)=>a+b.visitas,0);
