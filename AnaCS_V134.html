@@ -7466,6 +7466,11 @@ class Scheduler {
         const periodFilter = document.getElementById('genInvPeriod')?.value || 'all';
         const searchTerm = (document.getElementById('genInvSearch')?.value || '').toLowerCase().trim();
         const numSearchTerm = (document.getElementById('genInvNumSearch')?.value || '').trim();
+        // Filtro por monto de la factura. Campo vacío = sin límite por ese lado.
+        const montoMin = parseFloat(document.getElementById('genInvMontoMin')?.value);
+        const montoMax = parseFloat(document.getElementById('genInvMontoMax')?.value);
+        // Búsqueda por monto: se limpian $ , y espacios para que dé igual cómo se escriba
+        const amountSearch = (document.getElementById('genInvAmountSearch')?.value || '').replace(/[$,\s]/g, '').trim();
         
         if (!this.generatedInvoices) {
             this.generatedInvoices = [];
@@ -7477,6 +7482,18 @@ class Scheduler {
             if (clientFilter !== 'all' && inv.clientName !== clientFilter) return false;
             if (statusFilter !== 'all' && inv.status !== statusFilter) return false;
             if (numSearchTerm && !String(inv.invoiceNumber).includes(numSearchTerm)) return false;
+            const _monto = parseFloat(inv.total || 0);
+            if (!isNaN(montoMin) && _monto < montoMin) return false;
+            if (!isNaN(montoMax) && _monto > montoMax) return false;
+            if (amountSearch) {
+                // Empata por texto, para que escribir "303" ya vaya acotando
+                const _txt = _monto.toFixed(2);
+                let empata = _txt.includes(amountSearch) || String(_monto).includes(amountSearch);
+                // Y también si pegaste el monto que cobró Stripe, que trae el 3% encima
+                const _buscado = parseFloat(amountSearch);
+                if (!empata && !isNaN(_buscado) && Math.abs(_monto * 1.03 - _buscado) < 0.01) empata = true;
+                if (!empata) return false;
+            }
             if (periodFilter !== 'all') {
                 const invStart = inv.startDate || '';
                 const invEnd = inv.endDate || '';
@@ -7504,6 +7521,8 @@ class Scheduler {
                 case 'name_desc': return (b.clientName||'').localeCompare(a.clientName||'');
                 case 'status_asc': return (_statusRank[a.status]||9) - (_statusRank[b.status]||9);
                 case 'status_desc': return (_statusRank[b.status]||9) - (_statusRank[a.status]||9);
+                case 'amount_desc': return (parseFloat(b.total)||0) - (parseFloat(a.total)||0);
+                case 'amount_asc': return (parseFloat(a.total)||0) - (parseFloat(b.total)||0);
                 default: return b.generatedDate.localeCompare(a.generatedDate); // date_desc
             }
         });
@@ -21964,7 +21983,7 @@ document.addEventListener('click', function(e) {
         
         <!-- Filtros -->
         <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:20px">
-            <div style="display:grid; grid-template-columns: 150px 150px 1fr 160px 160px; gap:10px; flex-wrap:wrap;">
+            <div style="display:grid; grid-template-columns: 150px 150px 1fr 160px 160px 170px; gap:10px; flex-wrap:wrap;">
                 <div><label style="font-size:0.8rem;font-weight:600;">Generada Desde</label><input type="date" id="genInvStart" onchange="app.refreshGeneratedInvoices()"></div>
                 <div><label style="font-size:0.8rem;font-weight:600;">Generada Hasta</label><input type="date" id="genInvEnd" onchange="app.refreshGeneratedInvoices()"></div>
                 <div style="position:relative;">
@@ -22000,6 +22019,16 @@ document.addEventListener('click', function(e) {
                         <option value="2025-10">Oct 2025</option>
                     </select>
                 </div>
+                <div><label style="font-size:0.8rem;font-weight:600;">Monto ($)</label>
+                    <div style="display:flex; gap:4px;">
+                        <input type="number" id="genInvMontoMin" oninput="app.refreshGeneratedInvoices()"
+                            placeholder="Mín" min="0" step="any" title="Monto mínimo de la factura"
+                            style="width:50%;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;">
+                        <input type="number" id="genInvMontoMax" oninput="app.refreshGeneratedInvoices()"
+                            placeholder="Máx" min="0" step="any" title="Monto máximo de la factura"
+                            style="width:50%;padding:6px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;">
+                    </div>
+                </div>
             </div>
             <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
                 <div style="width:150px; position:relative;">
@@ -22008,13 +22037,20 @@ document.addEventListener('click', function(e) {
                         placeholder="Núm. factura"
                         style="width:100%; padding:8px 12px 8px 26px; border:2px solid #f39c12; border-radius:6px; font-size:0.9rem; box-sizing:border-box;">
                 </div>
+                <div style="width:160px; position:relative;">
+                    <span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#999;">$</span>
+                    <input type="text" id="genInvAmountSearch" oninput="app.refreshGeneratedInvoices()"
+                        placeholder="Buscar monto"
+                        title="Escribe un monto para encontrar de quién es y qué número de factura. También acepta el monto que cobró Stripe con el 3% de recargo."
+                        style="width:100%; padding:8px 12px 8px 24px; border:2px solid #16a085; border-radius:6px; font-size:0.9rem; box-sizing:border-box;">
+                </div>
                 <div style="flex:1; position:relative;">
                     <span style="position:absolute; left:10px; top:50%; transform:translateY(-50%); color:#999;">🔍</span>
                     <input type="text" id="genInvSearch" onkeyup="app.refreshGeneratedInvoices()" 
                         placeholder="Buscar por nombre, estado..."
                         style="width:100%; padding:8px 12px 8px 34px; border:2px solid #1a56a0; border-radius:6px; font-size:0.9rem;">
                 </div>
-                <button onclick="document.getElementById('genInvSearch').value=''; document.getElementById('genInvNumSearch').value=''; app.refreshGeneratedInvoices();" 
+                <button onclick="document.getElementById('genInvSearch').value=''; document.getElementById('genInvNumSearch').value=''; document.getElementById('genInvMontoMin').value=''; document.getElementById('genInvMontoMax').value=''; document.getElementById('genInvAmountSearch').value=''; app.refreshGeneratedInvoices();" 
                     class="btn" style="padding:8px 12px; background:#e74c3c; color:white; font-size:0.85rem;">
                     ✕ Limpiar
                 </button>
@@ -22027,6 +22063,8 @@ document.addEventListener('click', function(e) {
                     <option value="name_desc">Cliente (Z-A)</option>
                     <option value="status_asc">Status (Pendiente → Pagada)</option>
                     <option value="status_desc">Status (Pagada → Pendiente)</option>
+                    <option value="amount_desc">💲 Monto (mayor a menor)</option>
+                    <option value="amount_asc">💲 Monto (menor a mayor)</option>
                 </select>
                 <button onclick="app.exportInvoicesToExcel()" title="Exporta a Excel/CSV exactamente lo que se ve filtrado ahora" class="btn" style="padding:8px 14px; background:#1e7e34; color:white; font-size:0.85rem; font-weight:bold; white-space:nowrap;">
                     📊 Exportar a Excel
