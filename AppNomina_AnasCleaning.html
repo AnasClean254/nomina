@@ -2452,6 +2452,11 @@
                         emp.flatRate = flatRate;
                         emp.deduction = parseFloat(document.getElementById('empDeduction').value) || 0;
                         emp.payMethod = document.getElementById('empPayMethod').value || 'check';
+                        // SIN ESTA LÍNEA SE PIERDEN LOS CAMBIOS. El merge con Drive decide
+                        // quién gana comparando updatedAt; si al editar no se vuelve a marcar,
+                        // la otra computadora ve el registro como "igual de viejo", se queda
+                        // con el suyo y después lo sube encima. Así se borraron los aumentos.
+                        emp.updatedAt = new Date().toISOString();
                         
                         // Actualizar nombre en asistencias
                         this.attendances.forEach(att => {
@@ -6113,31 +6118,29 @@
 
                     const hasLocalData = this.employees.length > 0 || this.attendances.length > 0;
 
+                    /* SIEMPRE se baja y se mezcla ANTES de subir.
+                       Antes, cuando lo local parecía más reciente, se subía de frente sin
+                       mirar lo que había en Drive: una computadora con datos viejos borraba
+                       el trabajo de la otra. Bajar primero no pierde nada, porque
+                       driveDownloadNomina mezcla registro por registro, no reemplaza. */
                     if (!localModified && !hasLocalData) {
-                        // Sin datos locales ni timestamp → primera vez, bajar Drive
                         console.log('📥 Sin datos locales → bajando Drive');
                         await this.driveDownloadNomina();
                         this.loadWorkConfig();
-                    } else if (!localModified && hasLocalData) {
-                        // Hay datos locales pero sin timestamp → conservar local y subir
-                        console.log('📤 Datos locales sin timestamp → subiendo local');
-                        await this.driveSyncNow();
-                    } else if (driveModified > localModified) {
-                        // Drive más reciente → bajar
-                        console.log('📥 Drive más reciente → bajando');
+                    } else {
+                        console.log('🔀 Bajando y mezclando antes de subir');
                         await this.driveDownloadNomina();
                         this.loadWorkConfig();
-                    } else {
-                        // Local más reciente → subir
-                        console.log('📤 Local más reciente → subiendo');
                         await this.driveSyncNow();
                     }
                     // Limpiar flag de pendientes
                     localStorage.removeItem('anas_pendingSync');
                     localStorage.removeItem('anas_pendingSyncAt');
                 } catch(err) {
-                    console.warn('driveMergeOnConnect error, subiendo local:', err);
-                    await this.driveSyncNow();
+                    /* Si no se pudo leer Drive, NO se sube: subir a ciegas es justo como se
+                       pierde el trabajo de la otra computadora. Mejor dejarlo pendiente. */
+                    console.warn('driveMergeOnConnect error — no se sube nada:', err);
+                    try { localStorage.setItem('anas_pendingSync', 'true'); } catch(e) {}
                 }
             },
 
@@ -6211,8 +6214,13 @@
                         return;
                     }
                     try {
-                        await this.driveDownloadClock(); // 1. Bajar asistencias del Reloj
-                        await this.driveSyncNow();       // 2. Subir datos de Nómina actualizados
+                        await this.driveDownloadClock();   // 1. Bajar asistencias del Reloj
+                        await this.driveDownloadNomina();  // 2. Bajar y mezclar lo de la otra PC
+                        /* El paso 2 faltaba. Sin él, una app abierta subía sus datos cada
+                           3 minutos sin enterarse nunca de los cambios de la otra
+                           computadora: bastaba dejar la pestaña abierta para ir borrando
+                           el trabajo ajeno. */
+                        await this.driveSyncNow();         // 3. Subir el resultado ya mezclado
                     } catch(e) {
                         console.warn('Auto-sync error:', e);
                     }
