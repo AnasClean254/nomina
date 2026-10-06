@@ -1,4 +1,4 @@
 {
-  "version": "164",
-  "notas": "AnaCS: sync con Nómina ahora elimina empleadas borradas de Scheduler"
+  "version": "165",
+  "notas": "Se arregló la rotación de grupos: ya no se deshace al sincronizar. Nuevo renglón al pie de la semana con las empleadas asignadas cada día. La nota del servicio ahora se puede escribir para cualquier cliente, no solo Airbnb."
 }

@@ -26,22 +26,71 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.4.6';
+const APP_VERSION = '2.5.0';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
-async function checkForUpdate() {
+/* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
+   Las empleadas usan esto a las carreras y no van a andar cerrando y abriendo
+   la app para enterarse de que hay algo nuevo. Por eso:
+     · se revisa cada 15 minutos, no una sola vez al abrir
+     · se revisa también cuando vuelven a la app después de dejarla
+     · si estuvieron fuera más de un minuto, se actualiza SOLA — ese es un
+       momento seguro, porque nadie está capturando nada en ese instante
+     · si la tienen en pantalla, solo sale el banner: no se les reinicia
+       la app encima mientras anotan horas
+   ──────────────────────────────────────────────────────────────────────── */
+let _updNueva = null;    // versión detectada en el servidor
+let _bgDesde  = 0;       // cuándo se fue la app al fondo
+
+function aplicarActualizacion(){
+  try{
+    caches.keys()
+      .then(ks=>Promise.all(ks.map(k=>caches.delete(k))))
+      .then(()=>location.reload(true))
+      .catch(()=>location.reload(true));
+  }catch(e){ location.reload(true); }
+}
+
+function mostrarBannerUpdate(){
+  if(document.getElementById('updBanner')) return;   // no apilar banners
+  const banner=document.createElement('div');
+  banner.id='updBanner';
+  banner.style.cssText='position:fixed;top:0;left:0;right:0;background:#3498db;color:white;padding:12px 16px;z-index:9999;display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+  banner.innerHTML='<span>🔄 Hay una versión nueva</span>'
+    + '<button onclick="aplicarActualizacion()" style="background:white;color:#3498db;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">Actualizar</button>';
+  document.body.appendChild(banner);
+}
+
+async function checkForUpdate(modo) {
   try {
     const res = await fetch(APP_URL + '?_=' + Date.now(), {cache:'no-store'});
     const text = await res.text();
     const match = text.match(/APP_VERSION = '([^']+)'/);
-    if (match && match[1] !== APP_VERSION) {
-      const banner = document.createElement('div');
-      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#3498db;color:white;padding:12px 16px;z-index:9999;display:flex;justify-content:space-between;align-items:center;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
-      banner.innerHTML = '🔄 Nueva versión disponible <button onclick="caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>window.location.reload(true))" style="background:white;color:#3498db;border:none;padding:6px 14px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;">Actualizar</button>';
-      document.body.appendChild(banner);
+    if (!match || match[1] === APP_VERSION) return;
+    _updNueva = match[1];
+    mostrarBannerUpdate();
+    // Recarga sola solo al regresar de haber dejado la app un rato.
+    if (modo === 'regreso') {
+      // Candado: si ya se recargó por esta misma versión y sigue llegando la
+      // anterior (el archivo aún no propaga en GitHub), no insistir — se
+      // quedaría girando. Queda el banner para que lo hagan a mano.
+      if (sessionStorage.getItem('cal_recargando') === _updNueva) return;
+      sessionStorage.setItem('cal_recargando', _updNueva);
+      aplicarActualizacion();
     }
   } catch(e) {}
 }
+
+/* Revisión periódica mientras la app está abierta */
+setInterval(()=>{ checkForUpdate(); }, 15 * 60 * 1000);
+
+/* Al volver a la app: si estuvo fuera más de un minuto, se actualiza sola */
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'hidden'){ _bgDesde = Date.now(); return; }
+  const fuera = _bgDesde ? (Date.now() - _bgDesde) : 0;
+  _bgDesde = 0;
+  checkForUpdate(fuera > 60000 ? 'regreso' : undefined);
+});
 
 // Desregistrar cualquier Service Worker previo para siempre cargar versión fresca
 if('serviceWorker' in navigator){
@@ -404,7 +453,7 @@ const MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Di
 const S={
   driveToken:null, folderId:'via-worker', reportsFileId:null,
   authEmpId:null, isAdmin:false, // identidad real de login (empId de la tabla employees)
-  grupos:{}, servs:[], clis:[], emps:[], reports:{}, responsables:{},
+  grupos:{}, gruposHistorial:{}, servs:[], clis:[], emps:[], reports:{}, responsables:{},
   empId:null, empName:'', group:'',
   selectedDate:'', weekStart:'', view:'day'
 };
@@ -424,7 +473,7 @@ document.addEventListener('visibilitychange', ()=>{
 setInterval(()=>{ try{ if(S.driveToken && S.folderId) refreshData(); }catch(e){} }, 3 * 60 * 1000);
 
 window.addEventListener('DOMContentLoaded',()=>{
-  setTimeout(checkForUpdate, 3000);
+  setTimeout(()=>checkForUpdate(), 3000);
   const tok=localStorage.getItem(TKEY);
   if(tok){
     S.driveToken=tok;
@@ -502,6 +551,7 @@ async function loadSyncFile(){
     S.grupos=data.grupos||{}; S.servs=data.servs||[]; S.clis=data.clis||[]; S.emps=data.emps||[];
     S.cellNotes=data.cellNotes||{};
     S.responsables=data.responsables||{};   // ← fix v2.3.6: faltaba aquí
+    S.gruposHistorial=data.gruposHistorial||{};  // rotación POR FECHA (ya venía en el archivo, no se leía)
     if(data.clavesSuplente) S.clavesSuplente=data.clavesSuplente;
     if(data.supervisorPin) S.supervisorPin=data.supervisorPin;
     const mod=data.exportDate ? new Date(data.exportDate).toLocaleString('es-MX',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
@@ -998,7 +1048,8 @@ function renderAgenda(){
   {
     const soy=esResponsable();
     const fecha=S.selectedDate||today();
-    const respId=S.responsables&&S.responsables[fecha]&&S.group?S.responsables[fecha][S.group]:null;
+    const _grpFecha=miGrupoEnFecha(fecha);
+    const respId=S.responsables&&S.responsables[fecha]&&_grpFecha?S.responsables[fecha][_grpFecha]:null;
     const respEmp=respId?(S.emps||[]).find(e=>String(e.id)===String(respId)):null;
     const esHoy=fecha===today();
     const banner=document.createElement('div');
@@ -1010,6 +1061,33 @@ function renderAgenda(){
       banner.innerHTML=`⭐ Responsable${esHoy?' hoy':''}: <strong style="color:var(--text)">${respEmp.name}</strong>`;
     }
     if(banner.innerHTML) el.appendChild(banner);
+  }
+
+  // ── Banda: con quién trabaja ESTE día (según la rotación de esa fecha) ──
+  {
+    const fecha=S.selectedDate||today();
+    const info=companerasEnFecha(fecha);
+    const esHoy=fecha===today();
+    const b=document.createElement('div');
+    b.style.cssText='display:flex;align-items:flex-start;gap:8px;padding:9px 13px;margin-bottom:10px;background:var(--s2);border:1px solid var(--border);border-radius:10px;font-size:0.84rem;line-height:1.35;';
+    const etq=esHoy?'Hoy trabajas con':'Trabajas con';
+    const chip=info.grupo
+      ? `<span style="background:#34495e;color:#fff;font-size:0.68rem;font-weight:700;padding:1px 7px;border-radius:20px;margin-left:6px;white-space:nowrap;">${info.grupo}</span>`
+      : '';
+    if(!info.grupo){
+      // Ana no la asignó a ningún grupo ese día
+      b.style.borderColor='#16a34a';
+      b.innerHTML='<span style="font-size:14px;line-height:1.2;">🌴</span>'
+        + `<span style="color:var(--muted);"><strong style="color:#16a34a;">${esHoy?'Hoy tienes el día libre':'Día libre'}</strong> — no estás asignada a ningún grupo.</span>`;
+    } else if(info.companeras.length){
+      b.innerHTML='<span style="font-size:14px;line-height:1.2;">👥</span>'
+        + `<span style="color:var(--muted);">${etq}: `
+        + `<strong style="color:var(--text);">${info.companeras.join(', ')}</strong>${chip}</span>`;
+    } else {
+      b.innerHTML='<span style="font-size:14px;line-height:1.2;">👤</span>'
+        + `<span style="color:var(--muted);">${esHoy?'Hoy vas':'Vas'} sola este día${chip}</span>`;
+    }
+    if(b.innerHTML) el.appendChild(b);
   }
 
   if(!svcs.length){
@@ -1398,6 +1476,11 @@ function renderWeek(){
     const th=document.createElement('div'); th.className='wgdh'; th.textContent=DAYS[dObj.getDay()]; hd.appendChild(th);
     const c=document.createElement('div'); c.className='wgc'+(d===td?' today':'')+(d===S.selectedDate?' sel':'');
     let inner=`<div class="wgdn"></div><div class="wgdd">${dObj.getDate()}</div>`;
+    // A qué grupo quedó asignada ESE día — de un vistazo en toda la semana
+    const _g=miGrupoEnFecha(d), _l=_g?_g.replace(/Grupo /i,'').trim():'';
+    inner+=_l
+      ? `<div style="text-align:center;margin-bottom:3px;"><span style="display:inline-block;background:${colorGrupo(_g)};color:#fff;font-size:8px;font-weight:800;line-height:1;padding:2px 5px;border-radius:7px;">${_l}</span></div>`
+      : `<div style="text-align:center;margin-bottom:3px;"><span style="display:inline-block;color:#16a34a;font-size:8px;font-weight:700;line-height:1;padding:2px 4px;">🌴 libre</span></div>`;
     svcs.slice(0,3).forEach(s=>{
       const r=rpts[s.id]||{};
       const bg=r.status==='done'?'#14532d':r.status==='active'?'#451a03':'var(--s2)';
@@ -1411,11 +1494,68 @@ function renderWeek(){
   }
 }
 
+/* Mismo mapa de colores que getGrupoColor() en el Scheduler, para que un
+   grupo se vea del mismo color en las dos apps. */
+function colorGrupo(n){
+  const c={'Grupo A':'#2980b9','Grupo B':'#27ae60','Grupo C':'#8e44ad','Grupo D':'#e67e22','Grupo E':'#e74c3c'};
+  return c[n]||'#7f8c8d';
+}
+
+/* ── ROTACIÓN POR FECHA ──────────────────────────────────────────────────
+   Misma regla que _rosterParaFecha en el Scheduler: para HOY manda la
+   composición actual; para cualquier otro día manda el registro de esa fecha,
+   y si no existe, se hereda el último registro anterior. */
+function rosterParaFecha(grupo, fecha){
+  const hoy=today();
+  let base;
+  if(fecha===hoy){ base=S.grupos[grupo]||[]; }
+  else{
+    const h=S.gruposHistorial||{};
+    if(h[fecha]&&h[fecha][grupo]) base=h[fecha][grupo];
+    else{
+      const prev=Object.keys(h).filter(f=>f<fecha&&h[f]&&h[f][grupo]).sort();
+      base=prev.length?h[prev[prev.length-1]][grupo]:(S.grupos[grupo]||[]);
+    }
+  }
+  const seen=new Set(), out=[];
+  (base||[]).forEach(id=>{ if(!id)return; const k=String(id); if(seen.has(k))return; seen.add(k); out.push(id); });
+  return out;
+}
+/* En qué grupo quedó ESTA empleada ese día. La rotación puede moverla, así que
+   no se puede usar S.group, que se fijó al iniciar sesión.
+   Devuelve '' cuando Ana NO la asignó a ningún grupo ese día: eso significa
+   DÍA LIBRE, no "déjale los trabajos del grupo anterior". */
+function miGrupoEnFecha(fecha){
+  const mid=String(S.empId||'');
+  if(!mid) return '';
+  const nombres=Object.keys(S.grupos||{});
+  for(let i=0;i<nombres.length;i++){
+    if(rosterParaFecha(nombres[i], fecha).map(String).includes(mid)) return nombres[i];
+  }
+  return '';   // sin grupo ese día = día libre
+}
+/* Con quién trabaja ese día (sin incluirse a sí misma) */
+function companerasEnFecha(fecha){
+  const g=miGrupoEnFecha(fecha);
+  if(!g) return {grupo:'', companeras:[]};
+  const mid=String(S.empId||'');
+  const companeras=rosterParaFecha(g, fecha)
+    .map(String).filter(id=>id!==mid)
+    .map(id=>(S.emps||[]).find(e=>String(e.id)===id))
+    .filter(Boolean).map(e=>e.name);
+  return {grupo:g, companeras:companeras};
+}
+
 /* ── GET SERVICES ── */
 function getSvcs(date){
-  const members=(S.grupos[S.group]||[]).map(String);
+  // Los servicios siguen a la empleada al grupo donde la rotación la puso ESE
+  // día. Antes se usaba S.group, que se congela al iniciar sesión: si la
+  // rotación la movía de grupo, seguía viendo los trabajos del grupo anterior.
+  const grp=miGrupoEnFecha(date);
+  if(!grp) return [];   // día libre: no se le asignó grupo, no le tocan servicios
+  const members=rosterParaFecha(grp, date).map(String);
   return S.servs
-    .filter(s=>s.date===date && (s.empId===S.group||members.includes(String(s.empId))))
+    .filter(s=>s.date===date && (s.empId===grp||members.includes(String(s.empId))))
     .sort((a,b)=>{
       const ta=a.timeStart||'',tb=b.timeStart||'';
       if(ta&&tb) return ta.localeCompare(tb);
@@ -1455,12 +1595,15 @@ function bts(svc,rpt){
 
 /* ── INFO SCREEN ── */
 function updateInfoScreen(){
+  // El grupo que se muestra es el de HOY según la rotación, no el que quedó
+  // fijo al iniciar sesión — así esta pantalla concuerda con la agenda.
+  const _grpHoy=miGrupoEnFecha(today());   // '' = hoy tiene el día libre
   document.getElementById('infoName').textContent=S.empName||'—';
-  document.getElementById('infoGrp').textContent=S.group?'👥 '+S.group:'—';
+  document.getElementById('infoGrp').textContent=_grpHoy?'👥 '+_grpHoy:'🌴 Día libre';
   document.getElementById('settEmpName').textContent=S.empName||'—';
-  document.getElementById('settEmpGrp').textContent=S.group?'👥 '+S.group:'—';
+  document.getElementById('settEmpGrp').textContent=_grpHoy?'👥 '+_grpHoy:'🌴 Día libre';
   // Team members
-  const members=(S.grupos[S.group]||[]).map(String);
+  const members=_grpHoy?rosterParaFecha(_grpHoy, today()).map(String):[];
   const teammates=members
     .filter(mid=>String(mid)!==String(S.empId))
     .map(mid=>{
@@ -1574,6 +1717,7 @@ function loadLocal(){
     const g=JSON.parse(localStorage.getItem('v35_grupos')||'null');
     if(!g||!Object.keys(g).length){toast('⚠ Abre el Scheduler primero');return;}
     S.grupos=g;
+    try{ S.gruposHistorial=JSON.parse(localStorage.getItem('v35_gruposHistorial')||'{}'); }catch(e){ S.gruposHistorial={}; }
     S.servs=JSON.parse(localStorage.getItem('v35_servs')||'[]');
     S.clis=JSON.parse(localStorage.getItem('v35_clis')||'[]');
     S.emps=JSON.parse(localStorage.getItem('v35_emps')||'[]');

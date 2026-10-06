@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '164';
+    window.ANACS_VERSION = '165';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -1170,8 +1170,8 @@
                         <label style="font-size:0.8rem; color:#555;">Propiedad</label>
                         <select id="mPropId" onchange="app.onPropChange();" style="width:100%; padding:8px; border:1px solid #ddd; border-radius:6px; margin-top:3px;"></select>
                     </div>
-                    <div id="airbnbNoteWrap" style="display:none; margin-top:6px; background:#fff8e1; border:1px solid #ffca28; border-radius:6px; padding:8px;">
-                        <label style="font-size:0.8rem; font-weight:700; color:#e65100;">🏠 Nota del Servicio</label>
+                    <div id="airbnbNoteWrap" style="display:block; margin-top:6px; background:#fff8e1; border:1px solid #ffca28; border-radius:6px; padding:8px;">
+                        <label style="font-size:0.8rem; font-weight:700; color:#e65100;">📝 Nota del Servicio</label>
                         <textarea id="mAirbnbNote" name="airbnbNote" rows="3" placeholder="Escribe las instrucciones o notas para este servicio..." style="width:100%;margin-top:4px;padding:8px;border:1px solid #ffca28;border-radius:4px;font-size:0.85rem;box-sizing:border-box;resize:vertical;font-family:inherit;"></textarea>
                     </div>
                     <div id="clientType" style="display:none; margin-top:8px; padding:8px; background:#e8f5e9; border-left:3px solid #4caf50; border-radius:4px">
@@ -2580,7 +2580,56 @@ class Scheduler {
             grid.appendChild(row);
         });
 
+        // Renglón final: quién quedó asignada cada día
+        this._renderAsignadasPorDia(dates, grid, todayStr);
+    }
 
+    // ── Renglón de EMPLEADAS ASIGNADAS POR DÍA (al pie de la semana) ────────
+    // Para cada día muestra qué grupos tienen gente SEGÚN LA ROTACIÓN DE ESA
+    // FECHA — no la composición de hoy. Por eso usa _rosterParaFecha, que lee
+    // gruposHistorial. Los grupos sin nadie ese día simplemente no aparecen.
+    _renderAsignadasPorDia(dates, grid, todayStr) {
+        const esc = t => String(t == null ? '' : t)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;flex-direction:row;position:relative;border-top:3px solid #34495e;background:#f8f9fa;';
+
+        const icono = document.createElement('div');
+        icono.style.cssText = 'width:32px;min-width:32px;display:flex;align-items:center;justify-content:center;background:#34495e;color:white;font-size:1.05rem;flex-shrink:0;';
+        icono.textContent = '👥';
+        icono.title = 'Empleadas asignadas cada día, según la rotación';
+        row.appendChild(icono);
+
+        const cells = document.createElement('div');
+        cells.style.cssText = `display:grid;grid-template-columns:repeat(${dates.length},1fr);flex:1;`;
+
+        dates.forEach(day => {
+            const dStr = day.toLocaleDateString('en-CA');
+            const cell = document.createElement('div');
+            cell.style.cssText = `padding:6px 7px;border-right:1px solid #e3e6e8;min-height:54px;${dStr === todayStr ? 'background:#fff3cd;' : ''}`;
+
+            let html = '';
+            Object.keys(this.grupos).forEach(g => {
+                const nombres = this._rosterParaFecha(g, dStr)
+                    .filter(Boolean)
+                    .map(id => (this.emps || []).find(e => String(e.id) === String(id)))
+                    .filter(Boolean)
+                    .map(e => esc(e.name));
+                if (!nombres.length) return;
+                const letra = esc(g.replace(/Grupo /i, '').trim());
+                const color = this.getGrupoColor(g);
+                html += `<div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px;line-height:1.25;">`
+                      + `<span style="flex-shrink:0;background:${color};color:#fff;font-size:0.6rem;font-weight:900;width:14px;height:14px;border-radius:3px;display:inline-flex;align-items:center;justify-content:center;margin-top:1px;">${letra}</span>`
+                      + `<span style="font-size:0.72rem;color:#2c3e50;">${nombres.join(', ')}</span>`
+                      + `</div>`;
+            });
+            cell.innerHTML = html || '<span style="font-size:0.7rem;color:#c3c8cc;">—</span>';
+            cells.appendChild(cell);
+        });
+
+        row.appendChild(cells);
+        grid.appendChild(row);
     }
 
     // ── Vista MES: cuadrícula real Dom→Sáb ──────────────────────────
@@ -4004,11 +4053,9 @@ class Scheduler {
         } else if (ct) {
             ct.style.display = 'none';
         }
-        // Mostrar nota AirBnb si el cliente es de tipo airbnb/unico
-        if(airbnbWrap) {
-            const selCli = this.clis.find(c => c.id == document.getElementById('mCli').value);
-            airbnbWrap.style.display = (selCli && (selCli.type === 'airbnb' || selCli.type === 'unico' || selCli.type === 'construccion')) ? 'block' : 'none';
-        }
+        // Nota del servicio: disponible para TODOS los clientes, sin importar el tipo.
+        // Antes solo aparecía en airbnb/unico/construccion.
+        if(airbnbWrap) airbnbWrap.style.display = 'block';
         // Solo sugerir grupo en servicios NUEVOS, no al editar
         if (!this.editing) this.suggestGroup();
     }
@@ -4256,10 +4303,9 @@ class Scheduler {
             }
             // Cargar nota AirBnb
             if(document.getElementById('mAirbnbNote')) document.getElementById('mAirbnbNote').value = s.airbnbNote || '';
-            // Mostrar panel AirBnb si el cliente es tipo airbnb/unico
-            const _sCli = this.clis.find(c => c.id == s.cliId);
+            // Nota del servicio: visible para cualquier tipo de cliente
             const _airbnbWrap = document.getElementById('airbnbNoteWrap');
-            if(_airbnbWrap) _airbnbWrap.style.display = (_sCli && (_sCli.type==='airbnb'||_sCli.type==='unico'||_sCli.type==='construccion')) ? 'block' : 'none';
+            if(_airbnbWrap) _airbnbWrap.style.display = 'block';
             document.getElementById('btnDel').style.display = 'inline-block';
 
         } else {
@@ -4288,10 +4334,10 @@ class Scheduler {
             document.getElementById('mUntil').value = '';
             document.getElementById('mCancelled').checked = false;
             document.getElementById('btnDel').style.display = 'none';
-            // Limpiar campos Airbnb
+            // Nota del servicio: se limpia, pero queda visible para poder escribirla
             if(document.getElementById('mAirbnbNote')) document.getElementById('mAirbnbNote').value = '';
             const _airbnbWrapN = document.getElementById('airbnbNoteWrap');
-            if(_airbnbWrapN) _airbnbWrapN.style.display = 'none';
+            if(_airbnbWrapN) _airbnbWrapN.style.display = 'block';
             // Ocultar Repetición Automática en edición
             const _repBlock = document.getElementById('repBlock');
             if (_repBlock) _repBlock.style.display = this.editing ? 'none' : 'block';
@@ -20435,10 +20481,13 @@ Motivo de cancelación (opcional):`);
                 !(p.serviceIds && p.serviceIds.some(sid => this.dismissedServiceIds.includes(sid)))
             );
 
-            this.grupos = this.mergeGrupos(
-                localWins ? this.grupos : (data.grupos || {}),
-                localWins ? (data.grupos || {}) : this.grupos
-            );
+            // ── BORRADO (6 oct 2026) ── aquí se volvía a asignar this.grupos con
+            // mergeGrupos(), que hace UNIÓN de las dos listas. Como corría DESPUÉS de
+            // la fusión correcta de más arriba, la deshacía: al mover a una empleada
+            // de un grupo a otro, la unión la devolvía al grupo original y quedaba en
+            // los dos a la vez. Ana lo veía como "no se guardó la rotación".
+            // La fusión buena ya quedó resuelta arriba (gana la composición más
+            // reciente, sin unir), que es justo lo que pide una rotación.
 
             const winnerNomina = localWins ? (this.nominaTotales || []) : (data.nominaTotales || []);
             const loserNomina  = localWins ? (data.nominaTotales || []) : (this.nominaTotales || []);
