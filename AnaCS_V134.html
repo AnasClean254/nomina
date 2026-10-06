@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '165';
+    window.ANACS_VERSION = '166';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -2592,17 +2592,53 @@ class Scheduler {
         const esc = t => String(t == null ? '' : t)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+        // Estado retráctil: se recuerda entre renders y entre sesiones.
+        if (this.asignadasColapsado === undefined) {
+            try { this.asignadasColapsado = localStorage.getItem('anaCS_asignadasColapsado') === '1'; }
+            catch (e) { this.asignadasColapsado = false; }
+        }
+        let colapsado = !!this.asignadasColapsado;
+
+        const TITULO = 'Empleadas asignadas cada día, según la rotación. La ⭐ marca a la Responsable, quien registra los horarios de ese grupo ese día.';
+
         const row = document.createElement('div');
         row.style.cssText = 'display:flex;flex-direction:row;position:relative;border-top:3px solid #34495e;background:#f8f9fa;';
 
+        // Columna del ícono = botón para plegar/desplegar.
+        // El emoji se pinta en blanco con un filtro (silueta), para que combine
+        // con el resto de la barra oscura en lugar de verse a color.
         const icono = document.createElement('div');
-        icono.style.cssText = 'width:32px;min-width:32px;display:flex;align-items:center;justify-content:center;background:#34495e;color:white;font-size:1.05rem;flex-shrink:0;';
-        icono.textContent = '👥';
-        icono.title = 'Empleadas asignadas cada día, según la rotación';
+        icono.style.cssText = 'width:32px;min-width:32px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;background:#34495e;color:white;flex-shrink:0;cursor:pointer;user-select:none;';
+        icono.innerHTML = '<span style="font-size:1.05rem;line-height:1;filter:brightness(0) invert(1);">👥</span>'
+                        + '<span class="asignadasCaret" style="font-size:0.55rem;line-height:1;color:#fff;opacity:.85;"></span>';
         row.appendChild(icono);
 
         const cells = document.createElement('div');
         cells.style.cssText = `display:grid;grid-template-columns:repeat(${dates.length},1fr);flex:1;`;
+
+        // Barra delgada que se ve cuando está plegado.
+        const barra = document.createElement('div');
+        barra.style.cssText = 'flex:1;align-items:center;padding:5px 10px;font-size:0.7rem;color:#7a858f;cursor:pointer;user-select:none;';
+        barra.textContent = 'Asignadas por día';
+        row.appendChild(barra);
+
+        const pintar = () => {
+            cells.style.display = colapsado ? 'none' : 'grid';
+            barra.style.display = colapsado ? 'flex' : 'none';
+            const caret = icono.querySelector('.asignadasCaret');
+            if (caret) caret.textContent = colapsado ? '▸' : '▾';
+            icono.title = (colapsado ? 'Mostrar quién está asignada cada día' : 'Ocultar este renglón') + '\n' + TITULO;
+            barra.title = icono.title;
+        };
+        const alternar = (ev) => {
+            if (ev) ev.stopPropagation();
+            colapsado = !colapsado;
+            this.asignadasColapsado = colapsado;
+            try { localStorage.setItem('anaCS_asignadasColapsado', colapsado ? '1' : '0'); } catch (e) {}
+            pintar();
+        };
+        icono.onclick = alternar;
+        barra.onclick = alternar;
 
         dates.forEach(day => {
             const dStr = day.toLocaleDateString('en-CA');
@@ -2611,12 +2647,17 @@ class Scheduler {
 
             let html = '';
             Object.keys(this.grupos).forEach(g => {
-                const nombres = this._rosterParaFecha(g, dStr)
+                // Responsable del día para ESTE grupo en ESTA fecha: es quien
+                // registra los horarios del grupo. Se marca con ⭐.
+                const respId = ((this.responsables || {})[dStr] || {})[g];
+                const gente = this._rosterParaFecha(g, dStr)
                     .filter(Boolean)
-                    .map(id => (this.emps || []).find(e => String(e.id) === String(id)))
-                    .filter(Boolean)
-                    .map(e => esc(e.name));
-                if (!nombres.length) return;
+                    .map(id => ({ id: String(id), emp: (this.emps || []).find(e => String(e.id) === String(id)) }))
+                    .filter(x => x.emp);
+                if (!gente.length) return;
+                const nombres = gente.map(x => (respId && String(respId) === x.id)
+                    ? `<strong style="color:#b7791f;" title="Responsable: registra los horarios de ${esc(g)} este día">⭐&nbsp;${esc(x.emp.name)}</strong>`
+                    : esc(x.emp.name));
                 const letra = esc(g.replace(/Grupo /i, '').trim());
                 const color = this.getGrupoColor(g);
                 html += `<div style="display:flex;align-items:flex-start;gap:5px;margin-bottom:3px;line-height:1.25;">`
@@ -2628,7 +2669,8 @@ class Scheduler {
             cells.appendChild(cell);
         });
 
-        row.appendChild(cells);
+        row.insertBefore(cells, barra);
+        pintar();
         grid.appendChild(row);
     }
 

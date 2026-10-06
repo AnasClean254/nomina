@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.5.1';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -502,7 +502,7 @@ function tryRestoreSession(){
     if(sess && sess.empId && sess.group){
       Object.assign(S, sess);
       if(S.emps && S.emps.length) buildEmpsList();
-      showEmpSelected(S.empName, S.group);
+      showEmpSelected(S.empName, miGrupoEnFecha(today()));
       launch(false);
       if(S.driveToken){ setTimeout(()=>refreshData(), 1500); }
       setTimeout(updateDriveHeaderBtn, 500);
@@ -576,7 +576,7 @@ async function loadSyncFile(){
     if(!S.empId){
       showEmpSection();
     } else {
-      showEmpSelected(S.empName, S.group);
+      showEmpSelected(S.empName, miGrupoEnFecha(today()));
     }
     renderView();
     try{checkNotesBadge();}catch(e2){}
@@ -616,7 +616,7 @@ async function saveHorariosToDrive(){
     var body={
       date: date,
       empId: S.empId,
-      group: S.group,
+      group: miGrupoEnFecha(date),   // el grupo de ESA fecha, no el del login
       services: mine.services||[]
     };
     // shopOut/shopBack: solo se mandan si hay valor, o con bandera explícita
@@ -874,7 +874,7 @@ function showEmpSection(){
   }
   // If we already have a saved employee, show selected state
   if(S.empId){
-    showEmpSelected(S.empName, S.group);
+    showEmpSelected(S.empName, miGrupoEnFecha(today()));
   }
 }
 
@@ -994,7 +994,8 @@ function setView(v){
 }
 function esResponsable(){
   const fecha=S.selectedDate||today();
-  const resp=S.responsables&&S.responsables[fecha]&&S.group?S.responsables[fecha][S.group]:null;
+  const _g=miGrupoEnFecha(fecha);   // el grupo de ESA fecha, no el del login
+  const resp=S.responsables&&S.responsables[fecha]&&_g?S.responsables[fecha][_g]:null;
   return !!(resp && String(resp)===String(S.empId));
 }
 
@@ -1005,7 +1006,10 @@ function renderView(){
     ? MON[ws.getMonth()]+' '+ws.getFullYear()
     : MON[ws.getMonth()]+' – '+MON[we.getMonth()]+' '+we.getFullYear();
   const firstName = (S.empName||'').split(' ')[0];
-  const grpLabel = S.group ? S.group.replace('Grupo ','G') : '';
+  // El encabezado muestra el grupo DEL DÍA que se está viendo, no el que quedó
+  // fijo al iniciar sesión. Si ese día no está asignada, dice "Libre".
+  const _grpDia = miGrupoEnFecha(S.selectedDate||today());
+  const grpLabel = _grpDia ? _grpDia.replace('Grupo ','G') : 'Libre';
   const empGrpLabel = (grpLabel && firstName) ? `${grpLabel} · ${firstName}` : (grpLabel || firstName || monthLabel);
   const wlt = document.getElementById('weekLabelText');
   if (wlt) wlt.textContent = empGrpLabel + ' · ' + monthLabel;
@@ -1234,7 +1238,7 @@ function renderAgenda(){
   }
 
   // ── NOTAS DEL SUPERVISOR AL FINAL DEL DÍA ──
-  const dayNotes = (S.cellNotes || {})[S.selectedDate + '__' + S.group] || [];
+  const dayNotes = (S.cellNotes || {})[S.selectedDate + '__' + miGrupoEnFecha(S.selectedDate||today())] || [];
   if (dayNotes.length > 0) {
     const notesDiv = document.createElement('div');
     notesDiv.style.cssText = 'margin:16px 0 8px;border-radius:10px;overflow:hidden;';
@@ -1274,7 +1278,7 @@ function suplenteGetReports(){
   try{ return JSON.parse(localStorage.getItem(horariosKey(S.selectedDate||today()))||'{}'); }catch(e){ return {}; }
 }
 function suplenteUpdTime(id, field, val){
-  var date=S.selectedDate, empId=S.empId, group=S.group;
+  var date=S.selectedDate, empId=S.empId, group=miGrupoEnFecha(date||today());
   if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
   var key=horariosKey(date);
   var all=JSON.parse(localStorage.getItem(key)||'{}');
@@ -1435,7 +1439,7 @@ function openShopTimeEditor(field, currentVal){
 }
 
 function saveShopTime(field, inputId, directVal){
-  var date=S.selectedDate, empId=S.empId, group=S.group;
+  var date=S.selectedDate, empId=S.empId, group=miGrupoEnFecha(date||today());
   if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
   var isBorrar = (directVal === '');
   var val = isBorrar ? '' : (directVal || (inputId ? (document.getElementById(inputId)||{}).value : ''));
@@ -1914,7 +1918,7 @@ function getNotesForGroup(group, date){
 }
 
 function checkNotesBadge(){
-  const group=S.group||''; const date=S.selectedDate||'';
+  const date=S.selectedDate||''; const group=miGrupoEnFecha(date||today())||'';
   const weekNotes=getNotesForGroup(group,date);
   const btn=document.getElementById('btnNotes');
   const badge=document.getElementById('notesBadge');
@@ -1925,7 +1929,7 @@ function checkNotesBadge(){
 }
 
 function openNotesPanel(){
-  const group=S.group||''; const date=S.selectedDate||'';
+  const date=S.selectedDate||''; const group=miGrupoEnFecha(date||today())||'';
   const weekNotes=getNotesForGroup(group,date);
   const content=document.getElementById('notesPanelContent');
   const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
