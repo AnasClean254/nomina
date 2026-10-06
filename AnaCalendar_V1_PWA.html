@@ -833,16 +833,23 @@ function hideStaleWarning(){
 
 /* ── EMPLOYEE LIST ── */
 function buildEmpsList(){
+  // Se recorre la lista de EMPLEADAS, no la de grupos. Antes se hacía al revés
+  // y traía dos problemas: una empleada nueva que Ana todavía no metía a ningún
+  // grupo no aparecía (ni podía entrar con su PIN), y una que por error quedara
+  // en dos grupos salía repetida. Recorriendo las empleadas, cada una sale una
+  // sola vez, y si no está asignada se marca como día libre.
   allEmpsList=[];
-  Object.keys(S.grupos).forEach(grp=>{
-    const memberIds=(S.grupos[grp]||[]).map(String);
-    memberIds.forEach(mid=>{
-      const emp=S.emps.find(e=>String(e.id)===mid);
-      if(emp){
-        const name=(emp.name||(emp.firstName+' '+(emp.lastName||'')).trim()).trim();
-        if(name) allEmpsList.push({id:mid, name, group:grp});
-      }
-    });
+  const _hoy=today();
+  const _nombresGrupos=Object.keys(S.grupos||{});
+  (S.emps||[]).forEach(emp=>{
+    const name=(emp.name||((emp.firstName||'')+' '+(emp.lastName||'')).trim()).trim();
+    if(!name) return;
+    const mid=String(emp.id);
+    let grp='';
+    for(let i=0;i<_nombresGrupos.length;i++){
+      if(rosterParaFecha(_nombresGrupos[i], _hoy).map(String).includes(mid)){ grp=_nombresGrupos[i]; break; }
+    }
+    allEmpsList.push({id:mid, name, group:grp});   // grp vacío = día libre
   });
   allEmpsList.sort((a,b)=>a.name.localeCompare(b.name));
   renderEmpList('');
@@ -883,7 +890,7 @@ function renderEmpList(filter){
   list.innerHTML=filtered.map(e=>`
     <div class="emp-item" onclick="selectEmp('${e.id}','${e.name.replace(/'/g,"\\'")}','${e.group.replace(/'/g,"\\'")}')">
       <div>${e.name}</div>
-      <div class="emp-grp">👥 ${e.group}</div>
+      <div class="emp-grp">${e.group?('👥 '+e.group):'<span style="color:#16a34a">🌴 Día libre</span>'}</div>
     </div>`).join('');
 }
 
@@ -903,7 +910,7 @@ function showEmpSelected(name, group){
   document.getElementById('empSection').style.display='none';
   document.getElementById('empSelected').style.display='block';
   document.getElementById('selEmpName').textContent=name;
-  document.getElementById('selEmpGrp').textContent='👥 '+group;
+  document.getElementById('selEmpGrp').textContent=group?('👥 '+group):'🌴 Día libre';
   const niLbl=document.getElementById('niInfoLbl');
   if(niLbl) niLbl.textContent=name.split(' ')[0]; // primer nombre
   document.getElementById('btnStart').disabled=false;
