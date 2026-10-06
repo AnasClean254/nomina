@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.5.4';
+const APP_VERSION = '2.5.5';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -78,26 +78,10 @@ function aplicarActualizacion(){
   }catch(e){ irse(); }
 }
 
-let _updOculto = false;   // la cerraron a mano: no volver a sacarla en esta sesión
-
-function mostrarBannerUpdate(){
-  if(_updOculto) return;
-  if(document.getElementById('updBanner')) return;   // no apilar banners
-  /* ABAJO, no arriba. Pegada arriba tapaba el encabezado y dejaba sin servir
-     el engrane de Ajustes y los demás botones: quien no pudiera actualizar se
-     quedaba sin poder usar la app. Abajo no estorba nada, y además lleva ✕. */
-  const banner=document.createElement('div');
-  banner.id='updBanner';
-  banner.style.cssText='position:fixed;left:0;right:0;bottom:0;background:#3498db;color:white;'
-    + 'padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));z-index:9999;'
-    + 'display:flex;justify-content:space-between;align-items:center;gap:10px;'
-    + 'font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;'
-    + 'box-shadow:0 -2px 8px rgba(0,0,0,0.3);';
-  banner.innerHTML='<span style="flex:1;">🔄 Hay una versión nueva</span>'
-    + '<button onclick="aplicarActualizacion()" style="background:white;color:#3498db;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">Actualizar</button>'
-    + '<button onclick="cerrarBannerUpdate()" aria-label="Cerrar" style="background:transparent;color:white;border:none;font-size:20px;line-height:1;padding:4px 8px;cursor:pointer;">&times;</button>';
-  document.body.appendChild(banner);
-}
+/* SIN BANDA DE AVISO.
+   Las empleadas no deben ver nada: la app se actualiza sola cuando la dejan
+   en segundo plano más de un minuto y regresan — ahí nadie está capturando.
+   Si algo se atora, está el botón "Forzar actualización" en Configuración. */
 
 /* Botón de rescate en Configuración.
    Cuando el teléfono se queda sirviendo una copia vieja de su propia caché,
@@ -119,11 +103,6 @@ async function forzarActualizacionApp(){
   location.replace(base + '?forzar=' + Date.now());
 }
 
-function cerrarBannerUpdate(){
-  _updOculto = true;
-  const b=document.getElementById('updBanner'); if(b) b.remove();
-}
-
 async function checkForUpdate(modo) {
   if (!_SELF_URL) return;            // abierta como archivo local: no hay de dónde bajar
   try {
@@ -135,8 +114,6 @@ async function checkForUpdate(modo) {
 
     if (match[1] === APP_VERSION) {           // ya estamos al día
       try { sessionStorage.removeItem('cal_recargando'); } catch(e){}
-      const b = document.getElementById('updBanner'); if (b) b.remove();
-      _updOculto = false;
       return;
     }
     /* Si lo publicado es MÁS VIEJO que lo que se está corriendo (una copia de
@@ -145,16 +122,15 @@ async function checkForUpdate(modo) {
     if (!_esMasNueva(match[1], APP_VERSION)) return;
 
     _updNueva = match[1];
-    mostrarBannerUpdate();
 
     /* Candado: si ya se recargó por esta misma versión y sigue llegando la
-       anterior (el archivo aún no propaga), no insistir sola — se quedaría
-       girando. Queda el banner por si lo quieren intentar a mano. */
+       anterior (el archivo aún no propaga), no insistir — se quedaría girando.
+       Se queda con la que tiene y lo vuelve a intentar en el próximo regreso. */
     let yaIntentado = null;
     try { yaIntentado = sessionStorage.getItem('cal_recargando'); } catch(e){}
     if (yaIntentado === _updNueva) return;
 
-    // Recarga sola solo al regresar de haber dejado la app un rato.
+    // Solo al regresar de haber dejado la app un rato: ahí no estorba a nadie.
     if (modo === 'regreso') aplicarActualizacion();
   } catch(e) {}
 }
@@ -668,14 +644,31 @@ async function loadSyncFile(){
 }
 
 /* ── Llamadas al Worker (reemplazan las llamadas directas a Google Drive) ── */
+/* El Worker renueva el token cuando está por vencer y lo manda de regreso en
+   la cabecera X-New-Token. Guardarlo aquí es lo que evita que a las 12 se les
+   pida usuario y contraseña el mismo día, al mes de haberlas dado de alta.
+   Si el Worker todavía no trae ese cambio, la cabecera no llega y no pasa
+   nada: esto simplemente no hace nada. */
+function guardarTokenRenovado(r){
+  try{
+    const nuevo = r.headers.get('X-New-Token');
+    if(nuevo && nuevo !== S.driveToken){
+      S.driveToken = nuevo;
+      localStorage.setItem(TKEY, nuevo);
+    }
+  }catch(e){}
+}
+
 async function wGet(path){
   const r=await fetch(WORKER_URL+path,{headers:{Authorization:`Bearer ${S.driveToken}`}});
   if(!r.ok){const e=new Error((await r.json().catch(()=>({}))).error||('HTTP '+r.status));e.status=r.status;throw e;}
+  guardarTokenRenovado(r);
   return r.json();
 }
 async function wPost(path, body){
   const r=await fetch(WORKER_URL+path,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${S.driveToken}`},body:JSON.stringify(body)});
   if(!r.ok){const e=new Error((await r.json().catch(()=>({}))).error||('HTTP '+r.status));e.status=r.status;throw e;}
+  guardarTokenRenovado(r);
   return r.json();
 }
 
