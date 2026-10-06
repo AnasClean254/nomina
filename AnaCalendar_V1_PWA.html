@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.5.1';
+const APP_VERSION = '2.5.2';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -42,13 +42,40 @@ const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 let _updNueva = null;    // versión detectada en el servidor
 let _bgDesde  = 0;       // cuándo se fue la app al fondo
 
+/* De dónde se cargó REALMENTE esta copia. Se compara contra ella misma y no
+   contra una dirección fija: así una copia abierta como archivo local, o
+   publicada en otra carpeta, no se queda pidiendo "actualizar" para siempre
+   porque la copia publicada sea distinta. */
+const _SELF_URL = /^https?:/.test(location.protocol)
+  ? location.href.split('#')[0].split('?')[0]
+  : null;
+
+/* "2.5.10" es más nueva que "2.5.9": hay que comparar número por número.
+   Comparar como texto diría lo contrario. */
+function _esMasNueva(remota, local){
+  const a = String(remota).split('.').map(n => parseInt(n, 10) || 0);
+  const b = String(local ).split('.').map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(a.length, b.length); i++){
+    const x = a[i] || 0, y = b[i] || 0;
+    if (x !== y) return x > y;
+  }
+  return false;
+}
+
 function aplicarActualizacion(){
+  /* Recargar a secas no basta: el navegador puede volver a servir el mismo
+     archivo que ya tenía guardado, y entonces el aviso reaparece una y otra
+     vez por más que le den a Actualizar. Al cambiar la dirección (?v=…) se
+     obliga a pedirlo de nuevo. */
+  if (_updNueva) { try { sessionStorage.setItem('cal_recargando', _updNueva); } catch(e){} }
+  const base = _SELF_URL || location.href.split('#')[0].split('?')[0];
+  const destino = base + '?v=' + encodeURIComponent(_updNueva || Date.now());
+  const irse = () => location.replace(destino);
   try{
     caches.keys()
-      .then(ks=>Promise.all(ks.map(k=>caches.delete(k))))
-      .then(()=>location.reload(true))
-      .catch(()=>location.reload(true));
-  }catch(e){ location.reload(true); }
+      .then(ks => Promise.all(ks.map(k => caches.delete(k))))
+      .then(irse).catch(irse);
+  }catch(e){ irse(); }
 }
 
 function mostrarBannerUpdate(){
@@ -62,22 +89,36 @@ function mostrarBannerUpdate(){
 }
 
 async function checkForUpdate(modo) {
+  if (!_SELF_URL) return;            // abierta como archivo local: no hay de dónde bajar
   try {
-    const res = await fetch(APP_URL + '?_=' + Date.now(), {cache:'no-store'});
+    const res = await fetch(_SELF_URL + '?_=' + Date.now(), {cache:'no-store'});
+    if (!res.ok) return;
     const text = await res.text();
     const match = text.match(/APP_VERSION = '([^']+)'/);
-    if (!match || match[1] === APP_VERSION) return;
+    if (!match) return;
+
+    if (match[1] === APP_VERSION) {           // ya estamos al día
+      try { sessionStorage.removeItem('cal_recargando'); } catch(e){}
+      const b = document.getElementById('updBanner'); if (b) b.remove();
+      return;
+    }
+    /* Si lo publicado es MÁS VIEJO que lo que se está corriendo (una copia de
+       prueba, por ejemplo), no es una actualización: no avisar. Antes solo se
+       miraba que fueran distintas, y por eso el aviso no se iba nunca. */
+    if (!_esMasNueva(match[1], APP_VERSION)) return;
+
     _updNueva = match[1];
     mostrarBannerUpdate();
+
+    /* Candado: si ya se recargó por esta misma versión y sigue llegando la
+       anterior (el archivo aún no propaga), no insistir sola — se quedaría
+       girando. Queda el banner por si lo quieren intentar a mano. */
+    let yaIntentado = null;
+    try { yaIntentado = sessionStorage.getItem('cal_recargando'); } catch(e){}
+    if (yaIntentado === _updNueva) return;
+
     // Recarga sola solo al regresar de haber dejado la app un rato.
-    if (modo === 'regreso') {
-      // Candado: si ya se recargó por esta misma versión y sigue llegando la
-      // anterior (el archivo aún no propaga en GitHub), no insistir — se
-      // quedaría girando. Queda el banner para que lo hagan a mano.
-      if (sessionStorage.getItem('cal_recargando') === _updNueva) return;
-      sessionStorage.setItem('cal_recargando', _updNueva);
-      aplicarActualizacion();
-    }
+    if (modo === 'regreso') aplicarActualizacion();
   } catch(e) {}
 }
 
