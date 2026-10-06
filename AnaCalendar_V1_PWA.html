@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.5.2';
+const APP_VERSION = '2.5.4';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -78,14 +78,50 @@ function aplicarActualizacion(){
   }catch(e){ irse(); }
 }
 
+let _updOculto = false;   // la cerraron a mano: no volver a sacarla en esta sesión
+
 function mostrarBannerUpdate(){
+  if(_updOculto) return;
   if(document.getElementById('updBanner')) return;   // no apilar banners
+  /* ABAJO, no arriba. Pegada arriba tapaba el encabezado y dejaba sin servir
+     el engrane de Ajustes y los demás botones: quien no pudiera actualizar se
+     quedaba sin poder usar la app. Abajo no estorba nada, y además lleva ✕. */
   const banner=document.createElement('div');
   banner.id='updBanner';
-  banner.style.cssText='position:fixed;top:0;left:0;right:0;background:#3498db;color:white;padding:12px 16px;z-index:9999;display:flex;justify-content:space-between;align-items:center;gap:10px;font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
-  banner.innerHTML='<span>🔄 Hay una versión nueva</span>'
-    + '<button onclick="aplicarActualizacion()" style="background:white;color:#3498db;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">Actualizar</button>';
+  banner.style.cssText='position:fixed;left:0;right:0;bottom:0;background:#3498db;color:white;'
+    + 'padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));z-index:9999;'
+    + 'display:flex;justify-content:space-between;align-items:center;gap:10px;'
+    + 'font-family:Barlow Condensed,sans-serif;font-size:15px;font-weight:700;'
+    + 'box-shadow:0 -2px 8px rgba(0,0,0,0.3);';
+  banner.innerHTML='<span style="flex:1;">🔄 Hay una versión nueva</span>'
+    + '<button onclick="aplicarActualizacion()" style="background:white;color:#3498db;border:none;padding:7px 16px;border-radius:6px;font-weight:700;cursor:pointer;font-size:13px;white-space:nowrap;">Actualizar</button>'
+    + '<button onclick="cerrarBannerUpdate()" aria-label="Cerrar" style="background:transparent;color:white;border:none;font-size:20px;line-height:1;padding:4px 8px;cursor:pointer;">&times;</button>';
   document.body.appendChild(banner);
+}
+
+/* Botón de rescate en Configuración.
+   Cuando el teléfono se queda sirviendo una copia vieja de su propia caché,
+   recargar no basta: vuelve a entregar el mismo archivo. Esto tira todo lo
+   guardado del lado del navegador y entra por una dirección que el teléfono
+   nunca ha visto, así que no le queda de otra que bajarla del servidor.
+   NO se toca localStorage: ahí viven la sesión y los horarios capturados. */
+async function forzarActualizacionApp(){
+  if(!confirm('Se va a volver a descargar la app.\n\nTus horarios y tu sesión NO se borran.\n\n¿Continuar?')) return;
+  try{ if(window.caches){ const ks=await caches.keys(); await Promise.all(ks.map(k=>caches.delete(k))); } }catch(e){}
+  try{
+    if('serviceWorker' in navigator){
+      const regs=await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r=>r.unregister()));
+    }
+  }catch(e){}
+  try{ sessionStorage.removeItem('cal_recargando'); sessionStorage.removeItem('cal_recargando_v'); }catch(e){}
+  const base=(typeof _SELF_URL!=='undefined' && _SELF_URL) ? _SELF_URL : location.href.split('#')[0].split('?')[0];
+  location.replace(base + '?forzar=' + Date.now());
+}
+
+function cerrarBannerUpdate(){
+  _updOculto = true;
+  const b=document.getElementById('updBanner'); if(b) b.remove();
 }
 
 async function checkForUpdate(modo) {
@@ -100,6 +136,7 @@ async function checkForUpdate(modo) {
     if (match[1] === APP_VERSION) {           // ya estamos al día
       try { sessionStorage.removeItem('cal_recargando'); } catch(e){}
       const b = document.getElementById('updBanner'); if (b) b.remove();
+      _updOculto = false;
       return;
     }
     /* Si lo publicado es MÁS VIEJO que lo que se está corriendo (una copia de
@@ -430,6 +467,8 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
     </div>
     <button class="btn-outline" onclick="changeEmpFromSett()">👤 Cambiar empleado</button>
     <button class="btn-outline" onclick="refreshData();closeSett()">🔄 Actualizar datos</button>
+    <button class="btn-outline" onclick="forzarActualizacionApp()" style="border-color:#3498db;color:#3498db;">⬇️ Forzar actualización de la app</button>
+    <div style="font-size:0.7rem;color:#888;margin:-4px 0 10px;line-height:1.4;">Úsalo si la app se ve vieja o no se quita el aviso de versión nueva. No borra tus horarios ni te saca de tu sesión.</div>
     <button class="btn-outline" onclick="disconnectDrive()" style="border-color:#e74c3c;color:#e74c3c;">🔌 Cerrar sesión / cambiar usuario</button>
   </div>
 </div>
