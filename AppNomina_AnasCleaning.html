@@ -374,6 +374,7 @@
             </div>
             <div class="header-buttons">
                 <span id="deviceInfoLabel" style="font-size:0.8rem; color:#7f8c8d; padding: 6px 10px; background:#f0f0f0; border-radius:8px; font-weight:bold;"></span>
+                <span id="nominaVersionLabel" title="Versión de la app" style="font-size:0.75rem; color:#7f8c8d; padding:6px 9px; background:#f0f0f0; border-radius:8px; font-weight:bold;"></span>
                 <button class="btn" id="driveSyncBtn" onclick="app.driveSync()" style="background:#4285f4; color:white; display:flex; align-items:center; gap:6px;">
                     ☁️ <span id="driveSyncLabel">Conectar Drive</span>
                 </button>
@@ -1510,7 +1511,16 @@
             
             loans: {},  // { empId: { active: {...}, history: [...] } }
 
+            /* Versión a la vista. Sin esto no había forma de saber qué copia
+               tenía cada computadora, y se nos fueron dos días persiguiendo
+               bugs que ya estaban arreglados en un archivo que nunca llegó. */
+            APP_VERSION: '2.1.0',
+
             init() {
+                try {
+                    const _v = document.getElementById('nominaVersionLabel');
+                    if (_v) _v.textContent = 'v' + this.APP_VERSION;
+                } catch (e) {}
                 this.loadData();
                 this.refreshEmployees();
                 this.refreshAttendances();
