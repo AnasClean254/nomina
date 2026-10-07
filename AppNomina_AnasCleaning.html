@@ -2757,7 +2757,7 @@
                         );
                         
                         if (duplicate) {
-                            if (!confirm(`⚠️ Ya existe un registro para ${emp.name} en la fecha ${this.formatDateUSA(date)}.\n\n¿Deseas actualizar este registro de todas formas?`)) {
+                            if (!confirm(`⚠️ Ya existe un registro para ${emp.name} en la fecha ${this.fechaUSA(date)}.\n\n¿Deseas actualizar este registro de todas formas?`)) {
                                 return;
                             }
                         }
@@ -4497,6 +4497,23 @@
                 }
             },
 
+            /* Abrir la ventana de impresión avisando si el navegador la bloquea.
+               Antes, si Chrome bloqueaba la ventana emergente, printWindow venía
+               en null, la línea siguiente tronaba y NO PASABA NADA: ni se abría
+               nada ni salía ningún aviso. Para quien está imprimiendo, la app
+               simplemente "no deja imprimir". */
+            _abrirVentanaImpresion(features) {
+                let w = null;
+                try { w = window.open('', '', features || 'width=900,height=700'); } catch (e) { w = null; }
+                if (!w || w.closed || typeof w.document === 'undefined') {
+                    alert('\u26A0\uFE0F El navegador bloque\u00f3 la ventana de impresi\u00f3n.\n\n' +
+                          'Busca el icono de ventana bloqueada a la derecha de la barra de direcciones, ' +
+                          'elige "Permitir siempre ventanas emergentes de este sitio" y vuelve a intentarlo.');
+                    return null;
+                }
+                return w;
+            },
+
             confirmAndPrintChecks(onlyChecks = false, onlyDigital = false, showPreview = true) {
                 const payroll = this.currentPayrollCalc;
                 if (!payroll || payroll.length === 0) return;
@@ -4593,7 +4610,7 @@
                     if (p) {
                         p.checksStatus = showPreview ? 'printed' : 'pending';
                         p.updatedAt = new Date().toISOString();
-                        this.saveData();
+                        this.save();   // el nombre anterior no existía como método y tronaba aquí
                     }
                 }
                 if (!onlyChecks && toPrintDigital.length > 0) this.previewDigitalStubs(toPrintDigital);
@@ -4606,7 +4623,8 @@
             previewDigitalStubs(checks) {
                 const self = this;
                 const methodLabel = { zelle:'📱 Zelle', cashapp:'💚 Cash App', venmo:'💜 Venmo', cash:'💰 Efectivo', direct:'🏦 Direct Deposit' };
-                const printWindow = window.open('', '', 'width=900,height=700');
+                const printWindow = this._abrirVentanaImpresion('width=900,height=700');
+                if (!printWindow) return;
                 let html = `<html><head><title>Talones de Pago Digital</title>
                 <style>
                     body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
@@ -4844,7 +4862,8 @@
                     ? '.screen-only { background-image: url("' + bgImage + '"); background-size: 100% 100%; background-repeat: no-repeat; }'
                     : '';
 
-                const printWindow = window.open('', '', 'width:960,height:800');
+                const printWindow = this._abrirVentanaImpresion('width=960,height=800');
+                if (!printWindow) return;
                 printWindow.document.write(`<!DOCTYPE html><html><head>
                     <title>Cheques — Ana's Cleaning Service</title>
                     <style>
@@ -5048,7 +5067,8 @@
                 const dateParts = check.date.split('T')[0].split('-');
                 const dateUSA = `${dateParts[1]}/${dateParts[2]}/${dateParts[0]}`;
                 
-                const printWindow = window.open('', '', 'width=900,height=400');
+                const printWindow = this._abrirVentanaImpresion('width=900,height=400');
+                if (!printWindow) return;
                 printWindow.document.write(`
                     <html>
                     <head>
@@ -5414,14 +5434,14 @@
                 };
                 this.savedPayrollPeriods.push(newPeriod);
                 this.currentPayrollPeriodId = newPeriod.id; // Guardar referencia para marcar al imprimir
-                this.saveData();
+                this.save();   // el nombre anterior no existía como método y tronaba aquí
                 alert('✅ Nómina guardada en historial');
             },
 
             deletePayrollPeriod(id) {
                 if (!confirm('¿Eliminar esta nómina del historial?')) return;
                 this.savedPayrollPeriods = this.savedPayrollPeriods.filter(p => p.id !== id);
-                this.saveData();
+                this.save();   // el nombre anterior no existía como método y tronaba aquí
                 this.renderSavedPayrollList();
             },
 
@@ -5447,7 +5467,7 @@
                 if (p) {
                     p.checksStatus = 'printed';
                     p.updatedAt = new Date().toISOString();
-                    this.saveData();
+                    this.save();   // el nombre anterior no existía como método y tronaba aquí
                     this.renderSavedPayrollList();
                 }
             },
@@ -6321,6 +6341,15 @@
             },
             
             // PERSISTENCIA
+            /* Se llamaba this.formatDateUSA(), que solo existía como variable local
+               dentro de otra función: al avisar de un registro duplicado tronaba
+               en vez de preguntar. */
+            fechaUSA(d) {
+                if (!d) return '';
+                const [a, m, dd] = String(d).split('T')[0].split('-');
+                return (m && dd && a) ? `${m}/${dd}/${a}` : String(d);
+            },
+
             save() {
                 if (this.driveConnected) {
                     setTimeout(() => this.driveSyncNow(), 500);
