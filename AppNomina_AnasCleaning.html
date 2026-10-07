@@ -4503,8 +4503,19 @@
                nada ni salía ningún aviso. Para quien está imprimiendo, la app
                simplemente "no deja imprimir". */
             _abrirVentanaImpresion(features) {
+                /* Se abre como PESTAÑA, no como ventana emergente.
+                   Cuando se pide una ventana con tamaño ('width=900,height=700'),
+                   el navegador la trata como popup y la puede bloquear — y eso es
+                   justo lo que dejó a Ana sin poder imprimir, en Edge, de un día
+                   para otro. Una pestaña abierta por un clic del usuario no se
+                   bloquea. Se imprime igual; solo cambia dónde aparece.
+                   Si de todos modos falla, se intenta la forma vieja antes de
+                   darse por vencido. */
                 let w = null;
-                try { w = window.open('', '', features || 'width=900,height=700'); } catch (e) { w = null; }
+                try { w = window.open('', '_blank'); } catch (e) { w = null; }
+                if (!w || w.closed || typeof w.document === 'undefined') {
+                    try { w = window.open('', '', features || 'width=900,height=700'); } catch (e) { w = null; }
+                }
                 if (!w || w.closed || typeof w.document === 'undefined') {
                     alert('\u26A0\uFE0F El navegador bloque\u00f3 la ventana de impresi\u00f3n.\n\n' +
                           'Busca el icono de ventana bloqueada a la derecha de la barra de direcciones, ' +
