@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.6.0';
+const APP_VERSION = '2.6.5';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -255,9 +255,10 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 
 /* ── AGENDA (read-only) ── */
 .agenda{padding:10px 16px 0}.grp-lbl{font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:10px}
-.ag-grid{display:grid;grid-template-columns:36px 1fr}.tcol{display:flex;flex-direction:column}
+.ag-grid{display:grid;grid-template-columns:36px minmax(0,1fr)}.tcol{display:flex;flex-direction:column}
 .tslot{font-size:10px;color:var(--muted);padding-top:4px;text-align:right;padding-right:8px;height:auto;min-height:76px;flex-shrink:0}
-.bcol{display:flex;flex-direction:column;gap:8px;padding-bottom:16px}
+.bcol{display:flex;flex-direction:column;gap:8px;padding-bottom:16px;min-width:0}
+.sb{min-width:0}.sh{min-width:0}
 
 /* Service card - read-only */
 .sb{border-radius:11px;overflow:hidden;border:1.5px solid var(--border)}
@@ -266,10 +267,19 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 .sb.done .sh{background:var(--gbg);border-left:4px solid var(--green)}
 .sb.active{border-color:var(--yellow)}.sb.done{border-color:var(--green)}
 .sh{padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;align-items:flex-start}
-.si{flex:1;min-width:0}.sn{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:700;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.si{flex:1;min-width:0}
+/* El nombre del cliente ahora trae la dirección pegada y en una sola línea no
+   cabía: se cortaba con "..." y en el teléfono no se alcanzaba a leer de qué
+   casa se trataba. Ahora da hasta 2 renglones y parte las palabras largas,
+   en vez de ensanchar el bloque o esconder el texto. */
+.sn{font-family:'Barlow Condensed',sans-serif;font-size:19px;font-weight:700;line-height:1.15;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    overflow-wrap:anywhere;word-break:break-word}
 .sb.active .sn{color:var(--yellow)}.sb.done .sn{color:var(--green)}
 .str{font-size:11px;margin-top:3px}.sb.pending .str{color:var(--muted)}.sb.active .str{color:#fcd34d}.sb.done .str{color:#93c5fd}
-.sadr{font-size:11px;color:var(--muted);margin-top:2px}
+.sadr{font-size:11px;color:var(--muted);margin-top:2px;line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+    overflow-wrap:anywhere;word-break:break-word}
 .sr{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;margin-left:8px}
 .stb{font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;padding:2px 7px;border-radius:20px}
 .stp{background:var(--s2);color:var(--muted)}.sta{background:var(--ybg);color:var(--yellow)}.std{background:#052e16;color:#4ade80;border:1px solid #4ade80}
@@ -724,6 +734,7 @@ async function saveHorariosToDrive(){
     else if(mine._clearLunchStart) body.clearLunchStart=true;
     if(mine.lunchEnd) body.lunchEnd=mine.lunchEnd;
     else if(mine._clearLunchEnd) body.clearLunchEnd=true;
+    if(mine.lunchAnchorId) body.lunchAnchorId=mine.lunchAnchorId;
     await wPost('/api/horarios', body);
     sdot('ok','Sync '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
     toast('☁️ Horarios subidos');
@@ -1152,6 +1163,7 @@ function renderAgenda(){
       if(!dayRpt.shopBack && empData.shopBack) dayRpt.shopBack=empData.shopBack;
       if(!dayRpt.lunchStart && empData.lunchStart) dayRpt.lunchStart=empData.lunchStart;
       if(!dayRpt.lunchEnd && empData.lunchEnd) dayRpt.lunchEnd=empData.lunchEnd;
+      if(!dayRpt.lunchAnchorId && empData.lunchAnchorId) dayRpt.lunchAnchorId=empData.lunchAnchorId;
     });
   }
 
@@ -1209,7 +1221,7 @@ function renderAgenda(){
   // ── Banda delgada: Salida del Shop (arriba) ──
   {
     const soVal=dayRpt?.shopOut||'';
-    const canEdit=esResponsable();
+    const canEdit=esResponsable() && !(_esFutura(S.selectedDate) && !(dayRpt?.shopOut));
     const bandOut=document.createElement('div');
     bandOut.id='shopOutBand';
     bandOut.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-bottom:8px;background:var(--s2);border:1px solid '+(soVal?'#f59e0b':'var(--border)')+';border-radius:10px;'+(canEdit?'cursor:pointer;':'');
@@ -1232,6 +1244,7 @@ function renderAgenda(){
   const tc=document.createElement('div'); tc.className='tcol';
   const bc=document.createElement('div'); bc.className='bcol';
   let _ultimoTerminado=null;
+  const _bloques={};
 
   svcs.forEach(svc=>{
     const rpt=rpts[svc.id]||{status:'pending',checkin:null,checkout:null};
@@ -1313,19 +1326,20 @@ function renderAgenda(){
     // Se apunta cuál fue el último servicio TERMINADO: ahí va la banda del
     // almuerzo. Ana la quiere pegada al último que ya cerraron, no al final
     // del día, para que se vea cuándo comieron de verdad.
+    _bloques[String(svc.id)]={blk:blk, tl:tl};
     if(hasCheckout && !isCancelled){ _ultimoTerminado={blk:blk, tl:tl}; }
   });
 
   grid.appendChild(tc); grid.appendChild(bc); el.appendChild(grid);
 
   // ── Banda del ALMUERZO, después del último servicio terminado ──
-  _insertarBandaAlmuerzo(_ultimoTerminado, dayRpt, tc, bc);
+  _insertarBandaAlmuerzo(_ultimoTerminado, dayRpt, tc, bc, _bloques);
 
   // ── Banda delgada: Regreso al Shop (abajo) ──
   {
     const sbVal=dayRpt?.shopBack||'';
     const soVal=dayRpt?.shopOut||'';
-    const canEditBack=esResponsable();
+    const canEditBack=esResponsable() && !(_esFutura(S.selectedDate) && !(dayRpt?.shopBack));
     const bandBack=document.createElement('div');
     bandBack.id='shopBackBand';
     bandBack.style.cssText='display:flex;align-items:center;justify-content:space-between;padding:6px 12px;margin-top:8px;background:var(--s2);border:1px solid '+(sbVal?'#22c55e':'var(--border)')+';border-radius:10px;'+(canEditBack?'cursor:pointer;':'');
@@ -1388,6 +1402,11 @@ function suplenteGetReports(){
 function suplenteUpdTime(id, field, val){
   var date=S.selectedDate, empId=S.empId, group=miGrupoEnFecha(date||today());
   if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
+  if(_esFutura(date)){
+    var _p=((JSON.parse(localStorage.getItem(horariosKey(date))||'{}')[empId]||{}).services||[])
+            .find(function(x){return String(x.id)===String(id);});
+    if(!_p || !_p[field]){ toast('⚠ Ese día todavía no llega — no se puede registrar la hora'); return; }
+  }
   var key=horariosKey(date);
   var all=JSON.parse(localStorage.getItem(key)||'{}');
   if(!all[empId]) all[empId]={empId:empId,empName:S.empName||'',group:group,services:[],savedAt:''};
@@ -1523,10 +1542,11 @@ function _tpClose(){var s=document.getElementById('_tpSheet');if(s)s.remove();wi
    Mientras no hayan cerrado ningún servicio, no aparece — todavía no hay un
    "después del último" donde ponerla.
    Solo la Responsable puede tocarla, igual que las horas del Shop. */
-function _insertarBandaAlmuerzo(ultimo, dayRpt, tc, bc){
-  if(!ultimo) return;
+function _insertarBandaAlmuerzo(ultimo, dayRpt, tc, bc, bloques){
   const ini=(dayRpt&&dayRpt.lunchStart)||'';
   const fin=(dayRpt&&dayRpt.lunchEnd)||'';
+  const ancla=(dayRpt&&dayRpt.lunchAnchorId)||'';
+  const _fut=_esFutura(S.selectedDate);
   const puede=esResponsable();
 
   const mitad=(campo,valor,etiqueta)=>{
@@ -1538,7 +1558,7 @@ function _insertarBandaAlmuerzo(ultimo, dayRpt, tc, bc){
     d.innerHTML='<span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.4px;">'+etiqueta+'</span>'
       +'<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:16px;font-weight:700;color:'+(valor?col:'var(--muted)')+';">'
       +(valor?fmt12(valor):(puede?'<span data-shop-clock style="opacity:0.65;">—</span>':'—'))+'</span>';
-    if(puede) d.onclick=()=>{
+    if(puede && !(_fut && !valor)) d.onclick=()=>{
       if(valor) openShopTimeEditor(campo, valor);
       else { const n=new Date(); saveShopTime(campo,null,String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')); }
     };
@@ -1550,25 +1570,56 @@ function _insertarBandaAlmuerzo(ultimo, dayRpt, tc, bc){
   caja.style.cssText='display:flex;flex-direction:column;gap:5px;margin:4px 0;padding:8px 10px;'
     +'background:var(--s1);border:1px dashed '+((ini&&fin)?'#0ea5e9':'var(--border)')+';border-radius:11px;';
   const dur=(ini&&fin)?calcDur(ini,fin):null;
+  /* Almuerzo EMPEZADO y sin cerrar: se pone en ámbar con el tiempo corriendo.
+     Pasó que marcaron el inicio y se les olvidó el fin más de una hora; nadie
+     lo notó hasta la tarde, y para entonces ya nadie se acordaba de la hora.
+     Así la Responsable lo ve en cuanto abre la app para el siguiente cliente.
+     NO se cierra solo a una hora inventada: eso sería pagar sobre una
+     suposición de la app en vez de sobre lo que de verdad pasó. */
+  const abierto = !!(ini && !fin) && (S.selectedDate||today())===today();
+  let transcurrido='';
+  if(abierto){
+    const n=new Date();
+    const ahora=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
+    const t=calcDur(ini, ahora);
+    transcurrido = (t && t!=='—') ? t : '';
+  }
+  if(abierto) caja.style.borderColor='#f59e0b';
   caja.innerHTML='<div style="display:flex;align-items:center;gap:7px;">'
     +'<span style="font-size:13px;">\u{1F37D}</span>'
     +'<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Almuerzo</span>'
     +(dur?'<span style="font-size:11px;color:#0ea5e9;font-weight:700;margin-left:auto;">'+dur+'</span>':'')
-    +'</div>';
+    +(abierto?'<span style="font-size:11px;color:#f59e0b;font-weight:800;margin-left:auto;">\u23F1 En curso'+(transcurrido?' \u00B7 '+transcurrido:'')+'</span>':'')
+    +'</div>'
+    +(abierto?'<div style="font-size:10.5px;color:#f59e0b;line-height:1.3;">Falta marcar a qué hora terminaron.</div>':'');
   const fila=document.createElement('div');
   fila.style.cssText='display:flex;gap:6px;';
   fila.appendChild(mitad('lunchStart', ini, 'EMPEZÓ'));
   fila.appendChild(mitad('lunchEnd',   fin, 'TERMINÓ'));
   caja.appendChild(fila);
 
-  // Se mete en la columna de bloques justo después del último terminado, y se
-  // pone un hueco en la columna de horas para que no se desalineen.
-  bc.insertBefore(caja, ultimo.blk.nextSibling);
+  /* DÓNDE VA.
+     1. Si ya se registró, va pegada al servicio donde ocurrió (lunchAnchorId).
+        Así no se mueve de lugar después, aunque cierren más servicios.
+     2. Si todavía no la registran, va después del último terminado, que es
+        donde probablemente va a caer.
+     3. Si no han cerrado ninguno, va hasta arriba.
+     NUNCA se esconde: antes había que terminar un servicio para alcanzarla, y
+     eso llevó a cerrar servicios antes de tiempo nada más para poder marcarla. */
+  let ref=null;
+  if(ancla && bloques && bloques[String(ancla)]) ref=bloques[String(ancla)];
+  else if(ultimo) ref=ultimo;
+
   const hueco=document.createElement('div');
-  hueco.className='tslot';
-  hueco.style.minHeight='0';
-  hueco.textContent='';
-  tc.insertBefore(hueco, ultimo.tl.nextSibling);
+  hueco.className='tslot'; hueco.style.minHeight='0'; hueco.textContent='';
+
+  if(ref){
+    bc.insertBefore(caja, ref.blk.nextSibling);
+    tc.insertBefore(hueco, ref.tl.nextSibling);
+  } else {
+    bc.insertBefore(caja, bc.firstChild);
+    tc.insertBefore(hueco, tc.firstChild);
+  }
 }
 
 /* Etiquetas y color de cada hora suelta del día, en un solo lugar. */
@@ -1578,6 +1629,10 @@ var ICONO_HORA   ={shopOut:'🚐', shopBack:'🏠', lunchStart:'🍽', lunchEnd:
 var COLOR_HORA   ={shopOut:'#f59e0b', shopBack:'#22c55e', lunchStart:'#0ea5e9', lunchEnd:'#0ea5e9'};
 
 function openShopTimeEditor(field, currentVal){
+  if(_esFutura(S.selectedDate) && !currentVal){
+    toast('⚠ Ese día todavía no llega — no se puede registrar la hora');
+    return;
+  }
   // Remover modal anterior si existe
   var old=document.getElementById('shopTimeModal'); if(old) old.remove();
   var label=(ICONO_HORA[field]||'⏰')+' '+(ETIQUETA_HORA[field]||field);
@@ -1606,11 +1661,45 @@ function openShopTimeEditor(field, currentVal){
   modal.addEventListener('click', function(e){ if(e.target===modal) modal.remove(); });
 }
 
+/* ¿En qué servicio van ahorita? El que está abierto (con llegada pero sin
+   salida). Si no hay ninguno abierto, el último que cerraron. Si no hay nada,
+   cadena vacía y la banda se va arriba de todo. */
+function _servicioEnCurso(servicios){
+  var abierto=null, ultimoCerrado=null;
+  (servicios||[]).forEach(function(sv){
+    if(!sv) return;
+    if(sv.checkin && !sv.checkout) abierto=sv;
+    if(sv.checkout){
+      if(!ultimoCerrado || String(sv.checkout) > String(ultimoCerrado.checkout)) ultimoCerrado=sv;
+    }
+  });
+  if(abierto) return String(abierto.id);
+  if(ultimoCerrado) return String(ultimoCerrado.id);
+  return '';
+}
+
+/* Salir del Shop un día que todavía no llega es imposible. Varias empleadas
+   registraron horas en fechas futuras porque la app se quedaba parada en otro
+   día; eso ya se corrigió, pero el candado cierra el problema de raíz.
+   Los días PASADOS sí se dejan editar: pasa seguido que se les olvida marcar
+   el regreso y lo capturan al día siguiente. */
+/* La regla NO es "fecha futura = intocable": entonces nadie podría limpiar lo
+   que ya quedó mal registrado ahí, y Ana no puede editar lo que capturan ellas
+   desde el teléfono. La regla es:
+     · fecha futura + casilla VACÍA  → no se deja crear (ahí nace el error)
+     · fecha futura + ya hay un dato → sí se deja corregir o borrar (limpieza)
+     · hoy y días pasados            → todo normal */
+function _esFutura(fecha){ return !!fecha && fecha > today(); }
+
 function saveShopTime(field, inputId, directVal){
   var date=S.selectedDate, empId=S.empId, group=miGrupoEnFecha(date||today());
   if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
   var isBorrar = (directVal === '');
   var val = isBorrar ? '' : (directVal || (inputId ? (document.getElementById(inputId)||{}).value : ''));
+  if(_esFutura(date) && !isBorrar){
+    var _prev=(JSON.parse(localStorage.getItem(horariosKey(date))||'{}')[empId]||{})[field];
+    if(!_prev){ toast('⚠ Ese día todavía no llega — no se puede registrar la hora'); return; }
+  }
   if(!isBorrar && !val){
     var n=new Date();
     val=String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0');
@@ -1634,6 +1723,15 @@ function saveShopTime(field, inputId, directVal){
       if(c!==field && !all[empId][c] && _enMemoria[c]) all[empId][c]=_enMemoria[c];
     });
   }
+  /* Al marcar el INICIO del almuerzo se apunta en qué servicio iban: el que
+     tenían abierto en ese momento, o el último que cerraron. Con eso la banda
+     se coloca sola en el lugar correcto —sin que nadie tenga que cerrar un
+     servicio para "bajarla"— y, si fue a media limpieza, Producción sabe de
+     qué servicio descontar el tiempo. */
+  if(field==='lunchStart' && !isBorrar){
+    all[empId].lunchAnchorId = _servicioEnCurso(all[empId].services||[]);
+  }
+  if(field==='lunchStart' && isBorrar){ all[empId].lunchAnchorId=''; }
   all[empId][field]=val;
   // '_clear' + el campo con la primera en mayúscula: sirve igual para shopOut,
   // shopBack, lunchStart y lunchEnd sin tener que enumerarlos.

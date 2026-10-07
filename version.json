@@ -1,4 +1,4 @@
 {
-  "version": "171",
-  "notas": "La hora de Salida y Regreso al Shop ya no desaparece al juntar los horarios. Guardar la rotación de un día ya no borra a la Responsable designada desde otra computadora. Nuevo botón \"Acomodar según servicios\" en la rotación. Nuevo: la Responsable registra el almuerzo en Calendar y Producción descuenta el tiempo real en vez de suponer 30 minutos."
+  "version": "174",
+  "notas": "La hora de Salida y Regreso al Shop ya no desaparece al juntar los horarios. Guardar la rotación de un día ya no borra a la Responsable designada desde otra computadora. Nuevo botón \"Acomodar según servicios\" en la rotación. El almuerzo se registra en Calendar y Producción descuenta el tiempo real; si almorzaron a media limpieza, también se descuenta de ese servicio, para que un Deep Clean no se vea más caro de lo que costó. En Calendar ya no se pueden registrar horas nuevas en días futuros, pero las que quedaron mal registradas ahí sí se pueden corregir o borrar. El Scheduler avisa en rojo cuando un grupo ya registró servicios pero nadie marcó la salida del Shop. También avisa cuando marcaron el inicio del almuerzo y nunca el fin."
 }
