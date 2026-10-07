@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.6.5';
+const APP_VERSION = '2.7.4';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -207,8 +207,19 @@ body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-
 .screen{display:none}.screen.active{display:block}
 
 /* ── HEADER ── */
-.hdr{background:var(--s1);border-bottom:1px solid var(--border);padding:12px 16px;position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between}
-.logo{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:21px;letter-spacing:-.5px}.logo em{color:var(--brand);font-style:normal}
+/* La barra de arriba se desbordaba en los teléfonos y el botón de sesión
+   quedaba cortado contra la orilla. Ahora el logo cede espacio (se encoge y se
+   recorta si hace falta) y los botones nunca se aprietan ni se salen. */
+.hdr{background:var(--s1);border-bottom:1px solid var(--border);padding:12px 12px;position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;overflow:hidden}
+.hdr > div:first-child{min-width:0;overflow:hidden;flex:0 1 auto}
+.hdr > div:last-child{flex:0 0 auto}
+.logo{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:21px;letter-spacing:-.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.logo em{color:var(--brand);font-style:normal}
+@media (max-width:400px){
+  .hdr{padding:10px 8px}
+  .logo{font-size:18px}
+  .hdr-btn{padding:5px 7px}
+  .hdr > div:last-child{gap:4px!important}
+}
 .badge{font-size:10px;font-weight:700;letter-spacing:1px;padding:3px 9px;border-radius:20px;text-transform:uppercase;background:var(--bbg);color:var(--brand);border:1px solid var(--brand)}
 .hdr-btn{background:none;border:1px solid var(--border);color:var(--muted);padding:5px 10px;border-radius:8px;font-size:13px;cursor:pointer;font-family:'Barlow',sans-serif}
 .sync{display:flex;align-items:center;gap:7px;padding:7px 16px;font-size:11px;color:var(--muted);border-bottom:1px solid var(--border)}
@@ -394,13 +405,12 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
   <div class="hdr">
     <div style="display:flex;align-items:center;gap:9px">
       <div class="logo">Ana's<em>Calendar</em></div>
-      <div class="badge">ANA'S</div>
     </div>
     <div style="display:flex;gap:6px">
       <button class="hdr-btn" onclick="refreshData()" id="btnRefresh" title="Actualizar">🔄</button>
       <button class="hdr-btn" id="btnNotes" onclick="openNotesPanel()" title="Notas del supervisor" style="display:none;position:relative;">📝<span id="notesBadge" style="position:absolute;top:-4px;right:-4px;background:#e74c3c;color:white;border-radius:50%;width:14px;height:14px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;"></span></button>
       <button class="hdr-btn" id="btnSuplente" onclick="openSuplenteModal()" title="Modo Suplente" style="display:none;">🔑</button>
-      <button class="hdr-btn" id="btnSupervisor" onclick="openSupervisorModal()" title="Modo Supervisor" style="display:none;">🔐</button>
+      <button class="hdr-btn" id="btnAlmuerzo" onclick="openAlmuerzoSheet()" title="Registrar almuerzo" style="display:none;align-items:center;justify-content:center;color:#fff;background:#f97316;border-color:#f97316;padding:4px 9px;position:relative;"><svg id="icoAlm" viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true" style="display:block;"><path d="M6.1 2.2v5.1c0 .9.5 1.6 1.2 1.9v12.6h1.5V9.2c.7-.3 1.2-1 1.2-1.9V2.2H8.9v4.6h-.6V2.2H7v4.6h-.6V2.2z"/><path d="M16.6 2.2c-1.6 1.6-2.4 4.1-2.4 6.6 0 1.9.8 3.2 1.9 3.7v9.3h1.5V2.2z"/></svg><span id="almBadge" style="display:none;position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;font-size:10px;font-weight:900;align-items:center;justify-content:center;border:1.5px solid var(--s1);"></span></button>
       <button class="hdr-btn" onclick="openSett()">⚙</button>
       <button id="btnDriveHeader" onclick="connectDriveFromHeader()" 
         style="border:none;border-radius:8px;padding:5px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;background:#ef4444;color:white;">
@@ -593,7 +603,7 @@ function tryRestoreSession(){
       launch(false);
       if(S.driveToken){ setTimeout(()=>refreshData(), 1500); }
       setTimeout(updateDriveHeaderBtn, 500);
-      try{checkBtnSuplente();}catch(e){} try{checkBtnSupervisor();}catch(e2){}
+      try{checkBtnSuplente();}catch(e){} try{checkBtnSupervisor();}catch(e2){} try{checkBtnAlmuerzo();}catch(e3){}
       return;
     }
   }catch(e){}
@@ -1332,6 +1342,7 @@ function renderAgenda(){
 
   grid.appendChild(tc); grid.appendChild(bc); el.appendChild(grid);
 
+  try{ checkBtnAlmuerzo(); }catch(e){}
   // ── Banda del ALMUERZO, después del último servicio terminado ──
   _insertarBandaAlmuerzo(_ultimoTerminado, dayRpt, tc, bc, _bloques);
 
@@ -1966,7 +1977,7 @@ async function refreshData(){
       sdot('ok','Actualizado '+mod);
       document.getElementById('syncLbl').textContent='Actualizado '+mod;
       saveSess(); buildStrip(); renderView(); updateInfoScreen();
-      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
+      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){} try{checkBtnAlmuerzo();}catch(e5){}
       toast('✅ Datos actualizados');
 
     } else {
@@ -1989,7 +2000,7 @@ async function refreshData(){
       sdot('err','Sin sesión');
       document.getElementById('syncLbl').textContent='Sin sesión — datos locales';
       saveSess(); buildStrip(); renderView(); updateInfoScreen();
-      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){}
+      try{checkNotesBadge();}catch(e2){} try{checkBtnSuplente();}catch(e3){} try{checkBtnSupervisor();}catch(e4){} try{checkBtnAlmuerzo();}catch(e5){}
     }
   }catch(e){
     if(e.status===401){
@@ -2034,33 +2045,112 @@ function loadLocal(){
 }
 
 /* ── MODO SUPERVISOR ── */
+/* MODO SUPERVISOR APAGADO.
+   Desde el teléfono ya nadie mueve servicios de grupo ni de fecha, ni edita
+   datos: eso se hace únicamente desde el Scheduler. Calendar queda solo para
+   REGISTRAR horas. Devolviendo false aquí desaparecen los botones de "Cambiar
+   Grupo" y "Cambiar Fecha" en todos lados de un solo golpe, sin tener que
+   cazarlos uno por uno. El código viejo se deja por si algún día se quiere
+   revivir, pero no hay forma de activarlo desde la app. */
 function checkSupervisorActivo(){
-  const data=JSON.parse(localStorage.getItem('anas_supervisor_activo')||'null');
-  if(!data) return false;
-  if(data.fecha !== today()){ localStorage.removeItem('anas_supervisor_activo'); return false; }
-  return true;
+  return false;
 }
 
-function checkBtnSupervisor(){
-  const btn=document.getElementById('btnSupervisor');
+/* Ya no hay botón de Supervisor en ningún lado. Se deja la función vacía
+   porque se llama desde varios puntos del arranque y de los paneles. */
+function checkBtnSupervisor(){ /* el Modo Supervisor se retiró de Calendar */ }
+
+/* Muestra el botón del almuerzo solo a la Responsable, y solo en días que ya
+   llegaron: en una fecha futura no hay almuerzo que registrar. */
+function checkBtnAlmuerzo(){
+  const btn=document.getElementById('btnAlmuerzo');
   if(!btn) return;
-  const pin = S.supervisorPin || localStorage.getItem('anas_supervisorPin');
-  if(pin){
-    btn.style.display='flex';
-    if(checkSupervisorActivo()){
-      btn.style.background='#6c3483';
-      btn.style.color='white';
-      btn.title='✅ Modo Supervisor Activo';
-    } else {
-      btn.style.background='';
-      btn.style.color='';
-    }
+  const fecha=S.selectedDate||today();
+  const puede = !!S.empId && esResponsable() && !_esFutura(fecha);
+  btn.style.display = puede ? 'flex' : 'none';
+  if(!puede) return;
+  const r=(S.reports&&S.reports[fecha])?S.reports[fecha]:{};
+  let ini='', fin='';
+  Object.values(r).forEach(function(e){
+    if(!ini && e && e.lunchStart) ini=e.lunchStart;
+    if(!fin && e && e.lunchEnd)   fin=e.lunchEnd;
+  });
+  /* El botón siempre va en naranja, para que se vea desde que abren la app.
+     Lo que cambia es la marquita de la esquina:
+       sin marca     → todavía no registran nada
+       punto blanco  → empezaron y falta marcar el fin
+       palomita ✓    → almuerzo completo */
+  var bdg=document.getElementById('almBadge');
+  if(ini && fin){
+    if(bdg){ bdg.style.display='flex'; bdg.style.background='#22c55e'; bdg.style.color='#fff'; bdg.textContent='✓'; }
+    btn.title='Almuerzo registrado: '+fmt12(ini)+' → '+fmt12(fin);
+  } else if(ini){
+    if(bdg){ bdg.style.display='flex'; bdg.style.background='#fff'; bdg.style.color='#f97316'; bdg.textContent=''; }
+    btn.title='Almuerzo en curso — falta marcar el fin';
   } else {
-    btn.style.display='none';
+    if(bdg){ bdg.style.display='none'; bdg.textContent=''; }
+    btn.title='Registrar almuerzo';
   }
 }
 
+/* Ventanita del almuerzo. Es la misma información de la banda de la agenda,
+   pero alcanzable desde cualquier parte de la pantalla y sin tener que haber
+   terminado ningún servicio. */
+function openAlmuerzoSheet(){
+  var old=document.getElementById('almSheet'); if(old) old.remove();
+  var fecha=S.selectedDate||today();
+  var r=(S.reports&&S.reports[fecha])?S.reports[fecha]:{};
+  var ini='', fin='';
+  Object.values(r).forEach(function(e){
+    if(!ini && e && e.lunchStart) ini=e.lunchStart;
+    if(!fin && e && e.lunchEnd)   fin=e.lunchEnd;
+  });
+  var dur=(ini&&fin)?calcDur(ini,fin):'';
+  var abierto=!!(ini&&!fin);
+
+  var sheet=document.createElement('div');
+  sheet.id='almSheet';
+  sheet.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,0.65);z-index:10000;display:flex;align-items:flex-end;';
+  var casilla=function(campo,valor,etq){
+    var col=COLOR_HORA[campo];
+    return '<div data-campo="'+campo+'" style="flex:1;display:flex;flex-direction:column;gap:3px;padding:12px;'
+      +'border:1.5px solid '+(valor?col:'var(--border)')+';border-radius:12px;background:var(--s2);cursor:pointer;">'
+      +'<span style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.4px;">'+etq+'</span>'
+      +'<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:26px;font-weight:700;color:'+(valor?col:'var(--muted)')+';">'
+      +(valor?fmt12(valor):'—')+'</span>'
+      +'<span style="font-size:10.5px;color:var(--muted);">'+(valor?'toca para corregir':'toca para registrar')+'</span>'
+      +'</div>';
+  };
+  sheet.innerHTML='<div style="background:var(--bg);width:100%;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));">'
+    +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+      +'<span style="font-size:18px;">🍽</span>'
+      +'<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:19px;font-weight:800;color:var(--text);">Almuerzo</span>'
+      +(dur?'<span style="margin-left:auto;font-size:12px;font-weight:700;color:#0ea5e9;">'+dur+'</span>':'')
+      +(abierto?'<span style="margin-left:auto;font-size:12px;font-weight:800;color:#f59e0b;">⏱ En curso</span>':'')
+    +'</div>'
+    +'<div style="font-size:11.5px;color:var(--muted);margin-bottom:12px;">'
+      +(abierto?'Falta marcar a qué hora terminaron.':'Un toque registra la hora de este momento.')+'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px;">'+casilla('lunchStart',ini,'EMPEZÓ')+casilla('lunchEnd',fin,'TERMINÓ')+'</div>'
+    +'<button id="almCerrar" style="width:100%;padding:13px;border-radius:12px;border:1px solid var(--border);background:var(--s2);color:var(--muted);font-weight:700;font-size:15px;cursor:pointer;">Cerrar</button>'
+    +'</div>';
+  document.body.appendChild(sheet);
+  sheet.addEventListener('click',function(e){ if(e.target===sheet) sheet.remove(); });
+  document.getElementById('almCerrar').onclick=function(){ sheet.remove(); };
+  sheet.querySelectorAll('[data-campo]').forEach(function(d){
+    d.onclick=function(){
+      var campo=d.dataset.campo;
+      var actual=(campo==='lunchStart')?ini:fin;
+      sheet.remove();
+      if(actual) openShopTimeEditor(campo, actual);
+      else { var n=new Date(); saveShopTime(campo,null,String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')); }
+    };
+  });
+}
+
 function openSupervisorModal(){
+  // Retirado: los servicios se mueven desde el Scheduler, no desde el teléfono.
+  toast('⚠ Los servicios se mueven desde el Scheduler, no desde la app');
+  return;
   if(checkSupervisorActivo()){
     if(confirm('✅ Modo Supervisor está activo para hoy.\n\n¿Deseas desactivarlo?')){
       localStorage.removeItem('anas_supervisor_activo');
