@@ -3752,7 +3752,7 @@
                             <td>$${this.formatMoney(p.rate)}/hr</td>
                             <td><strong style="color: #27ae60;">$${this.formatMoney(p.grossPay)}</strong></td>
                             ${this.workConfig.enableLateDeduction ? `<td style="color: #e74c3c;">${p.lateMinutes > 0 ? `-${p.lateMinutes} min (-$${this.formatMoney(p.latePenalty)})` : '—'}</td>` : ''}
-                            <td style="color: #e74c3c;">${p.empDeduction > 0 ? `-${p.empDeduction}% (-$${this.formatMoney(p.deductions)})` : '—'}</td>
+                            <td style="color: #e74c3c;">${this.textoDeduccion(p)}</td>
                             <td><strong style="color: #2980b9; font-size: 1.1rem;">$${this.formatMoney(p.netPay)}</strong></td>
                             <td style="text-align:center; color:#888; font-size:0.8rem;">—</td>
                         </tr>
@@ -5445,14 +5445,92 @@
                 };
                 this.savedPayrollPeriods.push(newPeriod);
                 this.currentPayrollPeriodId = newPeriod.id; // Guardar referencia para marcar al imprimir
-                this.save();   // el nombre anterior no existía como método y tronaba aquí
-                alert('✅ Nómina guardada en historial');
+
+                /* ── ABONAR LOS PRÉSTAMOS ──────────────────────────────────────
+                   Esto faltaba por completo. El cálculo SÍ le quitaba el abono
+                   del cheque, pero nadie se lo abonaba al préstamo: el saldo
+                   nunca bajaba y a la semana siguiente se le volvía a descontar
+                   lo mismo. La empleada pagaba sin terminar de pagar nunca.
+                   Se hace al GUARDAR, no al calcular, porque calcular es solo
+                   una vista previa y se puede repetir muchas veces. La llave es
+                   el período, y applyLoanPaymentSilent no abona dos veces el
+                   mismo período, así que volver a guardar no cobra de más. */
+                const _periodoLlave = startStr + '__' + endStr;
+                const _abonados = [];
+                (newPeriod.payroll || []).forEach(fila => {
+                    const monto = fila.loanDeduction || 0;
+                    if (monto <= 0 || !fila.employeeId) return;
+                    const antes = this.getLoan(String(fila.employeeId));
+                    if (!antes) return;
+                    const saldoAntes = parseFloat((antes.amount - antes.amountPaid).toFixed(2));
+                    this.applyLoanPaymentSilent(String(fila.employeeId), _periodoLlave, monto);
+                    const despues = this.getLoan(String(fila.employeeId));
+                    const saldoDespues = despues
+                        ? parseFloat((despues.amount - despues.amountPaid).toFixed(2)) : 0;
+                    /* Se reporta lo que DE VERDAD se abonó (saldo antes menos
+                       saldo después), no lo que se pidió abonar: si el saldo era
+                       menor que el abono, el mensaje debe decir la verdad. */
+                    if (saldoDespues !== saldoAntes) {
+                        _abonados.push({ nombre: fila.employeeName,
+                                         monto: parseFloat((saldoAntes - saldoDespues).toFixed(2)),
+                                         saldo: saldoDespues, liquidado: !despues });
+                    }
+                });
+
+                this.save();
+
+                let msg = '✅ Nómina guardada en historial';
+                if (_abonados.length) {
+                    msg += '\n\nAbonos aplicados a préstamos:\n';
+                    _abonados.forEach(a => {
+                        msg += '\n• ' + a.nombre + ': -$' + this.formatMoney(a.monto)
+                             + (a.liquidado ? '  → PRÉSTAMO LIQUIDADO'
+                                            : '  → saldo $' + this.formatMoney(a.saldo));
+                    });
+                }
+                alert(msg);
             },
 
             deletePayrollPeriod(id) {
+                const _per = this.savedPayrollPeriods.find(p => p.id === id);
                 if (!confirm('¿Eliminar esta nómina del historial?')) return;
+
+                /* Si esta nómina abonó a préstamos, hay que devolver esos abonos:
+                   si no, el saldo queda cobrado por una nómina que ya no existe. */
+                if (_per) {
+                    const llave = _per.start + '__' + _per.end;
+                    const cerrados = [];
+                    (_per.payroll || []).forEach(fila => {
+                        if (!fila.employeeId || !(fila.loanDeduction > 0)) return;
+                        const reg = this.loans[String(fila.employeeId)];
+                        if (!reg) return;
+                        const activo = reg.active;
+                        if (activo && Array.isArray(activo.payments)) {
+                            const i = activo.payments.findIndex(x => x.weekOf === llave);
+                            if (i !== -1) {
+                                activo.amountPaid = parseFloat((activo.amountPaid - activo.payments[i].amount).toFixed(2));
+                                if (activo.amountPaid < 0) activo.amountPaid = 0;
+                                activo.payments.splice(i, 1);
+                                return;
+                            }
+                        }
+                        /* El préstamo ya se cerró —posiblemente con este mismo
+                           abono— y reabrirlo a ciegas puede dejar el historial
+                           peor de como estaba. Se avisa y lo decide Ana. */
+                        const enHist = (reg.history || []).some(h =>
+                            (h.payments || []).some(x => x.weekOf === llave));
+                        if (enHist) cerrados.push(fila.employeeName);
+                    });
+                    if (cerrados.length) {
+                        alert('⚠️ Ojo: el préstamo de ' + cerrados.join(', ') +
+                              ' ya estaba marcado como liquidado con el abono de esta nómina.\n\n' +
+                              'Ese abono NO se deshizo solo. Revísalo en la pantalla de Préstamos.');
+                    }
+                    localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                }
+
                 this.savedPayrollPeriods = this.savedPayrollPeriods.filter(p => p.id !== id);
-                this.save();   // el nombre anterior no existía como método y tronaba aquí
+                this.save();
                 this.renderSavedPayrollList();
             },
 
@@ -5635,7 +5713,7 @@
                         <td style="padding:9px 12px; text-align:center;">${p.totalHours.toFixed(2)} hrs</td>
                         <td style="padding:9px 12px; text-align:right;">$${this.formatMoney(p.grossPay)}</td>
                         ${this.workConfig.enableLateDeduction ? `<td style="padding:9px 12px; text-align:right; color:#e74c3c;">${p.lateMinutes > 0 ? '-'+p.lateMinutes+' min (-$'+this.formatMoney(p.latePenalty)+')' : '—'}</td>` : ''}
-                        <td style="padding:9px 12px; text-align:right; color:#e74c3c;">${p.empDeduction > 0 ? '-'+p.empDeduction+'% (-$'+this.formatMoney(p.deductions)+')' : '—'}</td>
+                        <td style="padding:9px 12px; text-align:right; color:#e74c3c;">${this.textoDeduccion(p)}</td>
                         <td style="padding:9px 12px; text-align:right; color:#27ae60; font-weight:bold;">$${this.formatMoney(p.netPay)}</td>
                     </tr>`;
                 });
@@ -5752,13 +5830,46 @@
                 }
             },
 
-            driveConnect() {
+            /* ── Reconexión con Google ────────────────────────────────────────
+               Antes SIEMPRE se pedía el token en silencio (prompt: ''). Google
+               solo concede eso cuando ve una sesión suya activa en ese
+               navegador; si no la ve —Safari bloqueando cookies de terceros, la
+               sesión cerrada, otro perfil— no concede nada Y NO AVISA. El botón
+               se quedaba rojo para siempre por más clics que le dieran, que es
+               justo lo que le pasó a Ana en la Mac.
+               Ahora: se intenta en silencio, y si en 4 segundos Google no
+               contestó, se vuelve a pedir MOSTRANDO la ventana de cuentas. Y si
+               el navegador bloquea esa ventana, ahora sí sale un aviso que dice
+               qué hacer, en vez de no pasar nada. */
+            driveConnect(modo) {
+                const visible = (modo === 'visible');
+                let contestó = false;
+                const vivo = () => {
+                    contestó = true;
+                    if (this._tmrAuth) { clearTimeout(this._tmrAuth); this._tmrAuth = null; }
+                };
+
                 this.tokenClient = google.accounts.oauth2.initTokenClient({
                     client_id: this.CLIENT_ID,
                     scope: this.SCOPES,
-                    prompt: '',
+                    error_callback: (err) => {
+                        vivo();
+                        const tipo = (err && err.type) || '';
+                        if (!visible) { this.driveConnect('visible'); return; }
+                        if (tipo === 'popup_closed') {
+                            alert('Se cerró la ventana de Google antes de terminar.\n\nVuelve a tocar "Reconectar Drive".');
+                        } else {
+                            alert('⚠️ El navegador bloqueó la ventana de Google.\n\n' +
+                                  'Busca el icono de ventana bloqueada junto a la barra de direcciones y permite las ventanas emergentes de este sitio.\n\n' +
+                                  'En Safari: Safari → Ajustes → Sitios web → Ventanas emergentes → Permitir.');
+                        }
+                    },
                     callback: async (response) => {
-                        if (response.error) { alert('❌ Error: ' + response.error); return; }
+                        vivo();
+                        if (response.error) {
+                            if (!visible) { this.driveConnect('visible'); return; }
+                            alert('❌ Error: ' + response.error); return;
+                        }
                         this.driveToken = response.access_token;
                         this.driveConnected = true;
                         this.tokenExpiry = Date.now() + (55 * 60 * 1000); // 55 min
@@ -5781,7 +5892,17 @@
                         setTimeout(() => toast.remove(), 3000);
                     }
                 });
-                this.tokenClient.requestAccessToken({ prompt: '' });
+                this.tokenClient.requestAccessToken({ prompt: visible ? 'consent' : '' });
+
+                /* Red de seguridad: si Google ni contesta ni falla —el caso que
+                   dejaba el botón rojo sin explicación— se reintenta mostrando
+                   la ventana. */
+                if (!visible) {
+                    if (this._tmrAuth) clearTimeout(this._tmrAuth);
+                    this._tmrAuth = setTimeout(() => {
+                        if (!contestó) this.driveConnect('visible');
+                    }, 4000);
+                }
             },
 
             async refreshTokenIfNeeded() {
@@ -6359,6 +6480,28 @@
                 if (!d) return '';
                 const [a, m, dd] = String(d).split('T')[0].split('-');
                 return (m && dd && a) ? `${m}/${dd}/${a}` : String(d);
+            },
+
+            /* ── Qué dice la columna "Deducción" ──────────────────────────────
+               Antes decía solo el porcentaje y le pegaba el TOTAL descontado.
+               Resultado: a quien tenía préstamo le salía "-5% (-$141.90)"
+               cuando el 5% eran $41.90 — los otros $100 del préstamo iban
+               escondidos dentro de una etiqueta que decía otra cosa. Y a quien
+               solo tenía préstamo, sin porcentaje, le aparecía "—" como si no
+               le hubieran descontado nada, con $100 menos en el cheque.
+               Ahora cada concepto se nombra por separado. No cambia ni un
+               centavo del cálculo: solo dice la verdad de lo que ya se cobra. */
+            textoDeduccion(p) {
+                const partes = [];
+                const prestamo = p.loanDeduction || 0;
+                const porcentaje = (p.deductions || 0) - prestamo;
+                if (p.empDeduction > 0 && porcentaje > 0.004) {
+                    partes.push('-' + p.empDeduction + '% (-$' + this.formatMoney(porcentaje) + ')');
+                }
+                if (prestamo > 0.004) {
+                    partes.push('Préstamo -$' + this.formatMoney(prestamo));
+                }
+                return partes.length ? partes.join('<br>') : '—';
             },
 
             save() {
