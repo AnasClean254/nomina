@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '166';
+    window.ANACS_VERSION = '171';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -3055,9 +3055,12 @@ class Scheduler {
             </div>
             <div id="rotMsg" style="text-align:center;font-size:0.75rem;color:#888;margin-bottom:10px;"></div>
             <div id="rotBoard"></div>
-            <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-                <button onclick="document.getElementById('rotacionModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
-                <button onclick="app.guardarRotacion()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar rotación</button>
+            <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-top:16px;flex-wrap:wrap;">
+                <button onclick="app._rotAcomodarPorServicios()" title="Manda a 'Sin grupo' a las empleadas de los grupos que no tienen ningún servicio este día" style="background:#8e44ad;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">🧹 Acomodar según servicios</button>
+                <div style="display:flex;gap:10px;">
+                    <button onclick="document.getElementById('rotacionModal').remove()" style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
+                    <button onclick="app.guardarRotacion()" style="background:#27ae60;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">💾 Guardar rotación</button>
+                </div>
             </div>
         </div>`;
         document.body.appendChild(modal);
@@ -3081,6 +3084,7 @@ class Scheduler {
         this._rotState = state;
         // Inicializar responsables para esta fecha
         this._rotResponsables = {};
+        this._rotRespTocados = new Set();   // nadie ha tocado nada todavía en esta fecha
         Object.keys(this.grupos).forEach(g => {
             this._rotResponsables[g] = ((this.responsables||{})[fecha]||{})[g] || null;
         });
@@ -3150,7 +3154,68 @@ class Scheduler {
     _rotDrop(ev, destGrupo) { ev.preventDefault(); const empId = ev.dataTransfer.getData('text/plain'); if (empId) this._rotMove(empId, destGrupo); }
     _rotTapChip(empId) { this._rotSelected = (String(this._rotSelected) === String(empId)) ? null : String(empId); this._rotRender(); }
     _rotTapColumn(destGrupo) { if (this._rotSelected) this._rotMove(this._rotSelected, destGrupo); }
-    _rotSetResponsable(grupo, empId) { if (!this._rotResponsables) this._rotResponsables = {}; this._rotResponsables[grupo] = empId || null; }
+    _rotSetResponsable(grupo, empId) {
+        if (!this._rotResponsables) this._rotResponsables = {};
+        this._rotResponsables[grupo] = empId || null;
+        // Se apunta qué grupos tocó la persona de verdad. Al guardar, los que no
+        // tocó se dejan como estén: así abrir la rotación de un día y guardarla
+        // ya no borra a la responsable que alguien más asignó desde otra compu.
+        if (!this._rotRespTocados) this._rotRespTocados = new Set();
+        this._rotRespTocados.add(grupo);
+    }
+
+    /* "Acomodar según servicios"
+       Hay días —sábados y domingos, sobre todo— en que solo uno o dos grupos
+       trabajan. Las demás empleadas se quedaban en sus grupos de siempre y
+       parecía que tenían trabajo cuando no. Esto las manda a "Sin grupo", que
+       es como la app entiende "día libre".
+       No guarda nada: solo acomoda el tablero. Ana revisa y luego decide si
+       guarda o cancela. */
+    _rotAcomodarPorServicios() {
+        const fecha = this._rotFecha || new Date().toLocaleDateString('en-CA');
+        const grupos = Object.keys(this.grupos || {});
+        const servsDia = (this.servs || []).filter(sv => sv && sv.date === fecha);
+
+        // Un grupo "tiene servicio" si hay un servicio asignado al grupo por su
+        // nombre, o a cualquiera de las empleadas que están en él ese día.
+        const conServicio = new Set();
+        grupos.forEach(g => {
+            const roster = (this._rotState[g] || []).map(String);
+            const tiene = servsDia.some(sv =>
+                String(sv.empId) === g || roster.includes(String(sv.empId)));
+            if (tiene) conServicio.add(g);
+        });
+
+        const sinServicio = grupos.filter(g => !conServicio.has(g) && (this._rotState[g] || []).length);
+        const aMover = sinServicio.reduce((t, g) => t + (this._rotState[g] || []).length, 0);
+
+        if (!servsDia.length) {
+            if (!confirm('Este día NO tiene ningún servicio cargado.\n\n' +
+                         '¿Mandar a TODAS las empleadas a "Sin grupo"?\n\n' +
+                         'Si los servicios todavía no se han capturado, cancela.')) return;
+        } else if (!aMover) {
+            alert('Nada que acomodar: todos los grupos con empleadas tienen servicio este día.');
+            return;
+        } else if (!confirm('Se van a mandar a "Sin grupo" ' + aMover + ' empleada(s) de: ' +
+                            sinServicio.join(', ') + '.\n\nNo se guarda nada todavía — lo revisas y luego decides.')) {
+            return;
+        }
+
+        if (!this._rotState['__sin__']) this._rotState['__sin__'] = [];
+        if (!this._rotRespTocados) this._rotRespTocados = new Set();
+        sinServicio.forEach(g => {
+            const gente = this._rotState[g] || [];
+            gente.forEach(id => { if (!this._rotState['__sin__'].includes(String(id))) this._rotState['__sin__'].push(String(id)); });
+            this._rotState[g] = [];
+            // El grupo queda vacío: su Responsable ya no tiene sentido. Se marca
+            // como tocado para que al guardar sí se quite (ver guardarRotacion).
+            if (this._rotResponsables) this._rotResponsables[g] = null;
+            this._rotRespTocados.add(g);
+        });
+
+        this._rotSelected = null;
+        this._rotRender();
+    }
 
     _rotSetFecha(fecha) {
         if (!fecha) return;
@@ -3182,13 +3247,16 @@ class Scheduler {
         // Guardar responsable del día por grupo
         if (!this.responsables) this.responsables = {};
         if (!this.responsables[fecha]) this.responsables[fecha] = {};
+        const _tocados = this._rotRespTocados || new Set();
         Object.keys(this.grupos).forEach(g => {
             const resp = (this._rotResponsables || {})[g];
             if (resp) {
                 this.responsables[fecha][g] = resp;
-            } else {
+            } else if (_tocados.has(g)) {
+                // Solo se borra si la persona la quitó ella misma en este modal.
                 delete this.responsables[fecha][g];
             }
+            // Si no la tocó, no se toca: puede haberla puesto otra computadora.
         });
         localStorage.setItem('v35_responsables', JSON.stringify(this.responsables));
         if (fecha === hoy) localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
@@ -3334,14 +3402,16 @@ class Scheduler {
                 dayData = JSON.parse(localStorage.getItem(key) || 'null');
             }
             if (!dayData) return null;
-            let shopOut = null, shopBack = null;
+            let shopOut = null, shopBack = null, lunchStart = null, lunchEnd = null;
             Object.values(dayData).forEach(empData => {
                 if (!empData || empData.group !== nombreGrupo) return;
                 if (empData.shopOut && !shopOut) shopOut = empData.shopOut;
                 if (empData.shopBack && !shopBack) shopBack = empData.shopBack;
+                if (empData.lunchStart && !lunchStart) lunchStart = empData.lunchStart;
+                if (empData.lunchEnd && !lunchEnd) lunchEnd = empData.lunchEnd;
             });
-            if (!shopOut && !shopBack) return null;
-            return { shopOut, shopBack };
+            if (!shopOut && !shopBack && !lunchStart && !lunchEnd) return null;
+            return { shopOut, shopBack, lunchStart, lunchEnd };
         } catch(e) { return null; }
     }
 
@@ -3506,6 +3576,14 @@ class Scheduler {
         });
 
         // ── Regreso al Shop (se muestra DESPUÉS del último servicio del día) ──
+        if (shopTimes && (shopTimes.lunchStart || shopTimes.lunchEnd)) {
+            const lunchDiv = document.createElement('div');
+            lunchDiv.style.cssText = 'font-size:0.68rem;font-weight:700;color:#0369a1;background:#e0f2fe;border-radius:4px;padding:2px 6px;margin-top:3px;margin-bottom:3px;text-align:center;';
+            const _li = shopTimes.lunchStart ? this.fmt12(shopTimes.lunchStart) : '—';
+            const _lf = shopTimes.lunchEnd   ? this.fmt12(shopTimes.lunchEnd)   : '—';
+            lunchDiv.textContent = `\u{1F37D} Almuerzo: ${_li} → ${_lf}`;
+            cell.appendChild(lunchDiv);
+        }
         if (shopTimes && shopTimes.shopBack) {
             const shopBackDiv = document.createElement('div');
             shopBackDiv.style.cssText = 'font-size:0.68rem;font-weight:700;color:#e91e63;background:#fce4ec;border-radius:4px;padding:2px 6px;margin-top:3px;margin-bottom:3px;text-align:center;';
@@ -18460,13 +18538,15 @@ Motivo de cancelación (opcional):`);
             const dayByGroup = {}; // grupo -> { leaderShopOut, leaderShopBack, memberEmpIds:Set }
             Object.values(dayData).forEach(empData => {
                 const grp = empData.group || 'Sin Grupo';
-                if (!dayByGroup[grp]) dayByGroup[grp] = { shopOut: null, shopBack: null, memberEmpIds: new Set() };
+                if (!dayByGroup[grp]) dayByGroup[grp] = { shopOut: null, shopBack: null, lunchStart: null, lunchEnd: null, memberEmpIds: new Set() };
                 dayByGroup[grp].memberEmpIds.add(String(empData.empId));
                 // El líder es quien tiene ambos registros de shop
                 if (empData.shopOut && empData.shopBack && !dayByGroup[grp].shopOut) {
                     dayByGroup[grp].shopOut = empData.shopOut;
                     dayByGroup[grp].shopBack = empData.shopBack;
                 }
+                if (empData.lunchStart && !dayByGroup[grp].lunchStart) dayByGroup[grp].lunchStart = empData.lunchStart;
+                if (empData.lunchEnd   && !dayByGroup[grp].lunchEnd)   dayByGroup[grp].lunchEnd   = empData.lunchEnd;
             });
 
             // Para cada grupo con horario de líder, aplicar a TODOS los miembros configurados del grupo
@@ -18479,9 +18559,22 @@ Motivo de cancelación (opcional):`);
                 let minutes = (sbh * 60 + sbm) - (soh * 60 + som);
                 if (minutes < 0) minutes = 0;
 
-                // Descontar 30 min de break si trabajó 7+ horas (420+ min)
+                /* El almuerzo: si el grupo lo registró de verdad, se descuenta lo que
+                   duró. Solo cuando NO hay registro se vuelve a la regla vieja de
+                   suponer 30 minutos arriba de 7 horas. Esto es solo para
+                   Producción — la Nómina hace su propio cálculo aparte. */
                 let breakApplied = false;
-                if (minutes >= 420) {
+                let lunchMin = 0;
+                if (groupInfo.lunchStart && groupInfo.lunchEnd) {
+                    const [lih, lim] = groupInfo.lunchStart.split(':').map(Number);
+                    const [lfh, lfm] = groupInfo.lunchEnd.split(':').map(Number);
+                    const d = (lfh * 60 + lfm) - (lih * 60 + lim);
+                    if (d > 0 && d < minutes) lunchMin = d;
+                }
+                if (lunchMin > 0) {
+                    minutes -= lunchMin;
+                    breakApplied = true;
+                } else if (minutes >= 420) {
                     minutes -= 30;
                     breakApplied = true;
                 }
@@ -18843,10 +18936,12 @@ Motivo de cancelación (opcional):`);
                 // Además, guardar el shop POR DÍA (para la vista semanal, donde cada día
                 // tiene su propia salida/regreso — antes solo se guardaba uno para toda la semana).
                 if(!groupRows[grp].shopByDate) groupRows[grp].shopByDate = {};
-                if(gd.shopOut || gd.shopBack){
+                if(gd.shopOut || gd.shopBack || gd.lunchStart || gd.lunchEnd){
                     if(!groupRows[grp].shopByDate[dt]) groupRows[grp].shopByDate[dt] = {};
                     if(gd.shopOut && !groupRows[grp].shopByDate[dt].shopOut) groupRows[grp].shopByDate[dt].shopOut = gd.shopOut;
                     if(gd.shopBack && !groupRows[grp].shopByDate[dt].shopBack) groupRows[grp].shopByDate[dt].shopBack = gd.shopBack;
+                    if(gd.lunchStart && !groupRows[grp].shopByDate[dt].lunchStart) groupRows[grp].shopByDate[dt].lunchStart = gd.lunchStart;
+                    if(gd.lunchEnd && !groupRows[grp].shopByDate[dt].lunchEnd) groupRows[grp].shopByDate[dt].lunchEnd = gd.lunchEnd;
                 }
                 (gd.services||[]).slice().sort((a,b)=>{const ta=a.scheduledStart||'',tb=b.scheduledStart||'';if(ta&&tb)return ta.localeCompare(tb);if(ta)return -1;if(tb)return 1;return 0;}).forEach(svc=>{
                     let hrs=0;
@@ -18925,11 +19020,19 @@ Motivo de cancelación (opcional):`);
                 if (dayShop && dayShop.shopOut && dayShop.shopBack) {
                     const [soh,som]=dayShop.shopOut.split(':').map(Number), [sbh,sbm]=dayShop.shopBack.split(':').map(Number);
                     let totalShopMin = (sbh*60+sbm)-(soh*60+som);
-                    // Descontar 30 min de break (comida) si esa jornada Shop→Shop fue de
-                    // 7+ horas — mismo criterio que "Resumen de Horas Trabajadas" y
-                    // AppNomina. Antes este descuento nunca se aplicaba aquí, así que el
-                    // break se pagaba de más como si fuera tiempo de traslado.
-                    if (totalShopMin >= 420) { totalShopMin -= 30; totalBreakMin += 30; }
+                    /* Descuento del almuerzo, con el MISMO criterio que "Resumen de
+                       Horas Trabajadas": si el grupo lo registró, se descuenta lo que
+                       duró de verdad; si no, los 30 min de siempre arriba de 7 horas.
+                       Es uno o el otro, nunca los dos — si no, se descontaría doble. */
+                    let _lunchMin = 0;
+                    if (dayShop.lunchStart && dayShop.lunchEnd) {
+                        const [lih,lim]=dayShop.lunchStart.split(':').map(Number);
+                        const [lfh,lfm]=dayShop.lunchEnd.split(':').map(Number);
+                        const _d=(lfh*60+lfm)-(lih*60+lim);
+                        if (_d > 0 && _d < totalShopMin) _lunchMin = _d;
+                    }
+                    if (_lunchMin > 0) { totalShopMin -= _lunchMin; totalBreakMin += _lunchMin; }
+                    else if (totalShopMin >= 420) { totalShopMin -= 30; totalBreakMin += 30; }
                     totalShopTransitHrs += Math.max(0, (totalShopMin - dayFieldHrs*60 - dayTransitHrs*60) / 60);
                 } else if (dayShop && dayShop.shopOut && dayServsAll.length) {
                     const [soh,som]=dayShop.shopOut.split(':').map(Number),[fh,fm]=dayServsAll[0].checkin.split(':').map(Number);
@@ -19797,7 +19900,27 @@ Motivo de cancelación (opcional):`);
             }
             const winnerSvcs = Array.isArray(winner.services) ? winner.services : [];
             const loserSvcs  = Array.isArray(loser.services)  ? loser.services  : [];
-            merged[empId] = Object.assign({}, winner, { services: this.mergeArraysById(winnerSvcs, loserSvcs) });
+            /* La salida y el regreso al Shop se registran APARTE de los servicios:
+               la Responsable toca la banda al salir, cuando todavía no hay ningún
+               servicio capturado. Si después gana el otro registro —el que sí trae
+               servicios— la hora del Shop se iba con el perdedor y desaparecía,
+               aunque en Drive estuviera bien guardada. Por eso un grupo podía verse
+               con sus servicios pero sin hora de salida.
+               Se conserva la del ganador, y si el ganador no trae, la del perdedor.
+               Un borrado explícito (_clearShopOut/_clearShopBack) sí se respeta. */
+            const tomarShop = (campo, flagBorrado) => {
+                if (winner[flagBorrado]) return '';
+                if (winner[campo]) return winner[campo];
+                if (loser[flagBorrado]) return '';
+                return loser[campo] || '';
+            };
+            merged[empId] = Object.assign({}, winner, {
+                services: this.mergeArraysById(winnerSvcs, loserSvcs),
+                shopOut:    tomarShop('shopOut',    '_clearShopOut'),
+                shopBack:   tomarShop('shopBack',   '_clearShopBack'),
+                lunchStart: tomarShop('lunchStart', '_clearLunchStart'),
+                lunchEnd:   tomarShop('lunchEnd',   '_clearLunchEnd')
+            });
         });
         return merged;
     }

@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.5.5';
+const APP_VERSION = '2.6.0';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -39,6 +39,7 @@ const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
      · si la tienen en pantalla, solo sale el banner: no se les reinicia
        la app encima mientras anotan horas
    ──────────────────────────────────────────────────────────────────────── */
+let _diaDeCarga = null;  // qué día era cuando se cargó la app
 let _updNueva = null;    // versión detectada en el servidor
 let _bgDesde  = 0;       // cuándo se fue la app al fondo
 
@@ -143,6 +144,20 @@ document.addEventListener('visibilitychange', ()=>{
   if(document.visibilityState === 'hidden'){ _bgDesde = Date.now(); return; }
   const fuera = _bgDesde ? (Date.now() - _bgDesde) : 0;
   _bgDesde = 0;
+  /* Si la app se quedó abierta y cruzó la medianoche, al volver seguía parada
+     en el día de ayer — y lo que registraran se guardaba en la fecha vieja.
+     Solo se mueve cuando CAMBIÓ el día del calendario, no cuando ella está
+     viendo otra fecha a propósito. */
+  try{
+    if(typeof _diaDeCarga !== 'undefined' && today() !== _diaDeCarga){
+      _diaDeCarga = today();
+      if(typeof S !== 'undefined' && S && S.empId){
+        S.selectedDate = _diaDeCarga;
+        S.weekStart    = mondayOf(S.selectedDate);
+        try{ renderView(); }catch(e){}
+      }
+    }
+  }catch(e){}
   checkForUpdate(fuera > 60000 ? 'regreso' : undefined);
 });
 
@@ -529,6 +544,7 @@ document.addEventListener('visibilitychange', ()=>{
 setInterval(()=>{ try{ if(S.driveToken && S.folderId) refreshData(); }catch(e){} }, 3 * 60 * 1000);
 
 window.addEventListener('DOMContentLoaded',()=>{
+  _diaDeCarga = today();
   setTimeout(()=>checkForUpdate(), 3000);
   const tok=localStorage.getItem(TKEY);
   if(tok){
@@ -557,6 +573,11 @@ function tryRestoreSession(){
     const sess=JSON.parse(localStorage.getItem(SESS)||'null');
     if(sess && sess.empId && sess.group){
       Object.assign(S, sess);
+      /* La sesión guarda el día que estaban viendo la última vez. Al reabrir
+         eso dejaba la app parada en otra fecha, y lo que registraran se iba
+         a ESE día. Al abrir siempre se vuelve a HOY. */
+      S.selectedDate = today();
+      S.weekStart    = mondayOf(S.selectedDate);
       if(S.emps && S.emps.length) buildEmpsList();
       showEmpSelected(S.empName, miGrupoEnFecha(today()));
       launch(false);
@@ -699,6 +720,10 @@ async function saveHorariosToDrive(){
     else if(mine._clearShopOut) body.clearShopOut=true;
     if(mine.shopBack) body.shopBack=mine.shopBack;
     else if(mine._clearShopBack) body.clearShopBack=true;
+    if(mine.lunchStart) body.lunchStart=mine.lunchStart;
+    else if(mine._clearLunchStart) body.clearLunchStart=true;
+    if(mine.lunchEnd) body.lunchEnd=mine.lunchEnd;
+    else if(mine._clearLunchEnd) body.clearLunchEnd=true;
     await wPost('/api/horarios', body);
     sdot('ok','Sync '+new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'}));
     toast('☁️ Horarios subidos');
@@ -1125,6 +1150,8 @@ function renderAgenda(){
     Object.values(S.reports[S.selectedDate]).forEach(function(empData){
       if(!dayRpt.shopOut && empData.shopOut) dayRpt.shopOut=empData.shopOut;
       if(!dayRpt.shopBack && empData.shopBack) dayRpt.shopBack=empData.shopBack;
+      if(!dayRpt.lunchStart && empData.lunchStart) dayRpt.lunchStart=empData.lunchStart;
+      if(!dayRpt.lunchEnd && empData.lunchEnd) dayRpt.lunchEnd=empData.lunchEnd;
     });
   }
 
@@ -1204,6 +1231,7 @@ function renderAgenda(){
   const grid=document.createElement('div'); grid.className='ag-grid';
   const tc=document.createElement('div'); tc.className='tcol';
   const bc=document.createElement('div'); bc.className='bcol';
+  let _ultimoTerminado=null;
 
   svcs.forEach(svc=>{
     const rpt=rpts[svc.id]||{status:'pending',checkin:null,checkout:null};
@@ -1282,9 +1310,16 @@ function renderAgenda(){
       </div>`;
 
     bc.appendChild(blk);
+    // Se apunta cuál fue el último servicio TERMINADO: ahí va la banda del
+    // almuerzo. Ana la quiere pegada al último que ya cerraron, no al final
+    // del día, para que se vea cuándo comieron de verdad.
+    if(hasCheckout && !isCancelled){ _ultimoTerminado={blk:blk, tl:tl}; }
   });
 
   grid.appendChild(tc); grid.appendChild(bc); el.appendChild(grid);
+
+  // ── Banda del ALMUERZO, después del último servicio terminado ──
+  _insertarBandaAlmuerzo(_ultimoTerminado, dayRpt, tc, bc);
 
   // ── Banda delgada: Regreso al Shop (abajo) ──
   {
@@ -1482,11 +1517,71 @@ function _tpBorrar(){
 function _tpCancelar(){_tpClose();}
 function _tpClose(){var s=document.getElementById('_tpSheet');if(s)s.remove();window._tp=null;}
 
+/* ── BANDA DEL ALMUERZO ──────────────────────────────────────────────────
+   Se coloca justo después del último servicio que el grupo ya terminó, no al
+   final del día: así queda en el lugar del día en que de verdad comieron.
+   Mientras no hayan cerrado ningún servicio, no aparece — todavía no hay un
+   "después del último" donde ponerla.
+   Solo la Responsable puede tocarla, igual que las horas del Shop. */
+function _insertarBandaAlmuerzo(ultimo, dayRpt, tc, bc){
+  if(!ultimo) return;
+  const ini=(dayRpt&&dayRpt.lunchStart)||'';
+  const fin=(dayRpt&&dayRpt.lunchEnd)||'';
+  const puede=esResponsable();
+
+  const mitad=(campo,valor,etiqueta)=>{
+    const col=COLOR_HORA[campo];
+    const d=document.createElement('div');
+    d.style.cssText='flex:1;display:flex;flex-direction:column;gap:2px;padding:6px 10px;'
+      +'border:1px solid '+(valor?col:'var(--border)')+';border-radius:9px;background:var(--s2);'
+      +(puede?'cursor:pointer;':'');
+    d.innerHTML='<span style="font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.4px;">'+etiqueta+'</span>'
+      +'<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:16px;font-weight:700;color:'+(valor?col:'var(--muted)')+';">'
+      +(valor?fmt12(valor):(puede?'<span data-shop-clock style="opacity:0.65;">—</span>':'—'))+'</span>';
+    if(puede) d.onclick=()=>{
+      if(valor) openShopTimeEditor(campo, valor);
+      else { const n=new Date(); saveShopTime(campo,null,String(n.getHours()).padStart(2,'0')+':'+String(n.getMinutes()).padStart(2,'0')); }
+    };
+    return d;
+  };
+
+  const caja=document.createElement('div');
+  caja.id='lunchBand';
+  caja.style.cssText='display:flex;flex-direction:column;gap:5px;margin:4px 0;padding:8px 10px;'
+    +'background:var(--s1);border:1px dashed '+((ini&&fin)?'#0ea5e9':'var(--border)')+';border-radius:11px;';
+  const dur=(ini&&fin)?calcDur(ini,fin):null;
+  caja.innerHTML='<div style="display:flex;align-items:center;gap:7px;">'
+    +'<span style="font-size:13px;">\u{1F37D}</span>'
+    +'<span style="font-family:\'Barlow Condensed\',sans-serif;font-size:13px;font-weight:700;color:var(--muted);">Almuerzo</span>'
+    +(dur?'<span style="font-size:11px;color:#0ea5e9;font-weight:700;margin-left:auto;">'+dur+'</span>':'')
+    +'</div>';
+  const fila=document.createElement('div');
+  fila.style.cssText='display:flex;gap:6px;';
+  fila.appendChild(mitad('lunchStart', ini, 'EMPEZÓ'));
+  fila.appendChild(mitad('lunchEnd',   fin, 'TERMINÓ'));
+  caja.appendChild(fila);
+
+  // Se mete en la columna de bloques justo después del último terminado, y se
+  // pone un hueco en la columna de horas para que no se desalineen.
+  bc.insertBefore(caja, ultimo.blk.nextSibling);
+  const hueco=document.createElement('div');
+  hueco.className='tslot';
+  hueco.style.minHeight='0';
+  hueco.textContent='';
+  tc.insertBefore(hueco, ultimo.tl.nextSibling);
+}
+
+/* Etiquetas y color de cada hora suelta del día, en un solo lugar. */
+var ETIQUETA_HORA={shopOut:'Salida del Shop', shopBack:'Regreso al Shop',
+                   lunchStart:'Inicio del almuerzo', lunchEnd:'Fin del almuerzo'};
+var ICONO_HORA   ={shopOut:'🚐', shopBack:'🏠', lunchStart:'🍽', lunchEnd:'🍽'};
+var COLOR_HORA   ={shopOut:'#f59e0b', shopBack:'#22c55e', lunchStart:'#0ea5e9', lunchEnd:'#0ea5e9'};
+
 function openShopTimeEditor(field, currentVal){
   // Remover modal anterior si existe
   var old=document.getElementById('shopTimeModal'); if(old) old.remove();
-  var label=field==='shopOut'?'🚐 Salida del Shop':'🏠 Regreso al Shop';
-  var color=field==='shopOut'?'#f59e0b':'#22c55e';
+  var label=(ICONO_HORA[field]||'⏰')+' '+(ETIQUETA_HORA[field]||field);
+  var color=COLOR_HORA[field]||'#3498db';
   var now=new Date();
   var nowStr=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
   var modal=document.createElement('div');
@@ -1523,15 +1618,34 @@ function saveShopTime(field, inputId, directVal){
   var key=horariosKey(date);
   var all=JSON.parse(localStorage.getItem(key)||'{}');
   if(!all[empId]) all[empId]={empId:empId,empName:S.empName||'',group:group,services:[],savedAt:''};
+  /* Si el archivo del día todavía no tiene los servicios pero la app sí los
+     tiene en memoria —porque tocaron la hora antes de que terminara de bajar
+     el día—, se conservan. Sin esto, registrar una hora creaba un registro con
+     la lista vacía y los check-in capturados desaparecían de la pantalla. */
+  var _enMemoria=((S.reports||{})[date]||{})[empId];
+  if(_enMemoria && Array.isArray(_enMemoria.services) && _enMemoria.services.length
+     && !((all[empId].services||[]).length)){
+    all[empId].services=_enMemoria.services;
+  }
+  // Lo mismo con las otras horas del día: no se pisan por venir del lado que
+  // todavía no las tiene.
+  if(_enMemoria){
+    ['shopOut','shopBack','lunchStart','lunchEnd'].forEach(function(c){
+      if(c!==field && !all[empId][c] && _enMemoria[c]) all[empId][c]=_enMemoria[c];
+    });
+  }
   all[empId][field]=val;
-  if(isBorrar) all[empId]['_clear'+(field==='shopOut'?'ShopOut':'ShopBack')]=true;
-  else all[empId]['_clear'+(field==='shopOut'?'ShopOut':'ShopBack')]=false;
+  // '_clear' + el campo con la primera en mayúscula: sirve igual para shopOut,
+  // shopBack, lunchStart y lunchEnd sin tener que enumerarlos.
+  var _flag='_clear'+field.charAt(0).toUpperCase()+field.slice(1);
+  all[empId][_flag]=isBorrar;
   all[empId].savedAt=new Date().toISOString();
   localStorage.setItem(key,JSON.stringify(all));
   if(!S.reports) S.reports={};
   if(!S.reports[date]) S.reports[date]={};
   S.reports[date][empId]=all[empId];
-  toast(isBorrar?'🗑 '+(field==='shopOut'?'Salida del Shop':'Regreso al Shop')+' borrado':'✅ '+(field==='shopOut'?'Salida del Shop':'Regreso al Shop')+' guardado: '+val);
+  var _nom=ETIQUETA_HORA[field]||field;
+  toast(isBorrar?'🗑 '+_nom+' borrado':'✅ '+_nom+' guardado: '+val);
   setTimeout(function(){try{saveHorariosToDrive();}catch(e){}},300);
   renderView();
 }

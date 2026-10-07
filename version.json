@@ -1,4 +1,4 @@
 {
-  "version": "166",
-  "notas": "Se arregló la rotación de grupos: ya no se deshace al sincronizar. Nuevo renglón al pie de la semana con las empleadas asignadas cada día, marcando con ⭐ a la Responsable que registra los horarios de cada grupo; ese renglón ahora se puede plegar tocando el ícono. La nota del servicio ya se puede escribir para cualquier cliente, no solo Airbnb."
+  "version": "171",
+  "notas": "La hora de Salida y Regreso al Shop ya no desaparece al juntar los horarios. Guardar la rotación de un día ya no borra a la Responsable designada desde otra computadora. Nuevo botón \"Acomodar según servicios\" en la rotación. Nuevo: la Responsable registra el almuerzo en Calendar y Producción descuenta el tiempo real en vez de suponer 30 minutos."
 }
