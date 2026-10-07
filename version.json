@@ -1,4 +1,4 @@
 {
-  "version": "178",
-  "notas": "Aviso en rojo cuando una hora registrada no puede ser: el regreso al Shop antes de la salida, o una hora que cae fuera de la jornada por un AM/PM al revés (el almuerzo de las 12:06 AM del 7 de octubre). El aviso dice la hora que pusieron y la que probablemente querían, para que Ana le avise a la Responsable del grupo: Ana no corrige los registros del teléfono, los arregla quien los capturó. Calendar ahora pregunta en el momento, antes de guardar, cuando la hora cae fuera de la jornada del día."
+  "version": "179",
+  "notas": "Corregido el aviso de horas: cuando la salida del Shop era la equivocada, el Scheduler proponía cambiar las horas correctas de la mañana por horas de la noche. Ahora la salida y el regreso se revisan como par: si el regreso va después de la salida las dos están bien, sea cual sea el turno, y si el par no cuadra se señala solo esa hora en vez de arrastrar a todos los servicios del día. Un servicio con la entrada y la salida al mismo minuto ya se nombra como lo que es, y un desorden de horas ya no se reporta dos veces."
 }

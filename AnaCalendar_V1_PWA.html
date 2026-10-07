@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.8.2';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -348,6 +348,16 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 /* Refresh spinner */
 @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 .spinning{animation:spin .8s linear infinite;display:inline-block}
+
+/* El boton de notas parpadea cuando hay una hora imposible en el dia de ella.
+   Nada de bloques rojos en la pantalla: el telefono ya va apretado. */
+@keyframes avisoLatido{
+  0%,100%{ transform:scale(1);   box-shadow:0 0 0 0 rgba(239,68,68,.55); }
+  50%    { transform:scale(1.12);box-shadow:0 0 0 7px rgba(239,68,68,0); }
+}
+.hdr-btn.avisa{ background:#ef4444!important; border-color:#ef4444!important; color:#fff!important;
+                animation:avisoLatido 1.25s ease-in-out infinite; }
+@media (prefers-reduced-motion:reduce){ .hdr-btn.avisa{ animation:none; } }
 </style>
 </head>
 <body>
@@ -522,7 +532,7 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 <div id="notesPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:3000;align-items:flex-end;justify-content:center;">
   <div style="background:white;border-radius:16px 16px 0 0;width:100%;max-width:480px;max-height:75vh;overflow-y:auto;padding:20px;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h3 style="margin:0;color:#2c3e50;">📝 Notas del Supervisor</h3>
+      <h3 style="margin:0;color:#2c3e50;">📝 Notas y avisos</h3>
       <button onclick="closeNotesPanel()" style="background:none;border:none;font-size:1.4rem;cursor:pointer;color:#888;">✕</button>
     </div>
     <div id="notesPanelContent"></div>
@@ -1388,7 +1398,7 @@ function renderAgenda(){
       </div>
       ${dayNotes.map(n => `
         <div style="background:#fff8e1;border-left:3px solid #f39c12;padding:10px 14px;font-size:0.88rem;color:#333;border-bottom:1px solid #ffeaa7;">
-          ${n}
+          ${_esc(n)}
         </div>
       `).join('')}
     `;
@@ -2364,6 +2374,108 @@ function activarModoSuplente(){
   toast('✅ Modo Suplente activado para hoy');
 }
 
+/* ── HORAS IMPOSIBLES EN MI PROPIO DIA ─────────────────────────────────
+   Se calcula aqui mismo, con lo que el telefono ya tiene. No viaja nada,
+   no se guarda nada: en cuanto ella corrige, deja de aparecer. Solo mira
+   SU PROPIO registro, porque es el unico que ella puede corregir. */
+function _horasRarasMias(date){
+  var out=[];
+  date = date || S.selectedDate || today();
+  if(!S.empId) return out;
+  var mio=null;
+  try{ mio=(JSON.parse(localStorage.getItem(horariosKey(date))||'{}'))[S.empId]||null; }catch(e){ return out; }
+  if(!mio) return out;
+
+  var DEF={ini:6*60, fin:22*60};   // jornada de referencia, sin depender del Shop
+  function sugerir(val, w){
+    if(!val) return null;
+    var v=_minHora(val);
+    if(v>=w.ini && v<=w.fin) return null;
+    var alt = (v<w.ini) ? v+720 : v-720;
+    if(alt<0 || alt>=1440) return null;
+    if(alt<w.ini || alt>w.fin) return null;
+    return _fmtHora(alt);
+  }
+
+  /* La salida y el regreso se juzgan COMO PAR, no cada uno por su lado.
+     Un regreso a las 11:30 PM parece raro visto solo, pero si salieron a las
+     6 PM es perfectamente normal — y sugerirle cambiarlo a 11:30 AM le dejaria
+     el regreso ANTES de la salida. La regla real es simple: el regreso va
+     despues de la salida. Si ese orden se cumple, los dos estan bien. */
+  var so=mio.shopOut?_minHora(mio.shopOut):null;
+  var sb=mio.shopBack?_minHora(mio.shopBack):null;
+
+  if(so!==null && sb!==null){
+    if(sb<=so){
+      /* El orden no se cumple. Se busca cual de las dos, movida 12 horas,
+         arregla el orden Y cae en un horario de trabajo creible. */
+      var cand=null;
+      if(so-720>=DEF.ini && so-720<sb)      cand={field:'shopOut',  val:so-720};
+      else if(sb+720<=DEF.fin && sb+720>so) cand={field:'shopBack', val:sb+720};
+      if(cand){
+        out.push({tipo:'shop', field:cand.field,
+                  actual:(cand.field==='shopOut'?mio.shopOut:mio.shopBack),
+                  sugerida:_fmtHora(cand.val), etiqueta:ETIQUETA_HORA[cand.field]});
+      } else {
+        out.push({tipo:'aviso', etiqueta:ETIQUETA_HORA.shopBack, actual:mio.shopBack,
+                  texto:'Marcaste el regreso al Shop ('+fmt12(mio.shopBack)+') antes de la salida ('+fmt12(mio.shopOut)+').'});
+      }
+      /* Con el par descuadrado la jornada no es de fiar, asi que no se opina
+         del almuerzo ni de los servicios: saldrian sugerencias al reves. */
+      return out;
+    }
+    // El par cuadra: las dos horas son buenas, sea cual sea el turno.
+  } else {
+    // Falta una de las dos: a la que hay se le mide contra la jornada normal.
+    var sugSolo = sugerir(mio.shopOut, DEF);
+    if(sugSolo){
+      out.push({tipo:'shop', field:'shopOut', actual:mio.shopOut, sugerida:sugSolo,
+                etiqueta:ETIQUETA_HORA.shopOut});
+      return out;
+    }
+    sugSolo = sugerir(mio.shopBack, DEF);
+    if(sugSolo){
+      out.push({tipo:'shop', field:'shopBack', actual:mio.shopBack, sugerida:sugSolo,
+                etiqueta:ETIQUETA_HORA.shopBack});
+      return out;
+    }
+  }
+
+  var w=_ventanaDelDia(date);
+  ['lunchStart','lunchEnd'].forEach(function(f){
+    var sug=sugerir(mio[f], w);
+    if(sug) out.push({tipo:'shop', field:f, actual:mio[f], sugerida:sug, etiqueta:ETIQUETA_HORA[f]});
+  });
+
+  (mio.services||[]).forEach(function(sv){
+    if(!sv) return;
+    var nom=(sv.clientName||'Servicio').split(' ')[0];
+    ['checkin','checkout'].forEach(function(f){
+      var sug=sugerir(sv[f], w);
+      if(sug) out.push({tipo:'svc', id:sv.id, field:f, actual:sv[f], sugerida:sug,
+                        etiqueta:nom+' · '+(f==='checkin'?'llegada':'salida')});
+    });
+    if(sv.checkin && sv.checkout && _minHora(sv.checkout)===_minHora(sv.checkin)){
+      /* Entrada y salida al mismo minuto: el servicio quedo en cero. */
+      out.push({tipo:'aviso', etiqueta:nom,
+                texto:'En '+nom+' la entrada y la salida quedaron a la misma hora ('+fmt12(sv.checkin)+'), asi que el servicio quedo en cero minutos.'});
+    } else if(sv.checkin && sv.checkout && _minHora(sv.checkout)<_minHora(sv.checkin)){
+      out.push({tipo:'aviso', etiqueta:nom,
+                texto:'En '+nom+' marcaste la salida ('+fmt12(sv.checkout)+') antes de la llegada ('+fmt12(sv.checkin)+').'});
+    }
+  });
+  return out;
+}
+
+/* Corrige la hora desde el panel. Reusa las mismas funciones de siempre,
+   asi que se guarda y se sube a Drive igual que si la hubiera capturado. */
+function corregirHoraRara(tipo, field, id, nueva){
+  if(tipo==='svc'){ suplenteUpdTime(id, field, nueva); try{renderView();}catch(e){} }
+  else            { saveShopTime(field, null, nueva); }
+  try{ checkNotesBadge(); }catch(e){}
+  setTimeout(function(){ try{ openNotesPanel(); }catch(e){} }, 60);
+}
+
 /* ── NOTAS SUPERVISOR ── */
 function getNotesForGroup(group, date){
   const notes = S.cellNotes || {};
@@ -2385,8 +2497,20 @@ function checkNotesBadge(){
   const badge=document.getElementById('notesBadge');
   if(!btn) return;
   const total=weekNotes.reduce((s,d)=>s+d.notes.length,0);
-  if(total>0){ btn.style.display='flex'; badge.textContent=total>9?'9+':total; }
-  else { btn.style.display='none'; }
+  let raras=[]; try{ raras=_horasRarasMias(date); }catch(e){ raras=[]; }
+  /* El boton sale si hay notas de Ana O si hay una hora imposible. Cuando hay
+     hora imposible late en rojo: es lo unico que la empleada tiene que atender
+     ella misma, y asi no hace falta llenarle la pantalla de avisos. */
+  if(total>0 || raras.length>0){
+    btn.style.display='flex';
+    const n=total+raras.length;
+    badge.textContent = n>9 ? '9+' : n;
+    btn.classList.toggle('avisa', raras.length>0);
+    btn.title = raras.length>0 ? 'Hay una hora que revisar' : 'Notas del supervisor';
+  } else {
+    btn.style.display='none';
+    btn.classList.remove('avisa');
+  }
 }
 
 function openNotesPanel(){
@@ -2395,8 +2519,37 @@ function openNotesPanel(){
   const content=document.getElementById('notesPanelContent');
   const dias=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const meses=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+  /* Los avisos de horas imposibles van PRIMERO: es lo unico accionable. */
+  let raras=[]; try{ raras=_horasRarasMias(date); }catch(e){ raras=[]; }
+  let cab='';
+  if(raras.length){
+    cab = '<div style="margin-bottom:16px;">'
+        + '<div style="font-size:0.82rem;font-weight:800;color:#b91c1c;margin-bottom:7px;">⏰ REVISA ESTAS HORAS</div>'
+        + raras.map(function(r,i){
+            if(r.tipo==='aviso'){
+              return '<div style="background:#fef2f2;border-left:3px solid #ef4444;padding:9px 12px;'
+                   + 'border-radius:0 8px 8px 0;margin-bottom:6px;font-size:0.87rem;color:#7f1d1d;">'
+                   + _esc(r.texto) + '<br><span style="color:#991b1b;opacity:.8;font-size:0.8rem;">'
+                   + 'Corrígela donde la registraste.</span></div>';
+            }
+            return '<div style="background:#fef2f2;border-left:3px solid #ef4444;padding:9px 12px;'
+                 + 'border-radius:0 8px 8px 0;margin-bottom:6px;font-size:0.87rem;color:#7f1d1d;">'
+                 + '<div><strong>' + _esc(r.etiqueta) + '</strong> dice <strong>' + fmt12(r.actual) + '</strong>,</div>'
+                 + '<div style="margin-bottom:7px;">que queda fuera del horario de trabajo.</div>'
+                 + '<button onclick="corregirHoraRara(\'' + r.tipo + '\',\'' + r.field + '\',\''
+                 + String(r.id||'') + '\',\'' + r.sugerida + '\')" '
+                 + 'style="background:#16a34a;color:#fff;border:none;border-radius:8px;padding:9px 14px;'
+                 + 'font-weight:800;font-size:0.88rem;cursor:pointer;width:100%;">'
+                 + 'Cambiar a ' + fmt12(r.sugerida) + '</button></div>';
+          }).join('')
+        + '</div>';
+  }
+
   if(!weekNotes.length){
-    content.innerHTML='<p style="color:#888;text-align:center;padding:20px;">Sin notas para esta semana.</p>';
+    content.innerHTML = cab + (cab ? '' : '<p style="color:#888;text-align:center;padding:20px;">Sin notas para esta semana.</p>');
+    document.getElementById('notesPanel').style.display='flex';
+    return;
   } else {
     content.innerHTML=weekNotes.map(d=>{
       const dObj=new Date(d.date+'T12:00:00');
@@ -2404,9 +2557,10 @@ function openNotesPanel(){
       const isToday=d.date===date;
       return `<div style="margin-bottom:14px;">
         <div style="font-size:0.82rem;font-weight:700;color:${isToday?'#e74c3c':'#3498db'};margin-bottom:6px;">${isToday?'📅 HOY — ':''}${label}</div>
-        ${d.notes.map(n=>`<div style="background:#fff8e1;border-left:3px solid #f39c12;padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:4px;font-size:0.88rem;color:#333;">${n}</div>`).join('')}
+        ${d.notes.map(n=>`<div style="background:#fff8e1;border-left:3px solid #f39c12;padding:8px 12px;border-radius:0 8px 8px 0;margin-bottom:4px;font-size:0.88rem;color:#333;">${_esc(n)}</div>`).join('')}
       </div>`;
     }).join('');
+    content.innerHTML = cab + content.innerHTML;
   }
   document.getElementById('notesPanel').style.display='flex';
 }
@@ -2433,6 +2587,8 @@ function toMins(t){if(!t)return 0;const[h,m]=t.split(':').map(Number);return h*6
 function fmt12(t){if(!t)return'';const[h24,m]=t.split(':').map(Number),am=h24>=12?'PM':'AM',h=h24%12||12;return`${h}:${m.toString().padStart(2,'0')} ${am}`;}
 function fmt12s(t){if(!t)return'';const[h24]=t.split(':').map(Number),am=h24>=12?'pm':'am',h=h24%12||12;return`${h}${am}`;}
 function calcDur(s,e){const m=toMins(e)-toMins(s);if(m<=0)return'—';return Math.floor(m/60)>0?`${Math.floor(m/60)}h ${m%60}min`:`${m}min`;}
+function _esc(t){ return String(t==null?'':t).replace(/[&<>"']/g, function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2600);}
 </script>
 </body>

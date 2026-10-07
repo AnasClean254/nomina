@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '178';
+    window.ANACS_VERSION = '179';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -19959,15 +19959,35 @@ Motivo de cancelación (opcional):`);
         const so = shopTimes.shopOut ? m(shopTimes.shopOut) : null;
         const sb = shopTimes.shopBack ? m(shopTimes.shopBack) : null;
 
-        // 1. El regreso al Shop antes de la salida (lo de Lizeth del 6 de octubre)
-        if (so !== null && sb !== null && sb <= so) {
-            avisos.push('Regreso (' + this.fmt12(shopTimes.shopBack) + ') antes de la salida (' + this.fmt12(shopTimes.shopOut) + ')');
+        const DEF = {ini: 360, fin: 1320};          // 6:00 AM - 10:00 PM de referencia
+        const _hhmm = v => String(Math.floor(v / 60)).padStart(2, '0') + ':' + String(v % 60).padStart(2, '0');
+
+        /* La salida y el regreso se juzgan COMO PAR. Si el regreso va despues de
+           la salida, las dos estan bien, sea cual sea el turno. Y si el par no
+           cuadra, se reporta SOLO eso: la jornada se mide desde la salida, asi
+           que con una salida equivocada todas las demas sugerencias salen al
+           reves — le decia a Ana que cambiara cuatro horas correctas de la
+           manana por horas de la noche. */
+        let ini = DEF.ini, fin = DEF.fin;
+        if (so !== null && sb !== null) {
+            if (sb <= so) {
+                let cand = null;
+                if (so - 720 >= DEF.ini && so - 720 < sb)      cand = {campo: 'La salida del Shop',  val: so - 720, act: shopTimes.shopOut};
+                else if (sb + 720 <= DEF.fin && sb + 720 > so) cand = {campo: 'El regreso al Shop', val: sb + 720, act: shopTimes.shopBack};
+                if (cand) {
+                    avisos.push(cand.campo + ' dice ' + this.fmt12(cand.act) + ' (\u00bfera ' + this.fmt12(_hhmm(cand.val)) + '?)');
+                } else {
+                    avisos.push('Regreso (' + this.fmt12(shopTimes.shopBack) + ') antes de la salida (' + this.fmt12(shopTimes.shopOut) + ')');
+                }
+                return avisos;      // con el par descuadrado no se opina de lo demas
+            }
+            ini = so; fin = sb;     // el par cuadra: esa es la jornada real
+        } else if (so !== null) {
+            ini = so; fin = 1439;
+        } else if (sb !== null) {
+            fin = sb;
         }
 
-        // 2. Horas fuera de la jornada. Si hay salida del Shop, la jornada va de
-        //    ahi al regreso; si no, se usa 6:00 AM - 10:00 PM como referencia.
-        let ini = 360, fin = 1320;
-        if (so !== null) { ini = so; fin = (sb !== null && sb > so) ? sb : 1439; }
         const fuera = (val, etiqueta) => {
             if (!val) return;
             const v = m(val);
@@ -19976,7 +19996,7 @@ Motivo de cancelación (opcional):`);
             // eso es un AM/PM al reves, no un turno raro de verdad.
             const alt = v < ini ? v + 720 : v - 720;
             if (alt >= ini && alt <= fin && alt >= 0 && alt < 1440) {
-                avisos.push(etiqueta + ' ' + this.fmt12(val) + ' (\u00bfera ' + this.fmt12(String(Math.floor(alt / 60)).padStart(2, '0') + ':' + String(alt % 60).padStart(2, '0')) + '?)');
+                avisos.push(etiqueta + ' ' + this.fmt12(val) + ' (\u00bfera ' + this.fmt12(_hhmm(alt)) + '?)');
             }
         };
         fuera(shopTimes.lunchStart, 'Inicio del almuerzo');
@@ -19991,8 +20011,15 @@ Motivo de cancelación (opcional):`);
                     const cli = this.servs.find(x => String(x.id) === String(sv.id));
                     const c   = cli ? this.clis.find(y => String(y.id) === String(cli.cliId)) : null;
                     const nom = c ? (c.name || '').split(' ')[0] : 'Servicio';
-                    if (sv.checkin && sv.checkout && m(sv.checkout) <= m(sv.checkin)) {
+                    if (sv.checkin && sv.checkout && m(sv.checkout) === m(sv.checkin)) {
+                        /* Entrada y salida al mismo minuto: duracion cero. No es un
+                           AM/PM, es que marcaron las dos de un jalon. */
+                        avisos.push(nom + ': entrada y salida a la misma hora (' + this.fmt12(sv.checkin) + ')');
+                    } else if (sv.checkin && sv.checkout && m(sv.checkout) < m(sv.checkin)) {
                         avisos.push(nom + ': salida (' + this.fmt12(sv.checkout) + ') antes de la llegada (' + this.fmt12(sv.checkin) + ')');
+                        /* Ya se reporto el desorden; no repetir la misma hora con
+                           el aviso de AM/PM — eran dos renglones para un solo error. */
+                        return;
                     }
                     fuera(sv.checkin,  nom + ' llegada');
                     fuera(sv.checkout, nom + ' salida');
