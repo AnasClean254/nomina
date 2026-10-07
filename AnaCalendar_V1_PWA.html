@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.7.4';
+const APP_VERSION = '2.8.0';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -1187,11 +1187,18 @@ function renderAgenda(){
     const esHoy=fecha===today();
     const banner=document.createElement('div');
     if(soy){
-      banner.style.cssText='background:linear-gradient(135deg,#27ae60,#2ecc71);color:white;padding:10px 14px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:0.88rem;';
-      banner.innerHTML=esHoy?'⭐ Eres la Responsable del Día — registra los horarios del grupo':'⭐ Fuiste la Responsable de este día';
+      /* Antes decía "Eres la Responsable del Día — registra los horarios del
+         grupo": dos renglones para decir algo que cabe en cuatro palabras.
+         Ahora va su nombre y la tarea, de un vistazo. */
+      const _mi = (S.empName || '').split(' ')[0] || 'Tú';
+      banner.style.cssText='background:linear-gradient(135deg,#27ae60,#2ecc71);color:white;padding:9px 13px;border-radius:10px;margin-bottom:10px;display:flex;align-items:center;gap:9px;font-weight:700;font-size:0.95rem;';
+      banner.innerHTML='<span style="font-size:19px;line-height:1;">\u{1FAE1}</span>'
+        + '<span><strong>'+_mi+'</strong> · '+(esHoy?'registrar horarios hoy':'registraste los horarios')+'</span>';
     } else if(respEmp){
       banner.style.cssText='background:var(--s2);border:1px solid var(--border);color:var(--muted);padding:8px 14px;border-radius:10px;margin-bottom:10px;font-size:0.82rem;';
-      banner.innerHTML=`⭐ Responsable${esHoy?' hoy':''}: <strong style="color:var(--text)">${respEmp.name}</strong>`;
+      banner.style.cssText='background:var(--s2);border:1px solid var(--border);color:var(--muted);padding:8px 13px;border-radius:10px;margin-bottom:10px;font-size:0.85rem;display:flex;align-items:center;gap:8px;';
+      banner.innerHTML='<span style="font-size:16px;line-height:1;">\u{1FAE1}</span>'
+        + `<span><strong style="color:var(--text)">${respEmp.name.split(' ')[0]}</strong> registra los horarios${esHoy?' hoy':''}</span>`;
     }
     if(banner.innerHTML) el.appendChild(banner);
   }
@@ -1344,7 +1351,7 @@ function renderAgenda(){
 
   try{ checkBtnAlmuerzo(); }catch(e){}
   // ── Banda del ALMUERZO, después del último servicio terminado ──
-  _insertarBandaAlmuerzo(_ultimoTerminado, dayRpt, tc, bc, _bloques);
+  _insertarBandaAlmuerzo(_ultimoTerminado, dayRpt, tc, bc, _bloques, rpts);
 
   // ── Banda delgada: Regreso al Shop (abajo) ──
   {
@@ -1413,6 +1420,7 @@ function suplenteGetReports(){
 function suplenteUpdTime(id, field, val){
   var date=S.selectedDate, empId=S.empId, group=miGrupoEnFecha(date||today());
   if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
+  if(val) val=_confirmarHora(val, date, field==='checkin'?'la llegada':'la salida');
   if(_esFutura(date)){
     var _p=((JSON.parse(localStorage.getItem(horariosKey(date))||'{}')[empId]||{}).services||[])
             .find(function(x){return String(x.id)===String(id);});
@@ -1553,10 +1561,38 @@ function _tpClose(){var s=document.getElementById('_tpSheet');if(s)s.remove();wi
    Mientras no hayan cerrado ningún servicio, no aparece — todavía no hay un
    "después del último" donde ponerla.
    Solo la Responsable puede tocarla, igual que las horas del Shop. */
-function _insertarBandaAlmuerzo(ultimo, dayRpt, tc, bc, bloques){
+/* ¿Dentro de qué servicio cayó el almuerzo? Se usa cuando el registro no trae
+   la marca del servicio — los que se hicieron con versiones anteriores a la
+   2.6.1. Si la hora del almuerzo queda entre la llegada y la salida de un
+   servicio, ahí ocurrió, aunque nadie lo haya apuntado. */
+function _servicioQueContieneAlmuerzo(rpts, ini, fin){
+  if(!ini || !rpts) return '';
+  const m=function(t){ const p=String(t).split(':'); return (+p[0]||0)*60+(+p[1]||0); };
+  const li=m(ini), lf=fin?m(fin):li;
+  let hallado='';
+  Object.keys(rpts).forEach(function(id){
+    if(hallado) return;
+    const r=rpts[id];
+    if(!r || !r.checkin || !r.checkout) return;
+    const ci=m(r.checkin), co=m(r.checkout);
+    if(co>ci && li>=ci && lf<=co) hallado=String(id);   // el almuerzo cabe dentro
+  });
+  if(hallado) return hallado;
+  // si no cabe completo, basta con que haya empezado dentro de un servicio
+  Object.keys(rpts).forEach(function(id){
+    if(hallado) return;
+    const r=rpts[id];
+    if(!r || !r.checkin || !r.checkout) return;
+    const ci=m(r.checkin), co=m(r.checkout);
+    if(co>ci && li>=ci && li<co) hallado=String(id);
+  });
+  return hallado;
+}
+
+function _insertarBandaAlmuerzo(ultimo, dayRpt, tc, bc, bloques, rpts){
   const ini=(dayRpt&&dayRpt.lunchStart)||'';
   const fin=(dayRpt&&dayRpt.lunchEnd)||'';
-  const ancla=(dayRpt&&dayRpt.lunchAnchorId)||'';
+  const ancla=((dayRpt&&dayRpt.lunchAnchorId)||'') || _servicioQueContieneAlmuerzo(rpts, ini, fin);
   const _fut=_esFutura(S.selectedDate);
   const puede=esResponsable();
 
@@ -1675,6 +1711,55 @@ function openShopTimeEditor(field, currentVal){
 /* ¿En qué servicio van ahorita? El que está abierto (con llegada pero sin
    salida). Si no hay ninguno abierto, el último que cerraron. Si no hay nada,
    cadena vacía y la banda se va arriba de todo. */
+/* ─── RED CONTRA LOS ERRORES DE AM/PM ───────────────────────────────────
+   La mayoría de las muchachas no tiene práctica capturando horas en el
+   teléfono, y el error típico es dejar AM donde iba PM: así quedó un almuerzo
+   registrado a las 12:06 de la madrugada. Nadie lo nota hasta que Ana revisa
+   los reportes días después.
+   En vez de explicarles el problema, se les ofrece la corrección: si la hora
+   cae fuera de la jornada pero sumándole (o restándole) 12 horas cae dentro,
+   se pregunta con un sí o un no. Si de verdad era esa hora, se respeta. */
+function _minHora(t){ const p=String(t||'').split(':'); return (+p[0]||0)*60+(+p[1]||0); }
+
+function _ventanaDelDia(date){
+  // La jornada va de la salida del Shop al regreso. Si todavía no están
+  // registrados, se usa un horario laboral amplio para no estorbar.
+  let ini=6*60, fin=22*60;
+  try{
+    const dia=JSON.parse(localStorage.getItem(horariosKey(date))||'{}');
+    let so='', sb='';
+    Object.values(dia).forEach(function(e){
+      if(!so && e && e.shopOut) so=e.shopOut;
+      if(!sb && e && e.shopBack) sb=e.shopBack;
+    });
+    if(so) ini=_minHora(so);
+    if(sb) fin=_minHora(sb);
+  }catch(e){}
+  if(fin<=ini) fin=ini+14*60;          // por si el regreso quedó mal capturado
+  return {ini:ini, fin:fin};
+}
+
+function _fmtHora(min){
+  const h=Math.floor(min/60)%24, m=min%60;
+  return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+}
+
+/* Devuelve la hora a guardar: la original, o la corregida si la persona acepta. */
+function _confirmarHora(val, date, etiqueta){
+  if(!val) return val;
+  const v=_minHora(val), w=_ventanaDelDia(date);
+  if(v>=w.ini && v<=w.fin) return val;              // dentro de la jornada: todo bien
+  const alt = (v < w.ini) ? v+720 : v-720;          // la misma hora con el otro AM/PM
+  if(alt<0 || alt>=1440) return val;
+  if(alt < w.ini || alt > w.fin) return val;        // la otra tampoco cuadra: no opinar
+  const altStr=_fmtHora(alt);
+  const msg='Registraste '+(etiqueta||'la hora')+' a las '+fmt12(val)+'.\n\n'
+          + 'Eso queda fuera del horario de trabajo de hoy.\n'
+          + '¿Quisiste poner '+fmt12(altStr)+'?\n\n'
+          + 'Aceptar = '+fmt12(altStr)+'\nCancelar = dejar '+fmt12(val);
+  return confirm(msg) ? altStr : val;
+}
+
 function _servicioEnCurso(servicios){
   var abierto=null, ultimoCerrado=null;
   (servicios||[]).forEach(function(sv){
@@ -1707,6 +1792,7 @@ function saveShopTime(field, inputId, directVal){
   if(!date||!empId){ toast('⚠ Sin fecha o empleado'); return; }
   var isBorrar = (directVal === '');
   var val = isBorrar ? '' : (directVal || (inputId ? (document.getElementById(inputId)||{}).value : ''));
+  if(!isBorrar && val) val=_confirmarHora(val, date, ETIQUETA_HORA[field]||'');
   if(_esFutura(date) && !isBorrar){
     var _prev=(JSON.parse(localStorage.getItem(horariosKey(date))||'{}')[empId]||{})[field];
     if(!_prev){ toast('⚠ Ese día todavía no llega — no se puede registrar la hora'); return; }
