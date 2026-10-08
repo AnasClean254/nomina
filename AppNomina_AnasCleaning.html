@@ -1514,7 +1514,7 @@
             /* Versión a la vista. Sin esto no había forma de saber qué copia
                tenía cada computadora, y se nos fueron dos días persiguiendo
                bugs que ya estaban arreglados en un archivo que nunca llegó. */
-            APP_VERSION: '2.1.0',
+            APP_VERSION: '2.1.2',
 
             init() {
                 try {
@@ -4521,21 +4521,52 @@
                    bloquea. Se imprime igual; solo cambia dónde aparece.
                    Si de todos modos falla, se intenta la forma vieja antes de
                    darse por vencido. */
-                let w = null;
-                try { w = window.open('', '_blank'); } catch (e) { w = null; }
+                let w = null, _falla = '';
+                try { w = window.open('', '_blank'); } catch (e) { w = null; _falla = e.message || String(e); }
                 if (!w || w.closed || typeof w.document === 'undefined') {
-                    try { w = window.open('', '', features || 'width=900,height=700'); } catch (e) { w = null; }
+                    try { w = window.open('', '', features || 'width=900,height=700'); } catch (e) { w = null; _falla = e.message || String(e); }
                 }
                 if (!w || w.closed || typeof w.document === 'undefined') {
+                    console.warn('No se pudo abrir la ventana de impresión.', _falla);
                     alert('\u26A0\uFE0F El navegador bloque\u00f3 la ventana de impresi\u00f3n.\n\n' +
-                          'Busca el icono de ventana bloqueada a la derecha de la barra de direcciones, ' +
-                          'elige "Permitir siempre ventanas emergentes de este sitio" y vuelve a intentarlo.');
+                          'EN SAFARI (Mac): men\u00fa Safari \u2192 Ajustes \u2192 Sitios web \u2192 Ventanas emergentes \u2192 ' +
+                          'busca este sitio y ponlo en "Permitir".\n\n' +
+                          'EN EDGE o CHROME: el icono de ventana bloqueada a la derecha de la barra de direcciones \u2192 ' +
+                          '"Permitir siempre ventanas emergentes de este sitio".\n\n' +
+                          (_falla ? 'Detalle: ' + _falla + '\n' : '') +
+                          'App v' + this.APP_VERSION);
                     return null;
                 }
                 return w;
             },
 
+            /* ── IMPRESIÓN CON AVISO ──────────────────────────────────────────
+               Durante dos días el síntoma fue "el botón no responde y no dice
+               nada". Un error dentro del clic de un botón no se muestra en
+               ningún lado: solo queda en la consola, que nadie abre. Esta
+               envoltura atrapa CUALQUIER falla y la pone en pantalla, con la
+               versión de la app, para no volver a quedarnos a ciegas. */
             confirmAndPrintChecks(onlyChecks = false, onlyDigital = false, showPreview = true) {
+                try {
+                    const payroll = this.currentPayrollCalc;
+                    if (!payroll || payroll.length === 0) {
+                        alert('⚠️ No hay nómina calculada en pantalla.\n\n' +
+                              'Vuelve a entrar al período desde el Historial y abre "Imprimir Cheques" otra vez.\n\n' +
+                              '(App v' + this.APP_VERSION + ')');
+                        return;
+                    }
+                    return this._confirmAndPrintChecksInterno(onlyChecks, onlyDigital, showPreview);
+                } catch (err) {
+                    console.error('Error al imprimir:', err);
+                    alert('❌ La app falló al imprimir.\n\n' +
+                          'Mensaje: ' + ((err && err.message) ? err.message : String(err)) + '\n\n' +
+                          'App v' + this.APP_VERSION + '\n' +
+                          'Navegador: ' + navigator.userAgent.slice(0, 90) + '\n\n' +
+                          'Mándale esta pantalla a Ranulfo.');
+                }
+            },
+
+            _confirmAndPrintChecksInterno(onlyChecks = false, onlyDigital = false, showPreview = true) {
                 const payroll = this.currentPayrollCalc;
                 if (!payroll || payroll.length === 0) return;
 
@@ -5537,6 +5568,11 @@
                               'Ese abono NO se deshizo solo. Revísalo en la pantalla de Préstamos.');
                     }
                     localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                /* save() es lo que dispara la subida a Drive. Sin esta línea el
+                   abono se quedaba SOLO en esta computadora, y a la siguiente
+                   sincronización Drive devolvía el préstamo viejo con el saldo
+                   completo: la empleada 'volvía a deber' al reiniciar la app. */
+                this.save();
                 }
 
                 this.savedPayrollPeriods = this.savedPayrollPeriods.filter(p => p.id !== id);
@@ -6214,21 +6250,61 @@
                         });
                     }
 
-                    // Merge préstamos — reemplazar activo si Drive tiene y local no
+                    /* ── Merge de préstamos ───────────────────────────────────────
+                       Antes bastaba con que Drive tuviera un préstamo activo para
+                       reponerlo, y entre dos activos ganaba el local sin mirar los
+                       abonos. Las dos reglas pierden dinero: la primera revive un
+                       préstamo ya liquidado, la segunda borra el abono que se
+                       registró en la otra computadora.
+                       Ahora los abonos se UNEN por su llave de período y el saldo
+                       se recalcula sobre la unión. Un abono no se puede perder
+                       porque la otra copia no lo tenía. */
                     if (data.loans) {
                         this.loans = this.loans || {};
+                        const _llave = pg => (pg && (pg.weekOf || pg.date)) || JSON.stringify(pg);
                         Object.keys(data.loans).forEach(empId => {
-                            if (!this.loans[empId]) {
-                                this.loans[empId] = data.loans[empId];
-                            } else {
-                                if (data.loans[empId].active && !this.loans[empId].active) {
-                                    this.loans[empId].active = data.loans[empId].active;
-                                }
-                                const localHist = this.loans[empId].history || [];
-                                (data.loans[empId].history || []).forEach(dl => {
-                                    if (!localHist.some(le => le.id === dl.id)) localHist.push(dl);
+                            const remoto = data.loans[empId];
+                            if (!remoto) return;
+                            if (!this.loans[empId]) { this.loans[empId] = remoto; return; }
+                            const local = this.loans[empId];
+
+                            // Historial: unión por id
+                            const hist = local.history || [];
+                            (remoto.history || []).forEach(dl => {
+                                if (!hist.some(le => le.id === dl.id)) hist.push(dl);
+                            });
+                            local.history = hist;
+
+                            const yaLiquidado = id => hist.some(h => h && h.id === id);
+
+                            if (!local.active && remoto.active) {
+                                /* Solo se repone si NO fue liquidado de este lado. Si ya
+                                   está en el historial, aquí se terminó de pagar y
+                                   reponerlo haría que volviera a deber. */
+                                if (!yaLiquidado(remoto.active.id)) local.active = remoto.active;
+                                return;
+                            }
+                            if (local.active && remoto.active && local.active.id === remoto.active.id) {
+                                const pagos = (local.active.payments || []).slice();
+                                (remoto.active.payments || []).forEach(rp => {
+                                    if (!pagos.some(lp => _llave(lp) === _llave(rp))) pagos.push(rp);
                                 });
-                                this.loans[empId].history = localHist;
+                                local.active.payments = pagos;
+                                const sumado = pagos.reduce((t, x) => t + (parseFloat(x && x.amount) || 0), 0);
+                                const pagado = Math.max(sumado,
+                                                        parseFloat(local.active.amountPaid) || 0,
+                                                        parseFloat(remoto.active.amountPaid) || 0);
+                                local.active.amountPaid = parseFloat(
+                                    Math.min(pagado, parseFloat(local.active.amount) || pagado).toFixed(2));
+                                // Si con la unión quedó cubierto, se cierra y se archiva.
+                                if (local.active.amountPaid >= (local.active.amount - 0.01)) {
+                                    local.active.amountPaid = local.active.amount;
+                                    local.active.paidDate = local.active.paidDate ||
+                                        new Date().toLocaleDateString('en-CA');
+                                    if (!yaLiquidado(local.active.id)) hist.unshift(Object.assign({}, local.active));
+                                    local.history = hist;
+                                    local.active = null;
+                                }
                             }
                         });
                     }
@@ -7085,6 +7161,11 @@
                     this.loans[empId].active = null;
                 }
                 localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                /* save() es lo que dispara la subida a Drive. Sin esta línea el
+                   abono se quedaba SOLO en esta computadora, y a la siguiente
+                   sincronización Drive devolvía el préstamo viejo con el saldo
+                   completo: la empleada 'volvía a deber' al reiniciar la app. */
+                this.save();
             },
 
             renderLoansTab() {
@@ -7249,6 +7330,11 @@
                     amountPaid, payments: []
                 };
                 localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                /* save() es lo que dispara la subida a Drive. Sin esta línea el
+                   abono se quedaba SOLO en esta computadora, y a la siguiente
+                   sincronización Drive devolvía el préstamo viejo con el saldo
+                   completo: la empleada 'volvía a deber' al reiniciar la app. */
+                this.save();
                 this.renderLoanDetail(empId);
                 this.renderLoanHistorialGeneral();
             },
@@ -7258,6 +7344,11 @@
                 empId = String(empId);
                 if (this.loans[empId]) this.loans[empId].active = null;
                 localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                /* save() es lo que dispara la subida a Drive. Sin esta línea el
+                   abono se quedaba SOLO en esta computadora, y a la siguiente
+                   sincronización Drive devolvía el préstamo viejo con el saldo
+                   completo: la empleada 'volvía a deber' al reiniciar la app. */
+                this.save();
                 this.renderLoanDetail(empId);
                 this.renderLoanHistorialGeneral();
             },
@@ -7293,6 +7384,11 @@
                         alert('✅ Abono registrado. Saldo restante: $' + (l2.amount - l2.amountPaid).toFixed(2));
                     }
                     localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                /* save() es lo que dispara la subida a Drive. Sin esta línea el
+                   abono se quedaba SOLO en esta computadora, y a la siguiente
+                   sincronización Drive devolvía el préstamo viejo con el saldo
+                   completo: la empleada 'volvía a deber' al reiniciar la app. */
+                this.save();
                 }
                 this.renderLoanDetail(empId);
                 this.renderLoanHistorialGeneral();
