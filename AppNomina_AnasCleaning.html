@@ -1514,7 +1514,7 @@
             /* Versión a la vista. Sin esto no había forma de saber qué copia
                tenía cada computadora, y se nos fueron dos días persiguiendo
                bugs que ya estaban arreglados en un archivo que nunca llegó. */
-            APP_VERSION: '2.1.2',
+            APP_VERSION: '2.4.0',
 
             init() {
                 try {
@@ -4320,6 +4320,78 @@
             },
             
             // CHEQUES
+            /* ── Folio ya emitido ─────────────────────────────────────────────
+               Al reimprimir, el campo del folio abría VACÍO y Autollenar
+               proponía los siguientes de la chequera. Resultado: el mismo pago
+               quedaba con dos folios distintos, y la chequera física dejaba de
+               cuadrar con el registro de la app. El dato siempre estuvo ahí —
+               cada cheque guarda employeeId y period—, solo que nadie lo
+               buscaba. */
+            /* ── Préstamo al momento de imprimir ──────────────────────────
+               El cheque tomaba estos datos de la nómina guardada, o sea de una
+               foto vieja: a Diana le imprimió "Saldo $2,000" cuando ya llevaba
+               dos abonos. Ahora se leen del préstamo tal como está al imprimir.
+               Devuelve el saldo y el conteo YA CON el abono de este cheque,
+               que es lo que la empleada necesita ver. */
+            prestamoAlImprimir(empId) {
+                const vacio = { monto:0, abonos:0, pagado:0, saldo:0, restantes:null, saldado:false };
+                if (!empId) return vacio;
+                const act = this.getLoan(String(empId));
+                if (act) {
+                    const saldo = parseFloat((act.amount - act.amountPaid).toFixed(2));
+                    return {
+                        monto: act.amount,
+                        abonos: (act.payments || []).length,
+                        pagado: act.amountPaid,
+                        saldo: saldo,
+                        restantes: (act.repaymentType === 'fixed' && act.repaymentValue > 0)
+                            ? Math.max(0, Math.ceil(saldo / act.repaymentValue)) : null,
+                        saldado: false
+                    };
+                }
+                /* Sin préstamo activo: pudo quedar saldado con este mismo cheque.
+                   Se toma el último del historial para no imprimir ceros. */
+                const reg = this.loans && this.loans[String(empId)];
+                const ult = reg && (reg.history || [])[0];
+                if (!ult) return vacio;
+                return { monto: ult.amount, abonos: (ult.payments || []).length,
+                         pagado: ult.amountPaid, saldo: 0, restantes: 0, saldado: true };
+            },
+
+            /* El renglón del préstamo, igual en los tres talones. */
+            lineaPrestamoTalon(check, descuento) {
+                if (!(descuento > 0)) return '';
+                const L = this.prestamoAlImprimir(check.employeeId);
+                const monto = L.monto || check.loanAmount || 0;
+                const cola = L.saldado ? '\u00a1SALDADO!'
+                    : (L.restantes !== null ? L.restantes + ' pago' + (L.restantes !== 1 ? 's' : '') + ' restantes' : '\u2014');
+                return '\uD83D\uDCB3 Orig: $' + this.formatMoney(monto)
+                     + ' &nbsp;\u00b7&nbsp; Abonos: ' + L.abonos + ' = $' + this.formatMoney(L.pagado)
+                     + ' &nbsp;\u00b7&nbsp; Saldo: $' + this.formatMoney(L.saldo)
+                     + ' &nbsp;\u00b7&nbsp; ' + cola;
+            },
+
+            folioYaEmitido(empId, periodo) {
+                if (!empId || !periodo) return '';
+                const previos = (this.checks || []).filter(c =>
+                    c && String(c.employeeId) === String(empId) &&
+                    (c.period || '') === periodo && c.checkNumber);
+                if (!previos.length) return '';
+                const ultimo = previos[previos.length - 1];
+                return ultimo.checkNumber ? String(ultimo.checkNumber) : '';
+            },
+
+            /* Lo mismo para los pagos digitales: el # de transacción. */
+            transaccionYaEmitida(empId, periodo) {
+                if (!empId || !periodo) return '';
+                const previos = (this.checks || []).filter(c =>
+                    c && String(c.employeeId) === String(empId) &&
+                    (c.period || '') === periodo && c.payMethod && c.payMethod !== 'check');
+                if (!previos.length) return '';
+                const t = previos[previos.length - 1].checkNumber;
+                return (t && t !== '—') ? String(t) : '';
+            },
+
             openCheckAssignment() {
                 const payroll = this.currentPayrollCalc;
                 if (!payroll || payroll.length === 0) { alert('Primero calcula la nómina'); return; }
@@ -4352,7 +4424,7 @@
                         <td style="padding:10px 12px;"><strong>${p.employeeName}</strong></td>
                         <td style="padding:10px 12px;text-align:right;color:#27ae60;font-weight:bold;">$${this.formatMoney(p.netPay)}</td>
                         <td style="padding:10px 12px;text-align:center;">
-                            <input type="number" id="chknum_${i}" value="" style="width:90px;padding:6px 8px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:1rem;" placeholder="# Chq">
+                            <input type="number" id="chknum_${i}" value="${this.folioYaEmitido(p.employeeId, this.currentPayrollPeriod || '')}" style="width:90px;padding:6px 8px;border:1px solid #ccc;border-radius:6px;text-align:center;font-size:1rem;" placeholder="# Chq">
                         </td>
                         <td style="padding:10px 12px;text-align:center;">
                             <input type="checkbox" id="chkprint_${i}" checked style="width:18px;height:18px;cursor:pointer;">
@@ -4365,7 +4437,7 @@
                         <td style="padding:10px 12px;text-align:right;color:#27ae60;font-weight:bold;">$${this.formatMoney(p.netPay)}</td>
                         <td style="padding:10px 12px;text-align:center;color:#1565c0;font-size:0.85rem;">${methodLabel[method] || method}</td>
                         <td style="padding:10px 12px;text-align:center;">
-                            <input type="text" id="txtxn_${i}" placeholder="# Transacción" style="width:130px;padding:6px 8px;border:1px solid #90caf9;border-radius:6px;text-align:center;font-size:0.9rem;">
+                            <input type="text" id="txtxn_${i}" value="${this.transaccionYaEmitida(p.employeeId, this.currentPayrollPeriod || '')}" placeholder="# Transacción" style="width:130px;padding:6px 8px;border:1px solid #90caf9;border-radius:6px;text-align:center;font-size:0.9rem;">
                         </td>
                         <td style="padding:10px 12px;text-align:center;">
                             <input type="checkbox" id="chkprint_${i}" checked style="width:18px;height:18px;cursor:pointer;">
@@ -4609,7 +4681,10 @@
                             employeeAddress: emp ? this.getEmpAddress(emp) : '',
                             employeeCity: emp ? this.getEmpCityLine(emp) : '',
                             period: this.currentPayrollPeriod || '',
-                            signatureUrl: this.getSignatureDataUrl(),
+                            /* La firma YA NO se guarda en cada cheque: vive una sola vez
+                               en anas_checkSignature y se lee al imprimir. Guardarla 203
+                               veces fue lo que llenó los 5 MB del navegador y lo que dejó
+                               a Ana dos días sin poder imprimir. */
                             hours: p.totalHours,
                             gross: p.grossPay,
                             deductions: p.deductions || 0,
@@ -4622,7 +4697,20 @@
                             payMethod: 'check',
                             printed: shouldPrint
                         };
-                        this.checks.push(check);
+                        /* Si ya había un cheque de esta empleada para este mismo
+                           período, se ACTUALIZA en vez de agregar otro. Antes cada
+                           reimpresión dejaba un registro más: el mismo pago aparecía
+                           dos y tres veces, y la lista de cheques creció hasta llenar
+                           el almacenamiento del navegador. */
+                        const _yaHabia = (this.checks || []).findIndex(c =>
+                            c && String(c.employeeId) === String(check.employeeId) &&
+                            (c.period || '') === (check.period || ''));
+                        if (_yaHabia !== -1) {
+                            check.id = this.checks[_yaHabia].id;      // conservar el registro original
+                            this.checks[_yaHabia] = check;
+                        } else {
+                            this.checks.push(check);
+                        }
                         if (shouldPrint) toPrintChecks.push(check);
                     } else {
                         const txnInput = document.getElementById('txtxn_' + i);
@@ -4646,7 +4734,20 @@
                             payMethod: method,
                             printed: shouldPrint
                         };
-                        this.checks.push(check);
+                        /* Si ya había un cheque de esta empleada para este mismo
+                           período, se ACTUALIZA en vez de agregar otro. Antes cada
+                           reimpresión dejaba un registro más: el mismo pago aparecía
+                           dos y tres veces, y la lista de cheques creció hasta llenar
+                           el almacenamiento del navegador. */
+                        const _yaHabia = (this.checks || []).findIndex(c =>
+                            c && String(c.employeeId) === String(check.employeeId) &&
+                            (c.period || '') === (check.period || ''));
+                        if (_yaHabia !== -1) {
+                            check.id = this.checks[_yaHabia].id;      // conservar el registro original
+                            this.checks[_yaHabia] = check;
+                        } else {
+                            this.checks.push(check);
+                        }
                         if (shouldPrint) toPrintDigital.push(check);
                     }
                 });
@@ -4717,7 +4818,7 @@
                                 <tr><td>Fecha Pago</td><td>${dateUSA}</td><td>Método</td><td>${method}</td></tr>
                                 <tr><td>Horas</td><td>${check.hours.toFixed(2)} hrs</td><td>Bruto</td><td>$${self.formatMoney(check.gross)}</td></tr>
                                 ${_regDed > 0 ? `<tr><td>Desc. N\u00f3mina</td><td colspan="3">-$$${self.formatMoney(_regDed)}</td></tr>` : ''}
-                                ${_loanDed > 0 ? `<tr><td colspan=\'4\' style=\'padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;\'>💳 Orig: $$${self.formatMoney(check.loanAmount||0)} &nbsp;·&nbsp; Desc: -$$${self.formatMoney(_loanDed)} &nbsp;·&nbsp; Saldo: $$${self.formatMoney(check.loanBalance||0)} &nbsp;·&nbsp; ${check.loanPaymentsLeft !== null && check.loanPaymentsLeft !== undefined ? (check.loanPaymentsLeft === 0 ? '\u00a1SALDADO!' : check.loanPaymentsLeft + ' pago' + (check.loanPaymentsLeft !== 1 ? 's' : '') + ' restantes') : '\u2014'}</td></tr>` : ''}
+                                ${_loanDed > 0 ? `<tr><td colspan=\'4\' style=\'padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;\'>💳 ${self.lineaPrestamoTalon(check, _loanDed)}</td></tr>` : ''}
                                 ${(_regDed === 0 && _loanDed === 0) ? '<tr><td>Deducciones</td><td colspan="3">—</td></tr>' : ''}
                                 <tr class="total-row"><td colspan="2">PAGO NETO:</td><td colspan="2">$${self.formatMoney(check.net)}</td></tr>
                             </table>
@@ -4737,6 +4838,7 @@
             },
 
             previewChecks(checks, cfg, bgImage) {
+                const _firmaImg = this.getSignatureDataUrl();
                 const self = this;
                 const existing = document.getElementById('checkPreviewAllModal');
                 if (existing) existing.remove();
@@ -4780,7 +4882,7 @@
                                 '<tr><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Horas</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">' + check.hours.toFixed(2) + ' hrs</td>' +
                                     '<td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Bruto</td><td style="padding:3px 6px; border:1px solid #e0e0e0;">$' + grossAmount + '</td></tr>' +
                                 (regDeduct > 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Desc. Nómina</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">-$' + self.formatMoney(regDeduct) + '</td></tr>' : '') +
-                                (loanDeduct > 0 ? '<tr><td colspan="4" style="padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;">💳 Orig: $' + self.formatMoney(check.loanAmount||0) + ' &nbsp;·&nbsp; Desc: -$' + self.formatMoney(loanDeduct) + ' &nbsp;·&nbsp; Saldo: $' + self.formatMoney(check.loanBalance||0) + ' &nbsp;·&nbsp; ' + (check.loanPaymentsLeft !== null && check.loanPaymentsLeft !== undefined ? (check.loanPaymentsLeft === 0 ? '¡SALDADO!' : check.loanPaymentsLeft + ' pago' + (check.loanPaymentsLeft !== 1 ? 's' : '') + ' restantes') : '—') + '</td></tr>' : '') +
+                                (loanDeduct > 0 ? '<tr><td colspan="4" style="padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;">💳 ' + self.lineaPrestamoTalon(check, loanDeduct) + '</td></tr>' : '') +
                                 (regDeduct === 0 && loanDeduct === 0 ? '<tr style="background:#f5f5f5;"><td style="padding:3px 6px; border:1px solid #e0e0e0; color:#666;">Deducciones</td><td colspan="3" style="padding:3px 6px; border:1px solid #e0e0e0;">—</td></tr>' : '') +
                                 '<tr style="background:#e8f5e9;"><td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt;"><strong>PAGO NETO:</strong></td>' +
                                     '<td colspan="2" style="padding:4px 6px; border:2px solid #27ae60; font-size:9pt; color:#1565c0;"><strong>$' + netAmount + '</strong></td></tr>' +
@@ -4805,7 +4907,7 @@
                             '<div style="position:absolute; top:' + px(cfg.words_top) + 'px; left:' + px(cfg.words_left) + 'px; font-size:8.5pt;">' + wordsAmount + '</div>' +
                             '<div style="position:absolute; top:' + px(cfg.payee_name2_top || cfg.words_top + 0.15) + 'px; left:' + px(cfg.payee_name2_left || cfg.words_left) + 'px; font-size:8.5pt; font-weight:bold;">' + check.employeeName + '</div>' +
                             (check.period ? '<div style="position:absolute; top:' + px(cfg.memo_top || 2.9) + 'px; left:' + px(cfg.memo_left || 0.5) + 'px; font-size:8.5pt;">' + check.period + '</div>' : '') +
-                            (check.signatureUrl ? '<img src="' + check.signatureUrl + '" style="position:absolute; top:' + px(cfg.signature_top || 2.6) + 'px; right:' + px(cfg.signature_right || 1.5) + 'px; width:' + px(cfg.signature_width || 1.5) + 'px; pointer-events:none;">' : '') +
+                            (_firmaImg ? '<img src="' + _firmaImg + '" style="position:absolute; top:' + px(cfg.signature_top || 2.6) + 'px; right:' + px(cfg.signature_right || 1.5) + 'px; width:' + px(cfg.signature_width || 1.5) + 'px; pointer-events:none;">' : '') +
 
                             // Talones dentro de la hoja, en secciones 2 y 3
                             stubHtml('TALÓN PARA EL EMPLEADO',  Hs) +
@@ -4851,6 +4953,7 @@
             },
 
             printMultipleChecks(checks, cfg, bgImage) {
+                const _firmaImg = this.getSignatureDataUrl();
                 // Hoja completa 8.5 x 11in — 3 secciones de 3.667in cada una
                 // Sección 1: Cheque (banco)
                 // Sección 2: Talón empleado
@@ -4880,7 +4983,7 @@
                             '<div class="cf-words">'  + wordsAmount + '</div>' +
                             '<div class="cf-payee-name2">' + check.employeeName + '</div>' +
                             (check.period ? '<div class="cf-memo">' + check.period + '</div>' : '') +
-                            (check.signatureUrl ? '<img src="' + check.signatureUrl + '" class="cf-signature" style="position:absolute; z-index:1; top:' + cfg.signature_top + 'in; right:' + cfg.signature_right + 'in; width:' + (cfg.signature_width || 1.5) + 'in; pointer-events:none;">' : '') +
+                            (_firmaImg ? '<img src="' + _firmaImg + '" class="cf-signature" style="position:absolute; z-index:1; top:' + cfg.signature_top + 'in; right:' + cfg.signature_right + 'in; width:' + (cfg.signature_width || 1.5) + 'in; pointer-events:none;">' : '') +
                             '<div class="cf-sigline"></div>' +
                         '</div>';
 
@@ -4900,7 +5003,7 @@
                                     '<td>Tarifa:</td><td>$' + self.formatMoney(check.gross / (check.hours || 1)) + '/hr</td></tr>' +
                                 '<tr><td>Pago Bruto:</td><td colspan="3">$' + grossAmount + '</td></tr>' +
                                 (regDeductM > 0 ? '<tr><td>Desc. Nómina:</td><td colspan="3">-$' + self.formatMoney(regDeductM) + '</td></tr>' : '') +
-                                (loanDeductM > 0 ? '<tr><td colspan="4" style="padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;">💳 Orig: $' + self.formatMoney(check.loanAmount||0) + ' &nbsp;·&nbsp; Desc: -$' + self.formatMoney(loanDeductM) + ' &nbsp;·&nbsp; Saldo: $' + self.formatMoney(check.loanBalance||0) + ' &nbsp;·&nbsp; ' + (check.loanPaymentsLeft !== null && check.loanPaymentsLeft !== undefined ? (check.loanPaymentsLeft === 0 ? '¡SALDADO!' : check.loanPaymentsLeft + ' pago' + (check.loanPaymentsLeft !== 1 ? 's' : '') + ' restantes') : '—') + '</td></tr>' : '') +
+                                (loanDeductM > 0 ? '<tr><td colspan="4" style="padding:3px 8px;border:1px solid #f59e0b;background:#fffbeb;font-size:6.5pt;font-style:italic;font-weight:bold;color:#92400e;letter-spacing:0.2px;">💳 ' + self.lineaPrestamoTalon(check, loanDeductM) + '</td></tr>' : '') +
                                 (regDeductM === 0 && loanDeductM === 0 ? '<tr><td>Deducciones:</td><td colspan="3">—</td></tr>' : '') +
                                 '<tr class="stub-total"><td colspan="2">PAGO NETO:</td>' +
                                     '<td colspan="2"><strong>$' + netAmount + '</strong></td></tr>' +
@@ -7134,6 +7237,7 @@
 
             calcLoanDeduction(loan, grossPay) {
                 if (!loan) return 0;
+                if (loan.pausado) return 0;    // esta semana no se le descuenta
                 const remaining = parseFloat((loan.amount - loan.amountPaid).toFixed(2));
                 if (remaining <= 0) return 0;
                 const raw = loan.repaymentType === 'percentage'
@@ -7220,11 +7324,31 @@
                             <span style="color:#666;">Fecha del préstamo:</span><span>${active.date}</span>
                             ${pagosRest !== null ? `<span style="color:#666;">Semanas restantes:</span><span style="color:#e67e22;font-weight:700;">${pagosRest}</span>` : ''}
                         </div>
-                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                            <button onclick="app.registerLoanPayment('${empId}')"
-                                style="background:#27ae60;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:700;">
-                                💵 Registrar Abono Manual
+                        <div style="background:#fff;border:1px solid #fcd34d;border-radius:8px;padding:12px 14px;margin-bottom:12px;">
+                            <div style="font-size:0.82rem;color:#92400e;font-weight:700;margin-bottom:8px;">Registrar un abono</div>
+                            <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;">
+                                <span style="font-size:1rem;color:#555;">$</span>
+                                <input type="number" id="abonoMonto_${empId}" step="0.01" min="0"
+                                    value="${active.repaymentType === 'fixed' ? Math.min(active.repaymentValue, saldo) : ''}"
+                                    style="width:110px;padding:8px;border:1px solid #ccc;border-radius:6px;font-size:1rem;text-align:right;">
+                                <button onclick="app.registerLoanPayment('${empId}')"
+                                    style="background:#27ae60;color:white;border:none;padding:9px 16px;border-radius:7px;cursor:pointer;font-weight:700;">
+                                    Abonar
+                                </button>
+                                <span style="font-size:0.78rem;color:#777;">máximo ${fmt(saldo)}</span>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px;font-size:0.84rem;">
+                            <span style="color:#666;">Descuento automático en la nómina:</span>
+                            <strong style="color:${active.pausado ? '#b45309' : '#15803d'};">${active.pausado ? 'PAUSADO' : 'Activo'}</strong>
+                            <button onclick="app.toggleLoanPausa('${empId}')"
+                                style="background:${active.pausado ? '#15803d' : '#b45309'};color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">
+                                ${active.pausado ? 'Reanudar' : 'Saltar esta semana'}
                             </button>
+                        </div>
+
+                        <div style="display:flex;gap:10px;flex-wrap:wrap;">
                             <button onclick="app.cancelLoan('${empId}')"
                                 style="background:#95a5a6;color:white;border:none;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:0.85rem;">
                                 Cancelar Préstamo
@@ -7339,6 +7463,19 @@
                 this.renderLoanHistorialGeneral();
             },
 
+            /* Saltarse el descuento de una semana sin borrar el préstamo.
+               Mientras está pausado, guardar la nómina no le descuenta nada. */
+            toggleLoanPausa(empId) {
+                empId = String(empId);
+                const loan = this.getLoan(empId);
+                if (!loan) return;
+                loan.pausado = !loan.pausado;
+                localStorage.setItem('anas_loans', JSON.stringify(this.loans));
+                this.save();
+                this.renderLoanDetail(empId);
+                this.renderLoanHistorialGeneral();
+            },
+
             cancelLoan(empId) {
                 if (!confirm('¿Cancelar el préstamo activo de esta empleada?')) return;
                 empId = String(empId);
@@ -7358,37 +7495,44 @@
                 const loan = this.getLoan(empId);
                 if (!loan) { alert('No hay préstamo activo.'); return; }
                 const saldo = parseFloat((loan.amount - loan.amountPaid).toFixed(2));
-                let abono = loan.repaymentType === 'fixed'
-                    ? loan.repaymentValue
-                    : loan.repaymentValue / 100 * (loan.amount - loan.amountPaid); // aprox
+                /* El monto lo escribe quien registra: la empleada puede abonar
+                   de más para terminar antes, o menos si esta semana no pudo.
+                   El campo llega con el descuento semanal ya propuesto. */
+                const campo = document.getElementById('abonoMonto_' + empId);
+                let abono = campo && campo.value !== '' ? parseFloat(campo.value) : NaN;
+                if (isNaN(abono)) {
+                    abono = loan.repaymentType === 'fixed'
+                        ? loan.repaymentValue
+                        : loan.repaymentValue / 100 * (loan.amount - loan.amountPaid);
+                }
+                if (!(abono > 0)) { alert('Escribe un monto mayor que cero.'); return; }
+                if (abono > saldo + 0.004) {
+                    if (!confirm('El abono ($' + this.formatMoney(abono) + ') es MAYOR que el saldo ($' +
+                                 this.formatMoney(saldo) + ').\n\nSe va a abonar solo el saldo y el préstamo queda liquidado.\n\n¿Continuar?')) return;
+                }
                 abono = Math.min(parseFloat(abono.toFixed(2)), saldo);
                 const periodStr = new Date().toLocaleDateString('en-CA');
                 if (loan.payments.some(p => p.weekOf === periodStr)) {
                     if (!confirm('Ya hay un abono registrado hoy. ¿Registrar otro?')) return;
                 }
                 if (!confirm(`Registrar abono de $${abono.toFixed(2)}?\n\nSaldo actual: $${saldo.toFixed(2)} → Nuevo saldo: $${(saldo - abono).toFixed(2)}`)) return;
+                /* ── UN SOLO ABONO ────────────────────────────────────────────
+                   Antes esto llamaba a applyLoanPaymentSilent —que YA aplica el
+                   abono— y enseguida lo volvía a aplicar a mano "por si acaso".
+                   Cada clic abonaba el doble y dejaba dos registros de pago.
+                   Ahora se aplica una vez y se lee el resultado. */
+                const antesPagado = loan.amountPaid;
                 this.applyLoanPaymentSilent(empId, periodStr + '_manual_' + Date.now(), abono);
-                // Forzar aplicación aunque haya duplicado de fecha
-                const l2 = this.loans[empId]?.active;
-                if (l2) {
-                    l2.amountPaid = parseFloat((l2.amountPaid + abono).toFixed(2));
-                    l2.payments.push({ date: new Date().toISOString(), weekOf: periodStr, amount: abono });
-                    if (l2.amountPaid >= l2.amount - 0.01) {
-                        l2.amountPaid = l2.amount;
-                        l2.paidDate = new Date().toLocaleDateString('en-CA');
-                        if (!this.loans[empId].history) this.loans[empId].history = [];
-                        this.loans[empId].history.unshift(Object.assign({}, l2));
-                        this.loans[empId].active = null;
-                        alert('✅ ¡Préstamo SALDADO completamente!');
-                    } else {
-                        alert('✅ Abono registrado. Saldo restante: $' + (l2.amount - l2.amountPaid).toFixed(2));
-                    }
-                    localStorage.setItem('anas_loans', JSON.stringify(this.loans));
-                /* save() es lo que dispara la subida a Drive. Sin esta línea el
-                   abono se quedaba SOLO en esta computadora, y a la siguiente
-                   sincronización Drive devolvía el préstamo viejo con el saldo
-                   completo: la empleada 'volvía a deber' al reiniciar la app. */
-                this.save();
+                const despues = this.getLoan(empId);
+
+                if (!despues) {
+                    alert('✅ ¡Préstamo SALDADO completamente!');
+                } else if (despues.amountPaid > antesPagado) {
+                    alert('✅ Abono de ' + this.formatMoney(despues.amountPaid - antesPagado) +
+                          ' registrado.\n\nSaldo restante: $' +
+                          this.formatMoney(despues.amount - despues.amountPaid));
+                } else {
+                    alert('⚠️ No se registró el abono. Revisa que el préstamo siga activo y que el monto sea mayor que cero.');
                 }
                 this.renderLoanDetail(empId);
                 this.renderLoanHistorialGeneral();
