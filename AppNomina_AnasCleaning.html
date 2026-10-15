@@ -1514,7 +1514,7 @@
             /* Versión a la vista. Sin esto no había forma de saber qué copia
                tenía cada computadora, y se nos fueron dos días persiguiendo
                bugs que ya estaban arreglados en un archivo que nunca llegó. */
-            APP_VERSION: '2.4.0',
+            APP_VERSION: '2.5.0',
 
             init() {
                 try {
@@ -4333,16 +4333,42 @@
                dos abonos. Ahora se leen del préstamo tal como está al imprimir.
                Devuelve el saldo y el conteo YA CON el abono de este cheque,
                que es lo que la empleada necesita ver. */
-            prestamoAlImprimir(empId) {
+            /* La llave con la que savePayrollPeriod registra el abono del
+               período. Sirve para saber si el abono de esta nómina ya se
+               aplicó o todavía no. */
+            llavePeriodoActual() {
+                const p = (this.savedPayrollPeriods || [])
+                    .find(x => x && x.id === this.currentPayrollPeriodId);
+                return p ? (p.start + '__' + p.end) : '';
+            },
+
+            prestamoAlImprimir(empId, descuentoDeEsteCheque) {
                 const vacio = { monto:0, abonos:0, pagado:0, saldo:0, restantes:null, saldado:false };
                 if (!empId) return vacio;
                 const act = this.getLoan(String(empId));
                 if (act) {
-                    const saldo = parseFloat((act.amount - act.amountPaid).toFixed(2));
+                    /* El abono de ESTA nómina se aplica al GUARDAR. Si se imprime
+                       antes de guardar, el préstamo todavía no lo tiene y el talón
+                       salía con un abono menos que el aviso de guardado. Si ya está
+                       registrado para este período, no se cuenta dos veces. */
+                    const llave = this.llavePeriodoActual();
+                    const yaAplicado = llave &&
+                        (act.payments || []).some(x => x && x.weekOf === llave);
+                    const pend = (!yaAplicado && descuentoDeEsteCheque > 0)
+                        ? Math.min(parseFloat(descuentoDeEsteCheque),
+                                   parseFloat((act.amount - act.amountPaid).toFixed(2))) : 0;
+
+                    const pagado = parseFloat((act.amountPaid + pend).toFixed(2));
+                    const saldo  = parseFloat((act.amount - pagado).toFixed(2));
+                    const abonos = (act.payments || []).length + (pend > 0 ? 1 : 0);
+                    if (saldo <= 0.004) {
+                        return { monto: act.amount, abonos: abonos, pagado: act.amount,
+                                 saldo: 0, restantes: 0, saldado: true };
+                    }
                     return {
                         monto: act.amount,
-                        abonos: (act.payments || []).length,
-                        pagado: act.amountPaid,
+                        abonos: abonos,
+                        pagado: pagado,
                         saldo: saldo,
                         restantes: (act.repaymentType === 'fixed' && act.repaymentValue > 0)
                             ? Math.max(0, Math.ceil(saldo / act.repaymentValue)) : null,
@@ -4361,7 +4387,7 @@
             /* El renglón del préstamo, igual en los tres talones. */
             lineaPrestamoTalon(check, descuento) {
                 if (!(descuento > 0)) return '';
-                const L = this.prestamoAlImprimir(check.employeeId);
+                const L = this.prestamoAlImprimir(check.employeeId, descuento);
                 const monto = L.monto || check.loanAmount || 0;
                 const cola = L.saldado ? '\u00a1SALDADO!'
                     : (L.restantes !== null ? L.restantes + ' pago' + (L.restantes !== 1 ? 's' : '') + ' restantes' : '\u2014');
@@ -4371,11 +4397,24 @@
                      + ' &nbsp;\u00b7&nbsp; ' + cola;
             },
 
+            /* El mismo período se escribe de dos formas segun por donde se pase:
+               al calcular queda "10/09/2026 - 10/15/2026" (guion normal) y al
+               guardarlo en el historial "10/09/2026 \u2014 10/15/2026" (guion largo).
+               Comparar los textos tal cual hacia que no se reconocieran como la
+               misma semana: ni se recuperaba el folio ni se evitaba el duplicado.
+               Aqui se dejan iguales antes de comparar. */
+            mismoPeriodo(a, b) {
+                const n = t => String(t || '')
+                    .replace(/[\u2012\u2013\u2014\u2015]/g, '-')
+                    .replace(/\s+/g, ' ').trim();
+                return n(a) === n(b);
+            },
+
             folioYaEmitido(empId, periodo) {
                 if (!empId || !periodo) return '';
                 const previos = (this.checks || []).filter(c =>
                     c && String(c.employeeId) === String(empId) &&
-                    (c.period || '') === periodo && c.checkNumber);
+                    this.mismoPeriodo(c.period, periodo) && c.checkNumber);
                 if (!previos.length) return '';
                 const ultimo = previos[previos.length - 1];
                 return ultimo.checkNumber ? String(ultimo.checkNumber) : '';
@@ -4386,7 +4425,7 @@
                 if (!empId || !periodo) return '';
                 const previos = (this.checks || []).filter(c =>
                     c && String(c.employeeId) === String(empId) &&
-                    (c.period || '') === periodo && c.payMethod && c.payMethod !== 'check');
+                    this.mismoPeriodo(c.period, periodo) && c.payMethod && c.payMethod !== 'check');
                 if (!previos.length) return '';
                 const t = previos[previos.length - 1].checkNumber;
                 return (t && t !== '—') ? String(t) : '';
@@ -4409,6 +4448,7 @@
                 // Antes: `this.checks.map(...)` — sólo nómina. Si el último cheque de
                 // la chequera había sido un gasto, aquí se proponía un folio repetido.
                 const nextNum = this._siguienteNumeroCheque();
+                const _ultFolio = this.ultimoFolioImpreso();
 
                 const existing = document.getElementById('checkAssignModal');
                 if (existing) existing.remove();
@@ -4453,6 +4493,8 @@
                         <div style="background:#e3f2fd;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <label style="font-weight:bold;color:#1565c0;">Número inicial:</label>
                             <input type="number" id="autoFillStart" value="${nextNum}" style="width:100px;padding:6px;border:1px solid #90caf9;border-radius:6px;font-size:1rem;text-align:center;">
+                            <span style="font-size:0.8rem;color:#1565c0;">Último impreso: <strong>${_ultFolio || '—'}</strong></span>
+                            <button onclick="app.corregirUltimoFolio()" title="Alinear con la chequera" style="background:#fff;color:#1565c0;border:1px solid #90caf9;padding:5px 10px;border-radius:7px;cursor:pointer;font-size:0.78rem;">Corregir</button>
                             <button onclick="app.autoFillCheckNumbers()" style="background:#1565c0;color:white;border:none;padding:8px 16px;border-radius:8px;cursor:pointer;font-weight:bold;">⚡ Autollenar</button>
                             <span style="width:1px;height:26px;background:#90caf9;"></span>
                             <button onclick="app._marcarTodosLosCheques(true)" style="background:#fff;color:#1565c0;border:1.5px solid #1565c0;padding:7px 14px;border-radius:8px;cursor:pointer;font-weight:bold;">☑️ Marcar todos</button>
@@ -4562,14 +4604,49 @@
             // y los de gasto salen del mismo talonario, así que el número siguiente
             // tiene que mirar los dos lados. Antes cada pantalla lo calculaba por su
             // cuenta y la de nómina se olvidaba de los gastos.
-            _siguienteNumeroCheque() {
-                const deNomina = (this.checks || [])
+            /* ── El folio de la chequera ──────────────────────────────────────
+               Antes tomaba el maximo de TODOS los folios apuntados, se hubieran
+               impreso o no. Los intentos fallidos dejaban cheques registrados sin
+               que saliera papel, y el folio se iba adelantando solo: la app
+               proponia uno mas alto que la chequera fisica. Ahora solo cuentan
+               los que de verdad se imprimieron, y el ultimo queda guardado para
+               que no dependa de la lista de cheques. */
+            ultimoFolioImpreso() {
+                let guardado = 0;
+                try { guardado = parseInt(localStorage.getItem('anas_ultimoFolio'), 10) || 0; } catch (e) {}
+                const impresos = (this.checks || []).filter(c => c && c.printed)
                     .map(c => parseInt(c.checkNumber, 10)).filter(n => !isNaN(n));
-                const deGastos = (this.expenses || [])
-                    .filter(e => e.checkNum)
+                const gastos = (this.expenses || []).filter(e => e && e.checkNum)
                     .map(e => parseInt(e.checkNum, 10)).filter(n => !isNaN(n));
-                const usados = [...deNomina, ...deGastos];
-                return usados.length ? Math.max(...usados) + 1 : 1001;
+                const todos = [guardado].concat(impresos, gastos).filter(n => n > 0);
+                return todos.length ? Math.max.apply(null, todos) : 0;
+            },
+
+            registrarFolioImpreso(n) {
+                const num = parseInt(n, 10);
+                if (isNaN(num) || num <= 0) return;
+                if (num <= this.ultimoFolioImpreso()) return;
+                try { localStorage.setItem('anas_ultimoFolio', String(num)); } catch (e) {}
+            },
+
+            /* Para volver a alinear la app con la chequera fisica. */
+            corregirUltimoFolio() {
+                const actual = this.ultimoFolioImpreso();
+                const r = prompt('\u00daltimo folio REALMENTE impreso de la chequera.\n\n' +
+                                 'La app propondra el siguiente para el proximo cheque.', actual || '');
+                if (r === null) return;
+                const num = parseInt(r, 10);
+                if (isNaN(num) || num < 0) { alert('Escribe un n\u00famero.'); return; }
+                try { localStorage.setItem('anas_ultimoFolio', String(num)); } catch (e) {}
+                this.save();
+                alert('Listo. El siguiente cheque sera el ' + (num + 1) + '.');
+                const ex = document.getElementById('checkAssignModal');
+                if (ex) { ex.remove(); this.openCheckAssignment(); }
+            },
+
+            _siguienteNumeroCheque() {
+                const ult = this.ultimoFolioImpreso();
+                return ult > 0 ? ult + 1 : 1001;
             },
 
             toggleAllChecks(checked, count) {
@@ -4704,7 +4781,7 @@
                            el almacenamiento del navegador. */
                         const _yaHabia = (this.checks || []).findIndex(c =>
                             c && String(c.employeeId) === String(check.employeeId) &&
-                            (c.period || '') === (check.period || ''));
+                            this.mismoPeriodo(c.period, check.period));
                         if (_yaHabia !== -1) {
                             check.id = this.checks[_yaHabia].id;      // conservar el registro original
                             this.checks[_yaHabia] = check;
@@ -4741,7 +4818,7 @@
                            el almacenamiento del navegador. */
                         const _yaHabia = (this.checks || []).findIndex(c =>
                             c && String(c.employeeId) === String(check.employeeId) &&
-                            (c.period || '') === (check.period || ''));
+                            this.mismoPeriodo(c.period, check.period));
                         if (_yaHabia !== -1) {
                             check.id = this.checks[_yaHabia].id;      // conservar el registro original
                             this.checks[_yaHabia] = check;
@@ -4755,7 +4832,11 @@
                 this.save();
                 document.getElementById('checkAssignModal').remove();
 
-                if (showPreview && !onlyDigital && toPrintChecks.length > 0) this.previewChecks(toPrintChecks, cfg, bgImage);
+                if (showPreview && !onlyDigital && toPrintChecks.length > 0) {
+                    /* El folio solo avanza cuando de verdad se manda a imprimir. */
+                    toPrintChecks.forEach(c => this.registrarFolioImpreso(c.checkNumber));
+                    this.previewChecks(toPrintChecks, cfg, bgImage);
+                }
 
                 // Marcar el período actual como impreso o pendiente
                 if (this.currentPayrollPeriodId) {
