@@ -1308,7 +1308,35 @@
         <!-- TAB CHEQUES -->
         <div class="tab-content" id="tabChecks">
             <div class="card">
-                <h2>Generar Cheques de Nómina</h2>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:10px;">
+                    <h2 style="margin:0;">🧾 Cheques de Nómina</h2>
+                    <span style="font-size:0.82rem;color:#7f8c8d;">Cheques emitidos a las empleadas. Los de proveedores están en la pestaña Gastos.</span>
+                </div>
+
+                <!-- Filtros: los mismos que en Gastos (fechas + un selector) -->
+                <div style="background:#f8f9fa; border-radius:10px; padding:15px; margin-bottom:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+                    <div>
+                        <label style="font-size:0.85rem; color:#666;">Desde:</label>
+                        <input type="date" id="chkFilterStart" style="padding:6px; border:1px solid #ddd; border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.85rem; color:#666;">Hasta:</label>
+                        <input type="date" id="chkFilterEnd" style="padding:6px; border:1px solid #ddd; border-radius:6px;">
+                    </div>
+                    <div>
+                        <label style="font-size:0.85rem; color:#666;">Empleada:</label>
+                        <select id="chkFilterEmp" style="padding:6px; border:1px solid #ddd; border-radius:6px;">
+                            <option value="all">Todas</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="app.refreshChecks()" style="padding:8px 16px;">🔍 Filtrar</button>
+                    <button class="btn btn-secondary" onclick="app.limpiarFiltrosCheques()" style="padding:8px 16px;">↺ Limpiar</button>
+                    <button class="btn" onclick="app.exportChecksCSV()" style="padding:8px 16px; background:#27ae60; color:white;">📥 Exportar CSV</button>
+                </div>
+
+                <!-- Totales -->
+                <div id="chkTotals" style="display:flex; gap:15px; margin-bottom:20px; flex-wrap:wrap;"></div>
+
                 <div id="checksContent"></div>
             </div>
         </div>
@@ -1515,7 +1543,7 @@
             /* Versión a la vista. Sin esto no había forma de saber qué copia
                tenía cada computadora, y se nos fueron dos días persiguiendo
                bugs que ya estaban arreglados en un archivo que nunca llegó. */
-            APP_VERSION: '2.5.3',
+            APP_VERSION: '2.5.4',
 
             init() {
                 try {
@@ -2314,7 +2342,7 @@
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
 
                 // Marcar el tab activo por nombre, no por event.target
-                const tabNames = ['employees','attendances','payroll','timecards','checks','expenses','history'];
+                const tabNames = ['employees','attendances','payroll','timecards','checks','expenses','history','loans'];
                 document.querySelectorAll('.tab').forEach((t, i) => {
                     if (tabNames[i] === tab) t.classList.add('active');
                 });
@@ -5239,10 +5267,30 @@
                 this.switchTab('checks');
             },
             
+            /* Filtros de esta pestaña: iguales a los de Gastos (Desde / Hasta /
+               un selector) mas los totales de lo que queda a la vista. Lo que se
+               exporta a CSV es exactamente lo filtrado, no toda la lista. */
             refreshChecks() {
                 const container = document.getElementById('checksContent');
-                
-                if (!this.checks || this.checks.length === 0) {
+                const totalsBox = document.getElementById('chkTotals');
+                const sel       = document.getElementById('chkFilterEmp');
+                const todos     = (this.checks || []).filter(c => c);
+
+                // El selector se llena con los nombres que de verdad hay en los
+                // cheques, para que tambien aparezcan empleadas que ya salieron.
+                if (sel) {
+                    const prev = sel.value || 'all';
+                    const nombres = Array.from(new Set(todos.map(c => c.employeeName).filter(Boolean)))
+                        .sort((a, b) => String(a).localeCompare(String(b)));
+                    sel.innerHTML = '<option value="all">Todas</option>' +
+                        nombres.map(n => '<option value="' + n + '">' + n + '</option>').join('');
+                    sel.value = nombres.indexOf(prev) !== -1 ? prev : 'all';
+                }
+
+                if (totalsBox) totalsBox.innerHTML = '';
+                this._chequesFiltrados = [];
+
+                if (todos.length === 0) {
                     container.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-state-icon">🧾</div>
@@ -5252,7 +5300,54 @@
                     `;
                     return;
                 }
-                
+
+                const start = (document.getElementById('chkFilterStart') || {}).value || '';
+                const end   = (document.getElementById('chkFilterEnd')   || {}).value || '';
+                const emp   = sel ? sel.value : 'all';
+                const hayFiltro = !!(start || end || (emp && emp !== 'all'));
+
+                const filtrados = todos.filter(c => {
+                    const f = this.fechaDeCheque(c);
+                    if (start && (!f || f < start)) return false;
+                    if (end   && (!f || f > end))   return false;
+                    if (emp !== 'all' && c.employeeName !== emp) return false;
+                    return true;
+                }).sort((a, b) => (this.fechaDeCheque(b) || '').localeCompare(this.fechaDeCheque(a) || ''));
+
+                this._chequesFiltrados = filtrados;
+
+                const nBruto = filtrados.reduce((s, c) => s + (parseFloat(c.gross) || 0), 0);
+                const nDed   = filtrados.reduce((s, c) => s + (parseFloat(c.deductions) || 0), 0);
+                const nNeto  = filtrados.reduce((s, c) => s + (parseFloat(c.net != null ? c.net : c.gross) || 0), 0);
+                const nHoras = filtrados.reduce((s, c) => s + (parseFloat(c.hours) || 0), 0);
+
+                if (totalsBox) {
+                    totalsBox.innerHTML =
+                        '<div style="background:#e3f2fd;border-radius:8px;padding:10px 18px;font-weight:bold;color:#1565c0;">🧾 ' +
+                            filtrados.length + ' cheque' + (filtrados.length === 1 ? '' : 's') +
+                            (hayFiltro ? ' <span style="font-weight:400;font-size:0.85rem;">de ' + todos.length + '</span>' : '') +
+                        '</div>' +
+                        '<div style="background:white;border-left:4px solid #7f8c8d;border-radius:6px;padding:8px 14px;font-size:0.85rem;">' +
+                            '<div style="color:#7f8c8d;font-weight:600;">Horas</div>' +
+                            '<div style="font-size:1rem;font-weight:bold;">' + nHoras.toFixed(2) + '</div>' +
+                        '</div>' +
+                        '<div style="background:white;border-left:4px solid #27ae60;border-radius:6px;padding:8px 14px;font-size:0.85rem;">' +
+                            '<div style="color:#27ae60;font-weight:600;">Bruto</div>' +
+                            '<div style="font-size:1rem;font-weight:bold;">$' + this.formatMoney(nBruto) + '</div>' +
+                        '</div>' +
+                        '<div style="background:white;border-left:4px solid #e74c3c;border-radius:6px;padding:8px 14px;font-size:0.85rem;">' +
+                            '<div style="color:#e74c3c;font-weight:600;">Deducciones</div>' +
+                            '<div style="font-size:1rem;font-weight:bold;">-$' + this.formatMoney(nDed) + '</div>' +
+                        '</div>' +
+                        '<div style="background:#e8f5e9;border-radius:8px;padding:10px 18px;font-size:1.1rem;font-weight:bold;color:#2980b9;">💵 Neto: $' + this.formatMoney(nNeto) + '</div>';
+                }
+
+                if (filtrados.length === 0) {
+                    container.innerHTML = '<div style="text-align:center;padding:40px;color:#aaa;font-size:1rem;">' +
+                        'Ningún cheque cae en ese filtro.<br><small>Presiona ↺ Limpiar para volver a ver todos.</small></div>';
+                    return;
+                }
+
                 let html = `
                     <table>
                         <thead>
@@ -5269,42 +5364,97 @@
                         </thead>
                         <tbody>
                 `;
-                
-                this.checks.sort((a, b) => new Date(b.date||0) - new Date(a.date||0)).forEach(check => {
-                    const rawDate = check.date || new Date().toISOString();
-                    const dateParts = rawDate.split('T')[0].split('-');
-                    const dateUSA = `${dateParts[1]}/${dateParts[2]}/${dateParts[0]}`;
-                    
+
+                // Un cheque sin fecha ya no tumba la lista: se salta ese solo.
+                let _saltados = 0;
+                filtrados.forEach(check => {
+                  try {
+                    const iso = this.fechaDeCheque(check);
+                    const p = iso ? iso.split('-') : [];
+                    const dateUSA = (p.length === 3) ? `${p[1]}/${p[2]}/${p[0]}` : '—';
+
                     html += `
                         <tr>
                             <td><strong>#${check.checkNumber}</strong></td>
                             <td>${dateUSA}</td>
                             <td>${check.employeeName}</td>
-                            <td>${check.hours.toFixed(2)} hrs</td>
+                            <td>${(parseFloat(check.hours) || 0).toFixed(2)} hrs</td>
                             <td style="color: #27ae60; font-weight: bold;">$${this.formatMoney(check.gross || 0)}</td>
-                            <td style="color: #e74c3c;">-$${(check.deductions || 0).toFixed(2)}</td>
-                            <td style="color: #2980b9; font-weight: bold; font-size: 1.1rem;">$${this.formatMoney(check.net || check.gross)}</td>
+                            <td style="color: #e74c3c;">${(check.deductions || 0) > 0 ? '-$' + this.formatMoney(check.deductions) : '—'}</td>
+                            <td style="color: #2980b9; font-weight: bold; font-size: 1.1rem;">$${this.formatMoney(check.net != null ? check.net : (check.gross || 0))}</td>
                             <td style="display:flex; gap:6px;">
-                                <button class="btn btn-secondary btn-sm" onclick="app.viewCheck(${check.id})">
+                                <button class="btn btn-secondary btn-sm" onclick="app.viewCheck('${check.id}')">
                                     👁️ Ver
                                 </button>
-                                <button class="btn btn-primary btn-sm" onclick="app.printCheck(${check.id})">
+                                <button class="btn btn-primary btn-sm" onclick="app.printCheck('${check.id}')">
                                     🖨️ Imprimir
                                 </button>
                             </td>
                         </tr>
                     `;
+                  } catch (e) {
+                    _saltados++;
+                    console.warn('Cheque con datos incompletos, se omite de la lista:', check, e);
+                  }
                 });
-                
+                if (_saltados > 0) {
+                    html += '<tr><td colspan="8" style="padding:8px 12px;background:#fff8e1;color:#92400e;font-size:0.85rem;">' +
+                            '⚠️ ' + _saltados + ' cheque(s) con datos incompletos no se pudieron mostrar (ver consola).</td></tr>';
+                }
+
                 html += '</tbody></table>';
                 container.innerHTML = html;
             },
+
+            limpiarFiltrosCheques() {
+                const s = document.getElementById('chkFilterStart');
+                const e = document.getElementById('chkFilterEnd');
+                const m = document.getElementById('chkFilterEmp');
+                if (s) s.value = '';
+                if (e) e.value = '';
+                if (m) m.value = 'all';
+                this.refreshChecks();
+            },
+
+            exportChecksCSV() {
+                const lista = (this._chequesFiltrados && this._chequesFiltrados.length)
+                    ? this._chequesFiltrados
+                    : (this.checks || []).filter(c => c);
+                if (!lista.length) { alert('No hay cheques que exportar.'); return; }
+
+                const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+                let csv = 'Cheque,Fecha,Empleado,Horas,Bruto,Deducciones,Neto,Periodo\n';
+                lista.forEach(c => {
+                    csv += [
+                        q(c.checkNumber || ''),
+                        q(this.fechaDeCheque(c) || ''),
+                        q(c.employeeName || ''),
+                        (parseFloat(c.hours) || 0).toFixed(2),
+                        (parseFloat(c.gross) || 0).toFixed(2),
+                        (parseFloat(c.deductions) || 0).toFixed(2),
+                        (parseFloat(c.net != null ? c.net : c.gross) || 0).toFixed(2),
+                        q(c.period || c.periodo || '')
+                    ].join(',') + '\n';
+                });
+
+                const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href = url;
+                a.download = 'cheques_nomina_' + new Date().toISOString().split('T')[0] + '.csv';
+                a.click();
+                URL.revokeObjectURL(url);
+            },
             
             printCheck(checkId) {
-                const check = this.checks.find(c => c.id === checkId);
+                /* El id se compara como texto: los botones lo mandan entre
+                   comillas y los cheques viejos lo tienen guardado como numero. */
+                const check = this.checks.find(c => c && String(c.id) === String(checkId));
+                if (!check) { alert('Cheque no encontrado'); return; }
                 const cfg = this.checkConfig;
-                
-                const dateParts = check.date.split('T')[0].split('-');
+
+                const _iso = this.fechaDeCheque(check) || new Date().toLocaleDateString('en-CA');
+                const dateParts = _iso.split('-');
                 const dateUSA = `${dateParts[1]}/${dateParts[2]}/${dateParts[0]}`;
                 
                 const printWindow = this._abrirVentanaImpresion('width=900,height=400');
@@ -5398,7 +5548,9 @@
             },
             
             viewCheck(checkId) {
-                const check = this.checks.find(c => c.id === checkId);
+                /* Mismo caso que printCheck: comparar como texto. Desde el
+                   Historial el id llegaba entre comillas y no encontraba nada. */
+                const check = this.checks.find(c => c && String(c.id) === String(checkId));
                 if (!check) { alert('Cheque no encontrado'); return; }
                 const cfg = this.checkConfig;
 
@@ -5443,7 +5595,7 @@
                         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">' +
                             '<h3 style="margin:0;color:#1565c0;">Cheque #' + check.checkNumber + ' — ' + check.employeeName + '</h3>' +
                             '<div style="display:flex;gap:10px;">' +
-                                '<button onclick="app.printCheck(' + check.id + ')" style="background:#27ae60;color:white;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Imprimir</button>' +
+                                '<button onclick="app.printCheck(\'' + check.id + '\')" style="background:#27ae60;color:white;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Imprimir</button>' +
                                 '<button onclick="document.getElementById(&quot;checkPreviewModal&quot;).remove()" style="background:#e74c3c;color:white;border:none;padding:8px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">&#10005; Cerrar</button>' +
                             '</div>' +
                         '</div>' +
