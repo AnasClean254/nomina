@@ -399,7 +399,7 @@
                 <button class="tab" onclick="app.switchTab('attendances')">📋 Asistencias</button>
                 <button class="tab" onclick="app.switchTab('payroll')">💵 Nómina</button>
                 <button class="tab" onclick="app.switchTab('timecards')">📋 Time Cards</button>
-                <button class="tab" onclick="app.switchTab('checks')">🧾 Cheques</button>
+                <button class="tab" onclick="app.switchTab('checks')">🧾 Cheques de Nómina</button>
                 <button class="tab" onclick="app.switchTab('expenses')">💸 Gastos</button>
                 <button class="tab" onclick="app.switchTab('history')">📊 Historial</button>
                 <button class="tab" onclick="app.switchTab('loans')">💳 Préstamos</button>
@@ -1118,6 +1118,7 @@
         <div class="tab-content" id="tabExpenses">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
                 <h2 style="color:#1565c0; margin:0;">💸 Gastos con Cheque</h2>
+                <span style="font-size:0.82rem;color:#7f8c8d;">Cheques que no son de nómina: proveedores, servicios, pagos sueltos.</span>
                 <button class="btn btn-success" onclick="app.openExpenseModal()">➕ Nuevo Gasto</button>
             </div>
 
@@ -1307,7 +1308,7 @@
         <!-- TAB CHEQUES -->
         <div class="tab-content" id="tabChecks">
             <div class="card">
-                <h2>Generar Cheques</h2>
+                <h2>Generar Cheques de Nómina</h2>
                 <div id="checksContent"></div>
             </div>
         </div>
@@ -1514,7 +1515,7 @@
             /* Versión a la vista. Sin esto no había forma de saber qué copia
                tenía cada computadora, y se nos fueron dos días persiguiendo
                bugs que ya estaban arreglados en un archivo que nunca llegó. */
-            APP_VERSION: '2.5.1',
+            APP_VERSION: '2.5.3',
 
             init() {
                 try {
@@ -4640,6 +4641,9 @@
                 try { localStorage.setItem('anas_ultimoFolio', String(num)); } catch (e) {}
                 this.save();
                 alert('Listo. El siguiente cheque sera el ' + (num + 1) + '.');
+                /* Si se corrigio desde la ventana de nomina, se vuelve a abrir
+                   para que los folios propuestos se recalculen. Desde Gastos no
+                   hay nada que reabrir: quien llama se encarga. */
                 const ex = document.getElementById('checkAssignModal');
                 if (ex) { ex.remove(); this.openCheckAssignment(); }
             },
@@ -7012,6 +7016,13 @@
                                 <input type="number" id="expCheckNumInput" value="${nextNum}"
                                     style="flex:1;padding:10px;border:2px solid #1565c0;border-radius:8px;font-size:1.1rem;text-align:center;">
                             </div>
+                            <!-- Es el MISMO talonario que la nomina: aqui tambien se ve
+                                 en que folio va y se puede realinear con la chequera. -->
+                            <div style="display:flex;gap:8px;align-items:center;margin:-8px 0 16px 0;font-size:0.8rem;color:#1565c0;">
+                                <span>Último impreso: <strong>${this.ultimoFolioImpreso() || '—'}</strong></span>
+                                <button onclick="app.corregirUltimoFolio(); document.getElementById('expCheckNumModal').remove(); app.printExpenseCheck('${id}');"
+                                    style="background:#fff;color:#1565c0;border:1px solid #90caf9;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:0.75rem;">Corregir</button>
+                            </div>
                             <div style="display:flex;gap:10px;justify-content:flex-end;">
                                 <button onclick="document.getElementById('expCheckNumModal').remove()"
                                     style="background:#95a5a6;color:white;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>
@@ -7019,7 +7030,7 @@
                                     const num = document.getElementById('expCheckNumInput').value.trim();
                                     if (!num) { alert('Ingresa un número de cheque'); return; }
                                     const idx = app.expenses.findIndex(e => e.id === '${id}');
-                                    if (idx !== -1) { app.expenses[idx].checkNum = num; app.save(); }
+                                    if (idx !== -1) { app.expenses[idx].checkNum = num; app.registrarFolioImpreso(num); app.save(); }
                                     document.getElementById('expCheckNumModal').remove();
                                     app.printExpenseCheck('${id}');
                                 " style="background:#1565c0;color:white;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">
