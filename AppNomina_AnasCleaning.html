@@ -5447,9 +5447,7 @@
             },
             
             printCheck(checkId) {
-                /* El id se compara como texto: los botones lo mandan entre
-                   comillas y los cheques viejos lo tienen guardado como numero. */
-                const check = this.checks.find(c => c && String(c.id) === String(checkId));
+                const check = this.buscarCheque(checkId);
                 if (!check) { alert('Cheque no encontrado'); return; }
                 const cfg = this.checkConfig;
 
@@ -5547,10 +5545,20 @@
                 printWindow.document.close();
             },
             
+            /* Un cheque puede estar en dos lugares distintos:
+                 · this.checks        → anas_checks, lo que genera la app hoy
+                 · this.payrollRecords → anas_payroll, registros de la version vieja
+               La pestaña Historial se alimenta de payrollRecords, asi que su boton
+               "Ver Cheque" mandaba un id que NO existe en this.checks y siempre
+               contestaba "Cheque no encontrado". Ahora se busca en las dos listas,
+               y el id se compara como texto porque unos vienen numero y otros no. */
+            buscarCheque(checkId) {
+                const lista = (this.checks || []).concat(this.payrollRecords || []);
+                return lista.find(c => c && String(c.id) === String(checkId)) || null;
+            },
+
             viewCheck(checkId) {
-                /* Mismo caso que printCheck: comparar como texto. Desde el
-                   Historial el id llegaba entre comillas y no encontraba nada. */
-                const check = this.checks.find(c => c && String(c.id) === String(checkId));
+                const check = this.buscarCheque(checkId);
                 if (!check) { alert('Cheque no encontrado'); return; }
                 const cfg = this.checkConfig;
 
