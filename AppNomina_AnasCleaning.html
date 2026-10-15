@@ -1514,7 +1514,7 @@
             /* Versión a la vista. Sin esto no había forma de saber qué copia
                tenía cada computadora, y se nos fueron dos días persiguiendo
                bugs que ya estaban arreglados en un archivo que nunca llegó. */
-            APP_VERSION: '2.5.0',
+            APP_VERSION: '2.5.1',
 
             init() {
                 try {
@@ -5533,6 +5533,15 @@
                 this.displayHistory(filtered);
             },
             
+            /* La fecha de un cheque, en ISO, venga como venga: con hora, sin
+               hora, o sin fecha. Devuelve '' cuando de plano no hay. */
+            fechaDeCheque(c) {
+                const v = c && (c.date || c.fecha || c.paidAt);
+                if (!v) return '';
+                const t = String(v);
+                return t.indexOf('T') !== -1 ? t.split('T')[0] : t.slice(0, 10);
+            },
+
             displayHistory(records) {
                 const container = document.getElementById('historyContent');
                 
@@ -5595,9 +5604,21 @@
                         <tbody>
                 `;
                 
-                records.sort((a, b) => new Date(b.date) - new Date(a.date)).forEach(check => {
-                    const dateParts = check.date.split('T')[0].split('-');
-                    const dateUSA = `${dateParts[1]}/${dateParts[2]}/${dateParts[0]}`;
+                /* Un cheque sin fecha tronaba aqui con "Cannot read properties of
+                   undefined (reading 'split')" y se caia TODA la lista: el filtro
+                   dejaba de responder y los cheques siguientes no se pintaban.
+                   Ahora la fecha se lee a prueba de huecos y, si un registro viene
+                   mal, se salta ese solo y los demas se siguen viendo. */
+                let _saltados = 0;
+                records.slice().sort((a, b) => {
+                    const fa = this.fechaDeCheque(a), fb = this.fechaDeCheque(b);
+                    return (fb || '').localeCompare(fa || '');
+                }).forEach(check => {
+                  try {
+                    const iso = this.fechaDeCheque(check);
+                    const dateParts = iso ? iso.split('-') : [];
+                    const dateUSA = (dateParts.length === 3)
+                        ? `${dateParts[1]}/${dateParts[2]}/${dateParts[0]}` : '—';
                     
                     html += `
                         <tr>
@@ -5615,7 +5636,16 @@
                             </td>
                         </tr>
                     `;
+                  } catch (e) {
+                    _saltados++;
+                    console.warn('Cheque con datos incompletos, se omite de la lista:', check, e);
+                  }
                 });
+                if (_saltados > 0) {
+                    html += `<tr><td colspan="9" style="padding:8px 12px;background:#fff8e1;color:#92400e;font-size:0.85rem;">
+                        \u26A0 ${_saltados} registro${_saltados>1?'s':''} con datos incompletos no se ${_saltados>1?'muestran':'muestra'} en la lista.
+                        </td></tr>`;
+                }
                 
                 html += `
                         </tbody>
