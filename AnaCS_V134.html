@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '179';
+    window.ANACS_VERSION = '181';
 
     window.ANACS_buscarActualizacion = async function (alArrancar) {
         // Sólo tiene sentido servida por web; abierta como archivo local no hay
@@ -2002,6 +2002,7 @@ class Scheduler {
             "Grupo A":["","","","",""], "Grupo B":["","","","",""]
         };
         this._dedupGrupos();
+        this._promoverRotacionDeHoy();   // ver la nota en esa funcion: esto es lo que fallaba
         this.gastos = JSON.parse(localStorage.getItem('v35_gastos')) || [];
         this.estimates = JSON.parse(localStorage.getItem('v35_estimates')) || [];
         this.serviceCatalog = JSON.parse(localStorage.getItem('v35_serviceCatalog')) || this.getDefaultServiceCatalog();
@@ -2958,18 +2959,78 @@ class Scheduler {
         if (changed) localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
     }
 
+    /* La rotación que Ana dejó lista para un día se guarda en
+       gruposHistorial[fecha]. Cuando ese día llega, hay que subirla a
+       this.grupos, que es la composición "actual" que se ve en la barra de
+       grupos y la que viaja a Drive para los teléfonos. Sin esto, llegado el
+       día la app seguía mostrando la agrupación anterior.
+
+       A propósito NO llama a save(): no es trabajo de nadie, es un dato
+       derivado. Si llamara a save() prendería localDirty y esta computadora
+       ganaría la siguiente fusión por un cambio que no hizo ninguna persona.
+       Escribe solo su llave, igual que _dedupGrupos. */
+    _promoverRotacionDeHoy() {
+        try {
+            const hoy  = new Date().toLocaleDateString('en-CA');
+            const deHoy = (this.gruposHistorial || {})[hoy];
+            if (!deHoy || typeof deHoy !== 'object') return false;
+            if (!this.grupos || typeof this.grupos !== 'object') return false;
+
+            const limpiar = arr => {
+                const seen = new Set(), out = [];
+                (arr || []).forEach(id => {
+                    if (!id) return;
+                    const k = String(id);
+                    if (seen.has(k)) return;
+                    seen.add(k); out.push(id);
+                });
+                return out;
+            };
+            const firma = arr => (arr || []).map(String).join('|');
+
+            let cambio = false;
+            Object.keys(deHoy).forEach(g => {
+                const roster = limpiar(deHoy[g]);
+                if (firma(this.grupos[g]) !== firma(roster)) {
+                    this.grupos[g] = roster.slice();
+                    cambio = true;
+                }
+            });
+            if (cambio) {
+                localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
+                this._rotacionPromovidaEl = hoy;
+                console.log('🔄 Rotación de hoy (' + hoy + ') aplicada a los grupos actuales');
+            } else {
+                this._rotacionPromovidaEl = hoy;
+            }
+            return cambio;
+        } catch (e) {
+            console.warn('promover rotación de hoy:', e);
+            return false;
+        }
+    }
+
+    /* ── ARREGLO 20 oct 2026 ─────────────────────────────────────────────────
+       Antes, cuando la fecha era HOY se usaba this.grupos y se IGNORABA el
+       registro de ese día. Eso borraba en la práctica el trabajo de Ana: ella
+       acomoda la rotación de mañana (queda solo en gruposHistorial[mañana]) y
+       al día siguiente, cuando mañana ya es hoy, la app volvía a la agrupación
+       vieja. Una empleada que en esa agrupación vieja no estaba en ningún grupo
+       lo leía como DÍA LIBRE — por eso la llamada del 20 de octubre.
+       Ahora manda el registro de la fecha cuando existe, hoy incluido, y
+       this.grupos queda como la composición por omisión para los días sin
+       registro. La misma regla está en el Calendar (rosterParaFecha). */
     _rosterParaFecha(nombreGrupo, fecha) {
         const hoy = new Date().toLocaleDateString('en-CA');
+        const hist = this.gruposHistorial || {};
         let base;
-        if (fecha === hoy) {
-            base = this.grupos[nombreGrupo] || [];   // HOY = composición actual (fuente de verdad, = el botón)
+        if (hist[fecha] && hist[fecha][nombreGrupo]) {
+            base = hist[fecha][nombreGrupo];         // lo que Ana acomodó para ESE día
+        } else if (fecha === hoy) {
+            base = this.grupos[nombreGrupo] || [];   // sin registro de hoy: composición actual
         } else {
-            const hist = this.gruposHistorial || {};
-            if (hist[fecha] && hist[fecha][nombreGrupo]) base = hist[fecha][nombreGrupo];
-            else {
-                const previas = Object.keys(hist).filter(fq => fq < fecha && hist[fq][nombreGrupo]).sort();
-                base = previas.length ? hist[previas[previas.length-1]][nombreGrupo] : (this.grupos[nombreGrupo] || []);
-            }
+            const previas = Object.keys(hist).filter(fq => fq < fecha && hist[fq][nombreGrupo]).sort();
+            base = previas.length ? hist[previas[previas.length-1]][nombreGrupo] : (this.grupos[nombreGrupo] || []);
         }
         // dedup: la misma empleada no puede aparecer dos veces en el grupo
         const seen = new Set(); const out = [];
@@ -13534,6 +13595,11 @@ Motivo de cancelación (opcional):`);
             clis: this.clis,
             servs: this.servs,
             grupos: this.grupos,
+            /* 20 oct 2026: faltaban en el respaldo. Un "Restaurar / Reemplazar
+               todo" borraba TODA la historia de rotaciones y las Responsables
+               de cada día, porque el archivo no las traía. */
+            gruposHistorial: this.gruposHistorial || {},
+            responsables: this.responsables || {},
             gastos: this.gastos || [],
             gastosCategories: this.gastosCategories || {},
             gastosAna: this.gastosAna || [],
@@ -13607,7 +13673,20 @@ Motivo de cancelación (opcional):`);
                             this.emps  = d.emps  || [];
                             this.clis  = d.clis  || [];
                             this.servs = d.servs || [];
-                            this.grupos = d.grupos || [];
+                            this.grupos = d.grupos || {};   // es un objeto {grupo: [ids]}, no un arreglo
+                            /* Se restauran SOLO si el respaldo las trae. Así un
+                               respaldo viejo —de los que no las incluían— ya no
+                               puede borrar las rotaciones que hay en esta
+                               computadora: las deja como están. */
+                            if (d.gruposHistorial) {
+                                this.gruposHistorial = d.gruposHistorial;
+                                localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+                            }
+                            if (d.responsables) {
+                                this.responsables = d.responsables;
+                                localStorage.setItem('v35_responsables', JSON.stringify(this.responsables));
+                            }
+                            this._promoverRotacionDeHoy();
                             this.gastos = d.gastos || [];
                             this.gastosCategories = d.gastosCategories || {};
                             if (d.gastosAna) { this.gastosAna = d.gastosAna; localStorage.setItem('v35_gastosAna', JSON.stringify(this.gastosAna)); }
@@ -13645,11 +13724,32 @@ Motivo de cancelación (opcional):`);
                                 const exists = this.clis.find(c => c.name.trim().toLowerCase() === cli.name.trim().toLowerCase());
                                 if (!exists) { this.clis.push(cli); clisAdded++; }
                             });
+                            /* Las rotaciones del respaldo se UNEN por fecha: entran las
+                               fechas que aquí no había y no se pisa ninguna de las que
+                               ya están (en caso de choque gana la de esta computadora). */
+                            let rotAdded = 0;
+                            if (d.gruposHistorial) {
+                                const antes = Object.keys(this.gruposHistorial || {}).length;
+                                this.gruposHistorial = this.mergeGruposHistorial(this.gruposHistorial || {}, d.gruposHistorial);
+                                localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+                                rotAdded = Object.keys(this.gruposHistorial).length - antes;
+                            }
+                            if (d.responsables) {
+                                const r = {};
+                                const fechas = new Set([...Object.keys(d.responsables), ...Object.keys(this.responsables || {})]);
+                                fechas.forEach(f => {
+                                    r[f] = Object.assign({}, (d.responsables || {})[f] || {}, (this.responsables || {})[f] || {});
+                                });
+                                this.responsables = r;
+                                localStorage.setItem('v35_responsables', JSON.stringify(this.responsables));
+                            }
+                            this._promoverRotacionDeHoy();
                             this.save();
                             this.refreshSels();
                             alert(`✅ Merge completado:
 • ${empsAdded} empleados agregados
-• ${clisAdded} clientes agregados`);
+• ${clisAdded} clientes agregados
+• ${rotAdded} rotaciones recuperadas`);
                         }
                     }
                 } catch(err) {
@@ -20759,6 +20859,9 @@ Motivo de cancelación (opcional):`);
             localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
             this.gruposHistorial = this.mergeGruposHistorial(winner.gruposHistorial, loser.gruposHistorial);
             localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+            // Si la fusión trajo (o conservó) la rotación de hoy, que manden esos
+            // grupos y no la composición que venga del lado ganador.
+            this._promoverRotacionDeHoy();
             // RESPONSABLES: merge por fecha (igual que gruposHistorial — gana el lado ganador en conflicto de grupo)
             const _winResp = localWins ? (this.responsables||{}) : (data.responsables||{});
             const _losResp = localWins ? (data.responsables||{}) : (this.responsables||{});
@@ -23301,6 +23404,25 @@ document.addEventListener('click', function(e) {
   document.addEventListener('visibilitychange', function () {
     if (!document.hidden) preguntar();
   });
+})();
+
+/* ── CAMBIO DE DÍA CON LA APP ABIERTA ───────────────────────────────────────
+   La oficina deja el Scheduler abierto de un día para otro. Si la rotación de
+   mañana ya estaba lista, al cruzar la medianoche hay que aplicarla sin que
+   nadie recargue: la promoción solo corre al arrancar y en cada fusión, y una
+   pestaña abierta no pasa por ninguna de las dos. */
+(function vigilarCambioDeDia() {
+  function revisar() {
+    if (typeof app === 'undefined' || !app || typeof app._promoverRotacionDeHoy !== 'function') return;
+    const hoy = new Date().toLocaleDateString('en-CA');
+    if (app._rotacionPromovidaEl === hoy) return;      // ya se aplicó la de este día
+    if (app._promoverRotacionDeHoy() && typeof app.render === 'function') {
+      app.render();                                     // repintar con los grupos del día
+    }
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) revisar(); });
+  window.addEventListener('focus', revisar);
+  setInterval(revisar, 10 * 60 * 1000);                 // y por si nadie la toca
 })();
 </script>
 <style>

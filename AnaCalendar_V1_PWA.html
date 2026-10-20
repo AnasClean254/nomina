@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.8.2';
+const APP_VERSION = '2.8.3';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -1908,17 +1908,21 @@ function colorGrupo(n){
    Misma regla que _rosterParaFecha en el Scheduler: para HOY manda la
    composición actual; para cualquier otro día manda el registro de esa fecha,
    y si no existe, se hereda el último registro anterior. */
+/* ── ARREGLO 20 oct 2026 ──
+   Antes, si la fecha era HOY se usaba S.grupos y se ignoraba el registro de ese
+   día. Ana acomoda la rotación de mañana, y al llegar el día el teléfono volvía
+   a la agrupación vieja; a quien no apareciera ahí le decía DÍA LIBRE teniendo
+   servicios. Ahora manda el registro de la fecha cuando existe, hoy incluido.
+   Misma regla que _rosterParaFecha en el Scheduler. */
 function rosterParaFecha(grupo, fecha){
   const hoy=today();
+  const h=S.gruposHistorial||{};
   let base;
-  if(fecha===hoy){ base=S.grupos[grupo]||[]; }
+  if(h[fecha]&&h[fecha][grupo]){ base=h[fecha][grupo]; }
+  else if(fecha===hoy){ base=S.grupos[grupo]||[]; }
   else{
-    const h=S.gruposHistorial||{};
-    if(h[fecha]&&h[fecha][grupo]) base=h[fecha][grupo];
-    else{
-      const prev=Object.keys(h).filter(f=>f<fecha&&h[f]&&h[f][grupo]).sort();
-      base=prev.length?h[prev[prev.length-1]][grupo]:(S.grupos[grupo]||[]);
-    }
+    const prev=Object.keys(h).filter(f=>f<fecha&&h[f]&&h[f][grupo]).sort();
+    base=prev.length?h[prev[prev.length-1]][grupo]:(S.grupos[grupo]||[]);
   }
   const seen=new Set(), out=[];
   (base||[]).forEach(id=>{ if(!id)return; const k=String(id); if(seen.has(k))return; seen.add(k); out.push(id); });

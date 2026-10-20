@@ -1,4 +1,4 @@
 {
-  "version": "179",
-  "notas": "Corregido el aviso de horas: cuando la salida del Shop era la equivocada, el Scheduler proponía cambiar las horas correctas de la mañana por horas de la noche. Ahora la salida y el regreso se revisan como par: si el regreso va después de la salida las dos están bien, sea cual sea el turno, y si el par no cuadra se señala solo esa hora en vez de arrastrar a todos los servicios del día. Un servicio con la entrada y la salida al mismo minuto ya se nombra como lo que es, y un desorden de horas ya no se reporta dos veces."
+  "version": "181",
+  "notas": "180: la rotación que se acomoda para un día ya manda ese día. Antes, al guardar la rotación de mañana solo quedaba en el registro de esa fecha, y al llegar el día tanto el Scheduler como el teléfono volvían a la agrupación anterior: a la empleada que no apareciera ahí el Calendar le decía día libre aunque tuviera servicios. Ahora el registro de la fecha manda sobre la composición actual, y se aplica al abrir, en cada sincronización y al cruzar la medianoche con la app abierta. 181: el respaldo completo ya incluye las rotaciones por fecha y las Responsables; antes no las traía y un Restaurar borraba toda esa historia. Un respaldo viejo que no las traiga ya no borra las que haya, y el modo Solo agregar las une por fecha y dice cuántas recuperó."
 }
