@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.8.3';
+const APP_VERSION = '2.8.4';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -413,8 +413,13 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
 <!-- ══ SCREEN: AGENDA ══ -->
 <div id="scrAgenda" class="screen">
   <div class="hdr">
-    <div style="display:flex;align-items:center;gap:9px">
-      <div class="logo">Ana's<em>Calendar</em></div>
+    <div style="display:flex;align-items:center;gap:9px;min-width:0">
+      <div style="min-width:0">
+        <div class="logo">Ana's<em>Calendar</em></div>
+        <!-- La versión a la vista: así nadie tiene que entrar a Configuración
+             para saber si el teléfono ya se actualizó. -->
+        <div id="verChip" style="font-size:9px;letter-spacing:.09em;color:var(--muted);line-height:1;margin-top:1px;white-space:nowrap"></div>
+      </div>
     </div>
     <div style="display:flex;gap:6px">
       <button class="hdr-btn" onclick="refreshData()" id="btnRefresh" title="Actualizar">🔄</button>
@@ -422,9 +427,11 @@ select:focus,input:focus{outline:none;border-color:var(--brand)}
       <button class="hdr-btn" id="btnSuplente" onclick="openSuplenteModal()" title="Modo Suplente" style="display:none;">🔑</button>
       <button class="hdr-btn" id="btnAlmuerzo" onclick="openAlmuerzoSheet()" title="Registrar almuerzo" style="display:none;align-items:center;justify-content:center;color:#fff;background:#f97316;border-color:#f97316;padding:4px 9px;position:relative;"><svg id="icoAlm" viewBox="0 0 24 24" width="21" height="21" fill="currentColor" aria-hidden="true" style="display:block;"><path d="M6.1 2.2v5.1c0 .9.5 1.6 1.2 1.9v12.6h1.5V9.2c.7-.3 1.2-1 1.2-1.9V2.2H8.9v4.6h-.6V2.2H7v4.6h-.6V2.2z"/><path d="M16.6 2.2c-1.6 1.6-2.4 4.1-2.4 6.6 0 1.9.8 3.2 1.9 3.7v9.3h1.5V2.2z"/></svg><span id="almBadge" style="display:none;position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;font-size:10px;font-weight:900;align-items:center;justify-content:center;border:1.5px solid var(--s1);"></span></button>
       <button class="hdr-btn" onclick="openSett()">⚙</button>
+      <!-- Este boton NO conecta a Drive: abre o cierra la sesion contra el Worker.
+           La etiqueta decia "Drive" por herencia de la version vieja y confundia. -->
       <button id="btnDriveHeader" onclick="connectDriveFromHeader()" 
         style="border:none;border-radius:8px;padding:5px 10px;font-size:0.75rem;font-weight:700;cursor:pointer;background:#ef4444;color:white;">
-        ☁️ Drive
+        👤 Entrar
       </button>
     </div>
   </div>
@@ -910,11 +917,11 @@ function updateDriveHeaderBtn(){
   if(!btn) return;
   if(S.driveToken){
     btn.style.background = '#22c55e'; // Verde — sesión activa
-    btn.textContent = '☁️ Sesión ✓';
-    btn.title = 'Sesión activa — toca para cerrar e iniciar con otro usuario';
+    btn.textContent = '👤 ' + ((S.empName || '').trim().split(/\s+/)[0] || 'Sesión') + ' ✓';
+    btn.title = 'Sesión activa — toca para salir e iniciar con otra empleada';
   } else {
     btn.style.background = '#ef4444'; // Rojo — sin sesión
-    btn.textContent = '☁️ Entrar';
+    btn.textContent = '👤 Entrar';
     btn.title = 'Toca para iniciar sesión';
   }
 }
@@ -1068,8 +1075,11 @@ function launch(save){
   document.getElementById('scrSetup').classList.remove('active');
   document.getElementById('scrAgenda').classList.add('active');
   document.getElementById('bnav').style.display='block';
-  sdot('ok', S.driveToken?`Drive · ${FILE}`:'Datos locales');
-  document.getElementById('syncLbl').textContent=S.driveToken?`Drive · ${FILE}`:'Datos locales';
+  /* Ya no se lee de Drive directo: los datos llegan del Worker. La etiqueta
+     decia "Drive · archivo" y hacia creer que el telefono tocaba Drive. */
+  const _edo = S.driveToken ? 'Conectado' : 'Datos locales';
+  sdot('ok', _edo);
+  document.getElementById('syncLbl').textContent = _edo;
   buildStrip(); renderView();
   updateInfoScreen();
   try{checkNotesBadge();}catch(e){}
@@ -2043,6 +2053,15 @@ function openSett(){
   const lbl=document.getElementById('appVerLabel');
   if(lbl) lbl.textContent=APP_VERSION;
 }
+
+/* La version en la pantalla principal, debajo del logo. Se pinta en cuanto
+   carga la pagina: no depende de iniciar sesion ni de abrir Configuracion. */
+function pintarVersionEnPantalla(){
+  const c=document.getElementById('verChip');
+  if(c) c.textContent='v'+APP_VERSION;
+}
+if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', pintarVersionEnPantalla);
+else pintarVersionEnPantalla();
 function closeSett(){document.getElementById('sp').classList.remove('open');}
 
 function disconnectDrive(){

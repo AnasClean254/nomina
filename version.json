@@ -1,4 +1,4 @@
 {
-  "version": "181",
-  "notas": "180: la rotación que se acomoda para un día ya manda ese día. Antes, al guardar la rotación de mañana solo quedaba en el registro de esa fecha, y al llegar el día tanto el Scheduler como el teléfono volvían a la agrupación anterior: a la empleada que no apareciera ahí el Calendar le decía día libre aunque tuviera servicios. Ahora el registro de la fecha manda sobre la composición actual, y se aplica al abrir, en cada sincronización y al cruzar la medianoche con la app abierta. 181: el respaldo completo ya incluye las rotaciones por fecha y las Responsables; antes no las traía y un Restaurar borraba toda esa historia. Un respaldo viejo que no las traiga ya no borra las que haya, y el modo Solo agregar las une por fecha y dice cuántas recuperó."
+  "version": "182",
+  "notas": "La versión ya se ve en pantalla: en el Scheduler, junto al botón de Drive; en el Calendar del teléfono, debajo del logo. Antes había que abrir la consola o entrar a Configuración para saber qué copia estaba corriendo esa computadora o ese teléfono. Incluye lo de la 180 y 181: la rotación que se acomoda para un día ya manda ese día, y el respaldo completo incluye las rotaciones por fecha y las Responsables."
 }
