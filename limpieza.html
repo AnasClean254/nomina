@@ -181,12 +181,21 @@ function volverAtras(){
   // DENTRO de cada registro. Son imagenes (firma, fondo) que versiones viejas
   // guardaban copiadas en cada cheque. La app de hoy ya no las usa: lee la
   // firma de anas_checkSignature al momento de imprimir.
-  var COLECCIONES = ['anas_checks', 'anas_payroll', 'anas_payrollPeriods', 'anas_expenses'];
+  var COLECCIONES = [
+    // Nomina
+    'anas_checks', 'anas_payroll', 'anas_payrollPeriods', 'anas_expenses',
+    // Scheduler (en la Mac vive en su propio contenedor, aparte de la Nomina)
+    'v35_servs', 'v35_clis', 'v35_emps', 'v35_estimates',
+    'v35_generatedInvoices', 'v35_serviceCatalog', 'v35_gastos', 'v35_gastosAna'
+  ];
   var hallazgos = [];     // {llave, campo, veces, bytes}
   var totalRecuperable = 0;
 
+  /* Antes bastaba con que el texto fuera largo, y eso era demasiado amplio:
+     una nota larga dentro de un gasto o de un servicio habria caido tambien.
+     Ahora tiene que ser una IMAGEN pegada: texto largo que empieza con data:. */
   function esImagenGrande(v){
-    return typeof v === 'string' && v.length > UMBRAL;
+    return typeof v === 'string' && v.length > UMBRAL && v.indexOf('data:') === 0;
   }
 
   function analizarColeccion(llave){
