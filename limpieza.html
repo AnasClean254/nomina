@@ -42,6 +42,28 @@
 </style>
 </head>
 <body>
+<!-- Barra para volver: en una app instalada (Dock) no hay barra de direcciones
+     ni boton de atras, asi que la pagina tiene que ofrecer la salida ella misma. -->
+<div style="position:sticky;top:0;z-index:50;background:var(--card);border-bottom:1px solid var(--line);
+            margin:-18px -14px 0;padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <button onclick="volverAtras()" style="background:var(--accent);padding:9px 14px;font-size:.88rem">← Volver</button>
+  <a href="AppNomina_AnasCleaning.html" style="text-decoration:none">
+    <button class="sec" style="padding:9px 14px;font-size:.88rem">💵 Nómina</button></a>
+  <a href="AnaCS_V134.html" style="text-decoration:none">
+    <button class="sec" style="padding:9px 14px;font-size:.88rem">📅 Scheduler</button></a>
+  <span style="font-size:.78rem;color:var(--muted)">o cierra esta ventana con ⌘W</span>
+</div>
+<script>
+function volverAtras(){
+  if (history.length > 1) { history.back(); return; }
+  // Sin historial (se abrio en ventana nueva): no hay a donde volver, se cierra.
+  window.close();
+  setTimeout(function(){
+    if (!document.hidden) alert('Cierra esta ventana con ⌘W, o usa los botones de arriba para ir a una app.');
+  }, 400);
+}
+</script>
+
 <div class="wrap">
 
   <div>
@@ -192,6 +214,32 @@
   }
   COLECCIONES.forEach(analizarColeccion);
 
+  /* RESCATE DE LA FIRMA.
+     Al imprimir, la app lee la firma solo de anas_checkSignature. Si esa llave
+     no existe y la firma unicamente sobrevive copiada dentro de los cheques
+     viejos, borrarla seria perderla. Se guarda una copia ANTES de limpiar. */
+  var firmaRescatada = null;
+  (function buscarFirma(){
+    var yaHay = null;
+    try { yaHay = localStorage.getItem('anas_checkSignature'); } catch(e){}
+    if (yaHay) return;
+    var crudo = null;
+    try { crudo = localStorage.getItem('anas_checks'); } catch(e){ return; }
+    if (!crudo) return;
+    var lista; try { lista = JSON.parse(crudo); } catch(e){ return; }
+    if (!Array.isArray(lista)) return;
+    for (var i = lista.length - 1; i >= 0; i--) {
+      var reg = lista[i];
+      if (!reg || typeof reg !== 'object') continue;
+      var campos = Object.keys(reg);
+      for (var j = 0; j < campos.length; j++) {
+        var v = reg[campos[j]];
+        if (typeof v === 'string' && v.length > UMBRAL && v.indexOf('data:image') === 0 &&
+            /firma|signature/i.test(campos[j])) { firmaRescatada = v; return; }
+      }
+    }
+  })();
+
   // Imagenes que viven solas en su propia llave: NO se tocan, solo se informan.
   var SUELTAS = [
     { k:'anas_checkBgImage',  q:'El fondo del cheque. Se usa al imprimir y en la vista previa. Si imprimen sobre cheques preimpresos, solo sirve para verlo en pantalla.' },
@@ -215,6 +263,15 @@
             '<br><small>Los registros se quedan completos: solo se les quita la imagen pegada adentro.</small></p>';
   }
 
+  if (firmaRescatada) {
+    html += '<div class="aviso" style="margin-top:14px"><strong>La firma se va a rescatar.</strong> ' +
+            'En esta computadora <code>anas_checkSignature</code> no existe: la firma solo sobrevive copiada ' +
+            'dentro de los cheques viejos. Antes de quitar las copias se guarda <strong>una</strong> como la ' +
+            'firma oficial (' + kb(bytes(firmaRescatada)) + '), que es de donde la lee la app al imprimir. ' +
+            'Sin este paso, los cheques saldrían sin firma.</div>';
+    R('Firma a rescatar: si (' + kb(bytes(firmaRescatada)) + ')');
+  } else { R('Firma a rescatar: no hace falta'); }
+
   html += '<h3 style="font-size:.92rem;margin:16px 0 6px">Imágenes guardadas aparte (no se tocan)</h3><table><tbody>';
   SUELTAS.forEach(function(s){
     var v = null;
@@ -235,6 +292,22 @@
   window.aplicar = function(){
     if (!document.getElementById('okRespaldo').checked) return;
     var antes = medirTotal(), quitados = 0, tocados = 0, errores = [];
+    var rescate = '';
+
+    // Primero rescatar, despues borrar. Nunca al reves.
+    if (firmaRescatada) {
+      try {
+        localStorage.setItem('anas_checkSignature', firmaRescatada);
+        rescate = 'Se guardó la firma como anas_checkSignature (' + kb(bytes(firmaRescatada)) + ').';
+        R('Firma rescatada y guardada en anas_checkSignature');
+      } catch(e) {
+        document.getElementById('resultado').innerHTML =
+          '<div class="aviso stop" style="margin-top:14px"><strong>Me detuve.</strong> ' +
+          'No pude guardar la copia de la firma (' + esc(e.name) + '), así que <strong>no borré nada</strong>.</div>';
+        R('ABORTADO: no se pudo rescatar la firma');
+        return;
+      }
+    }
 
     COLECCIONES.forEach(function(llave){
       var crudo;
@@ -267,6 +340,7 @@
       '<div class="aviso ' + (escribe ? 'ok' : '') + '" style="margin-top:14px">' +
       '<strong>Listo.</strong> Se limpiaron <strong>' + tocados + ' registros</strong> y se liberaron <strong>' +
       mb(Math.max(0, antes - despues)) + '</strong>.<br>' +
+      (rescate ? '✍️ ' + esc(rescate) + '<br>' : '') +
       'Ahora hay ' + mb(despues) + ' de ~5 MB (' + Math.round(despues/LIMITE*100) + '%).<br>' +
       (escribe ? '✅ El navegador ya acepta escrituras de 64 KB.'
                : '⚠️ Sigue rechazando escrituras de 64 KB: hay que liberar más.') +

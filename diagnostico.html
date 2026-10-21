@@ -38,6 +38,28 @@
 </style>
 </head>
 <body>
+<!-- Barra para volver: en una app instalada (Dock) no hay barra de direcciones
+     ni boton de atras, asi que la pagina tiene que ofrecer la salida ella misma. -->
+<div style="position:sticky;top:0;z-index:50;background:var(--card);border-bottom:1px solid var(--line);
+            margin:-18px -14px 0;padding:10px 14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+  <button onclick="volverAtras()" style="background:var(--accent);padding:9px 14px;font-size:.88rem">← Volver</button>
+  <a href="AppNomina_AnasCleaning.html" style="text-decoration:none">
+    <button class="sec" style="padding:9px 14px;font-size:.88rem">💵 Nómina</button></a>
+  <a href="AnaCS_V134.html" style="text-decoration:none">
+    <button class="sec" style="padding:9px 14px;font-size:.88rem">📅 Scheduler</button></a>
+  <span style="font-size:.78rem;color:var(--muted)">o cierra esta ventana con ⌘W</span>
+</div>
+<script>
+function volverAtras(){
+  if (history.length > 1) { history.back(); return; }
+  // Sin historial (se abrio en ventana nueva): no hay a donde volver, se cierra.
+  window.close();
+  setTimeout(function(){
+    if (!document.hidden) alert('Cierra esta ventana con ⌘W, o usa los botones de arriba para ir a una app.');
+  }, 400);
+}
+</script>
+
 <div class="wrap">
 
   <div>
