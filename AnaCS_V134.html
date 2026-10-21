@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '182';
+    window.ANACS_VERSION = '183';
 
     /* Pintar la version en la barra de arriba en cuanto cargue el documento. */
     (function mostrarVersionAnaCS(){
@@ -1010,6 +1010,11 @@
                         <button onclick="app.openGeneratedInvoices(); closeAllDropdowns();">📑 Enviadas</button>
                         <button onclick="app.openServiceLog(); closeAllDropdowns();">📋 Log</button>
                         <button onclick="app.openRevisarDuplicados(); closeAllDropdowns();">🔍 Revisar Duplicados</button>
+                        <!-- Abren las paginas de mantenimiento EN ESTE MISMO contenedor. Cuando la
+                             app esta agregada al Dock no hay barra de direcciones, y una pagina
+                             abierta aparte puede caer en otro almacenamiento y no ver nada. -->
+                        <button onclick="app.abrirHerramienta('diagnostico.html'); closeAllDropdowns();">🧪 Diagnóstico</button>
+                        <button onclick="app.abrirHerramienta('limpieza.html'); closeAllDropdowns();">🧹 Limpieza</button>
                         <span id="cobrosBadge" style="display:none"></span>
                     </div>
                 </div>
@@ -2961,6 +2966,21 @@ class Scheduler {
         const addr = (c.propAddress && String(c.propAddress).trim()) ? String(c.propAddress).trim().replace(/,\s*TX\b.*$/i, '').trim() : (isMulti ? '' : [c.address, c.city].filter(Boolean).join(', '));
         const prop = (isMulti && c.propId) ? c.propId : '';
         return [nom, addr, prop].filter(Boolean).join(' - ');
+    }
+
+    /* Abre una pagina de mantenimiento al lado de este archivo, conservando el
+       origen. Si el navegador bloquea la ventana (pasa en Safari), se navega en
+       la misma pestana en vez de dejar al usuario sin nada. */
+    abrirHerramienta(archivo) {
+        const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
+        const url  = base + archivo + '?t=' + Date.now();
+        let w = null;
+        try { w = window.open(url, '_blank'); } catch (e) { w = null; }
+        if (!w) {
+            if (confirm('El navegador bloqueó la ventana nueva.\n\n¿Abrir la herramienta en esta misma pestaña?\n(Tus datos no se pierden: están guardados.)')) {
+                location.href = url;
+            }
+        }
     }
 
     _dedupGrupos() {

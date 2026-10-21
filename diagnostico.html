@@ -236,7 +236,23 @@
 
   // ── Veredicto ─────────────────────────────────────────────────────────────
   var v = document.getElementById('veredicto'), clase, texto;
-  if (!pasoTodas) {
+  /* Primero que nada: si NO hay ninguna llave, esta pagina no esta viendo los
+     datos de las apps. Cualquier otro veredicto seria mentira tranquilizadora. */
+  if (filas.length === 0) {
+    clase = 'bad';
+    texto = '<b>No estoy viendo los datos de las apps.</b>' +
+      'El almacenamiento de este navegador está <strong>completamente vacío</strong> (0 llaves), y eso no ' +
+      'pasa en una computadora donde se usan las apps. Revisa las cuatro causas posibles:' +
+      '<ol style="margin:10px 0 0;padding-left:20px;line-height:1.7">' +
+      '<li>Abriste esta página como <strong>archivo bajado</strong> en vez de desde la dirección de las apps.</li>' +
+      '<li>Estás en <strong>otro navegador</strong> del que usa Ana (Safari y Chrome no comparten nada).</li>' +
+      '<li>Es una <strong>ventana privada</strong>, que siempre arranca vacía.</li>' +
+      '<li>Entraste con <strong>otro usuario</strong> de la computadora.</li>' +
+      '</ol>' +
+      '<p style="margin:10px 0 0">Esta página está corriendo en: <code>' + esc(location.origin) + '</code></p>' +
+      '<p style="margin:6px 0 0"><small>Prueba: abre la Nómina o el Scheduler en esta misma ventana. Si ahí ' +
+      'sí están los datos de Ana, vuelve a abrir esta página en una pestaña nueva de esa misma ventana.</small></p>';
+  } else if (!pasoTodas) {
     clase = 'bad';
     texto = '<b>El almacenamiento está lleno.</b>' +
             'El navegador ya rechaza escrituras desde ' + fallaEn + ' KB. Por eso la rotación no se guarda ' +

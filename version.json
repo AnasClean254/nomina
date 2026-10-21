@@ -1,4 +1,4 @@
 {
-  "version": "182",
-  "notas": "La versión ya se ve en pantalla: en el Scheduler, junto al botón de Drive; en el Calendar del teléfono, debajo del logo. Antes había que abrir la consola o entrar a Configuración para saber qué copia estaba corriendo esa computadora o ese teléfono. Incluye lo de la 180 y 181: la rotación que se acomoda para un día ya manda ese día, y el respaldo completo incluye las rotaciones por fecha y las Responsables."
+  "version": "183",
+  "notas": "El menú de herramientas abre el Diagnóstico y la Limpieza desde la propia app. Importante en la Mac: cuando el Scheduler está agregado al Dock no hay barra de direcciones, y una página abierta por separado puede caer en otro almacenamiento y no ver los datos. Abriéndolas desde aquí se garantiza que miran los datos correctos. Incluye lo de la 180 a la 182."
 }

@@ -137,6 +137,21 @@
     return { total: total, pct: pct, escribe: escribe };
   }
   var e1 = pintarEstado();
+  /* Mismo guardia que en el diagnostico: con el almacen vacio esta pagina no
+     esta viendo las apps, y "limpiar" aqui no significa nada. */
+  if (localStorage.length === 0) {
+    document.getElementById('estado').innerHTML =
+      '<div class="aviso stop"><strong>No estoy viendo los datos de las apps.</strong><br>' +
+      'Este navegador tiene el almacenamiento vacío (0 llaves). Abre esta página desde la ' +
+      'misma dirección y el mismo navegador donde Ana usa la Nómina — no como archivo bajado, ' +
+      'ni en ventana privada.<br><small>Corriendo en: <code>' + esc(location.origin) + '</code></small></div>';
+    document.getElementById('analisis').innerHTML =
+      '<p style="margin:0">Sin datos que analizar.</p>';
+    document.getElementById('btnAplicar').disabled = true;
+    document.getElementById('okRespaldo').disabled = true;
+    R('ABORTADO: almacen vacio en ' + location.origin);
+    return;
+  }
   R('Antes: ' + mb(e1.total) + ' (' + e1.pct + '%) · escritura 64KB: ' + (e1.escribe ? 'OK' : 'FALLA'));
 
   // ── Paso 2 · analisis ─────────────────────────────────────────────────────

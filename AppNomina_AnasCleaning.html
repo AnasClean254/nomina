@@ -390,6 +390,15 @@
                 <button class="btn btn-secondary" onclick="app.importData()">
                     📂 Importar Datos
                 </button>
+                <!-- Abren las paginas de mantenimiento EN ESTE MISMO contenedor. Cuando la
+                     app esta instalada como acceso directo no hay barra de direcciones, y
+                     una pagina abierta aparte cae en otro almacenamiento y no ve nada. -->
+                <button class="btn btn-secondary" onclick="app.abrirHerramienta('diagnostico.html')">
+                    🧪 Diagnóstico
+                </button>
+                <button class="btn btn-secondary" onclick="app.abrirHerramienta('limpieza.html')">
+                    🧹 Limpieza
+                </button>
             </div>
         </div>
         
@@ -1543,7 +1552,7 @@
             /* Versión a la vista. Sin esto no había forma de saber qué copia
                tenía cada computadora, y se nos fueron dos días persiguiendo
                bugs que ya estaban arreglados en un archivo que nunca llegó. */
-            APP_VERSION: '2.5.4',
+            APP_VERSION: '2.5.5',
 
             init() {
                 try {
@@ -6867,7 +6876,21 @@
                 input.click();
             },
 
-                        exportData() {
+                        /* Abre una pagina de mantenimiento al lado de este archivo, conservando el
+               origen y por lo tanto el almacenamiento que esta app esta usando. */
+            abrirHerramienta(archivo) {
+                const base = location.href.split('?')[0].split('#')[0].replace(/[^/]*$/, '');
+                const url  = base + archivo + '?t=' + Date.now();
+                let w = null;
+                try { w = window.open(url, '_blank'); } catch (e) { w = null; }
+                if (!w) {
+                    if (confirm('El navegador bloqueó la ventana nueva.\n\n¿Abrir la herramienta en esta misma pestaña?\n(Tus datos no se pierden: están guardados.)')) {
+                        location.href = url;
+                    }
+                }
+            },
+
+            exportData() {
                 const data = {
                     employees: this.employees,
                     attendances: this.attendances,
