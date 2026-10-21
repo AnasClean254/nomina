@@ -272,6 +272,66 @@ function volverAtras(){
     R('Firma a rescatar: si (' + kb(bytes(firmaRescatada)) + ')');
   } else { R('Firma a rescatar: no hace falta'); }
 
+  /* ── EXTRAS ──────────────────────────────────────────────────────────────
+     Dos cosas mas que se pueden quitar y que no son imagenes dentro de
+     registros. Cada una con su casilla, porque no son equivalentes:
+     el logo duplicado es permanente; el cache se vuelve a generar. */
+  var extras = [];
+
+  // 1) El logo guardado DOS veces: en companyLogo y otra vez dentro de companyConfig.
+  //    La app solo usa el de adentro cuando falta la llave suelta.
+  (function logoDuplicado(){
+    var suelto = null, crudo = null;
+    try { suelto = localStorage.getItem('companyLogo'); crudo = localStorage.getItem('companyConfig'); } catch(e){ return; }
+    if (!suelto || !crudo) return;              // sin copia suelta NO se toca: seria perder el logo
+    var obj = null, doble = false;
+    try {
+      obj = JSON.parse(crudo);
+      if (typeof obj === 'string') { obj = JSON.parse(obj); doble = true; }   // viene doblemente codificado
+    } catch(e){ return; }
+    if (!obj || typeof obj !== 'object' || !obj.logo) return;
+    extras.push({
+      id: 'logo',
+      etiqueta: 'El logo guardado dos veces',
+      detalle: 'El logo está en <code>companyLogo</code> y otra vez dentro de <code>companyConfig</code>. ' +
+               'La app solo usa el de adentro si falta el suelto, y aquí el suelto existe. ' +
+               '<strong>Se quita permanentemente</strong> y al sincronizar sube así.',
+      bytes: bytes(obj.logo),
+      aplicar: function(){
+        delete obj.logo;
+        var texto = JSON.stringify(obj);
+        localStorage.setItem('companyConfig', doble ? JSON.stringify(texto) : texto);
+      }
+    });
+  })();
+
+  // 2) El cache de tarjetas pendientes: la app lo recalcula con detectPendingInvoices().
+  (function cachePendientes(){
+    var v = null;
+    try { v = localStorage.getItem('v35_pendingInvoices'); } catch(e){ return; }
+    if (!v || v.length < 2000) return;
+    extras.push({
+      id: 'pend',
+      etiqueta: 'El caché de tarjetas pendientes',
+      detalle: 'No son datos: el Scheduler las vuelve a calcular solo al abrir. ' +
+               '<strong>Puede volver a crecer</strong>, y la fusión con Drive puede traer tarjetas viejas. ' +
+               'Ganancia inmediata, no garantizada a futuro.',
+      bytes: bytes(v),
+      aplicar: function(){ localStorage.removeItem('v35_pendingInvoices'); }
+    });
+  })();
+
+  if (extras.length) {
+    html += '<h3 style="font-size:.92rem;margin:16px 0 6px">Otras cosas que se pueden quitar</h3>';
+    extras.forEach(function(x){
+      html += '<label class="chk" style="border:1px solid var(--line);border-radius:9px;padding:10px 12px;margin-top:8px">' +
+              '<input type="checkbox" class="extra" data-id="' + x.id + '" checked>' +
+              '<span><strong>' + esc(x.etiqueta) + ' — ' + kb(x.bytes) + '</strong><br>' +
+              '<small>' + x.detalle + '</small></span></label>';
+      R('Extra disponible: ' + x.etiqueta + ' = ' + kb(x.bytes));
+    });
+  }
+
   html += '<h3 style="font-size:.92rem;margin:16px 0 6px">Imágenes guardadas aparte (no se tocan)</h3><table><tbody>';
   SUELTAS.forEach(function(s){
     var v = null;
@@ -284,9 +344,9 @@ function volverAtras(){
   document.getElementById('analisis').innerHTML = html;
 
   document.getElementById('okRespaldo').addEventListener('change', function(){
-    document.getElementById('btnAplicar').disabled = !(this.checked && hallazgos.length > 0);
+    document.getElementById('btnAplicar').disabled = !(this.checked && (hallazgos.length > 0 || extras.length > 0));
   });
-  if (hallazgos.length === 0) document.getElementById('btnAplicar').disabled = true;
+  if (hallazgos.length === 0 && extras.length === 0) document.getElementById('btnAplicar').disabled = true;
 
   // ── Paso 3 · aplicar ──────────────────────────────────────────────────────
   window.aplicar = function(){
@@ -333,6 +393,15 @@ function volverAtras(){
       catch(e){ errores.push(llave + ': ' + e.name); }
     });
 
+    // Extras marcados
+    var extrasHechos = [];
+    extras.forEach(function(x){
+      var cb = document.querySelector('.extra[data-id="' + x.id + '"]');
+      if (!cb || !cb.checked) return;
+      try { x.aplicar(); extrasHechos.push(x.etiqueta + ' (' + kb(x.bytes) + ')'); R('Extra aplicado: ' + x.etiqueta); }
+      catch(e){ errores.push(x.etiqueta + ': ' + e.name); }
+    });
+
     var despues = medirTotal();
     var escribe = pruebaEscritura();
     var caja = document.getElementById('resultado');
@@ -341,6 +410,7 @@ function volverAtras(){
       '<strong>Listo.</strong> Se limpiaron <strong>' + tocados + ' registros</strong> y se liberaron <strong>' +
       mb(Math.max(0, antes - despues)) + '</strong>.<br>' +
       (rescate ? '✍️ ' + esc(rescate) + '<br>' : '') +
+      (extrasHechos.length ? '🧺 También: ' + esc(extrasHechos.join(' · ')) + '<br>' : '') +
       'Ahora hay ' + mb(despues) + ' de ~5 MB (' + Math.round(despues/LIMITE*100) + '%).<br>' +
       (escribe ? '✅ El navegador ya acepta escrituras de 64 KB.'
                : '⚠️ Sigue rechazando escrituras de 64 KB: hay que liberar más.') +
