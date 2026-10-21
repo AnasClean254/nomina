@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico · Ana's Cleaning</title>
+<style>
+  :root{ --bg:#f3f6f9; --card:#fff; --ink:#1a2530; --muted:#5d6e7e; --line:#dce5ed;
+         --ok:#17733c; --okbg:#e8f6ed; --warn:#9a5208; --warnbg:#fdf3e4; --bad:#b4221f; --badbg:#fdeeee; --accent:#0f6fa8; }
+  *{box-sizing:border-box}
+  body{margin:0;padding:18px 14px 50px;background:var(--bg);color:var(--ink);line-height:1.5;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+  h1{font-size:1.35rem;margin:0}
+  .sub{color:var(--muted);font-size:.9rem;margin:4px 0 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:15px 16px}
+  .card h2{font-size:1rem;margin:0 0 10px}
+  .verdict{border-radius:12px;padding:16px;font-size:1rem;border-left:6px solid var(--muted);background:#fff}
+  .verdict.ok{border-left-color:var(--ok);background:var(--okbg)}
+  .verdict.warn{border-left-color:var(--warn);background:var(--warnbg)}
+  .verdict.bad{border-left-color:var(--bad);background:var(--badbg)}
+  .verdict b{display:block;font-size:1.1rem;margin-bottom:6px}
+  table{width:100%;border-collapse:collapse;font-size:.88rem}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:.72rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  .bar{height:10px;background:#e4ebf1;border-radius:6px;overflow:hidden;margin:8px 0 4px}
+  .bar > i{display:block;height:100%;background:var(--accent)}
+  .bar.alto > i{background:var(--bad)}
+  button{font:inherit;font-weight:600;border:none;border-radius:9px;padding:12px 18px;cursor:pointer;
+         background:var(--accent);color:#fff}
+  button.sec{background:#e4ebf1;color:var(--ink)}
+  .btns{display:flex;gap:10px;flex-wrap:wrap}
+  pre{white-space:pre-wrap;word-break:break-word;background:#f7fafc;border:1px solid var(--line);
+      border-radius:8px;padding:10px;font-size:.76rem;margin:0}
+  small{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div>
+    <h1>Diagnóstico de la rotación</h1>
+    <p class="sub">Esta página solo <strong>lee</strong>. No cambia ni borra nada de las apps.
+       Ábrela en el <strong>mismo navegador</strong> donde usas el Scheduler.</p>
+  </div>
+
+  <div id="veredicto" class="verdict"><b>Midiendo…</b></div>
+
+  <div class="card">
+    <h2>1 · Espacio del navegador</h2>
+    <div id="espacio"></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Prueba de escritura</h2>
+    <div id="escritura"></div>
+  </div>
+
+  <div class="card">
+    <h2>3 · La rotación guardada</h2>
+    <div id="rotacion"></div>
+  </div>
+
+  <div class="card">
+    <h2>4 · Lo que más ocupa</h2>
+    <div id="llaves"></div>
+  </div>
+
+  <div class="card">
+    <h2>5 · Versión publicada</h2>
+    <div id="publicada">Consultando…</div>
+  </div>
+
+  <div class="card">
+    <h2>6 · Mándale esto a Ranulfo</h2>
+    <p><small>Presiona el botón y pégalo en el mensaje. Es texto, no lleva datos de clientes.</small></p>
+    <div class="btns">
+      <button onclick="copiar()">📋 Copiar el reporte</button>
+      <button class="sec" onclick="location.reload()">↻ Volver a medir</button>
+    </div>
+    <p id="copiado" style="margin:10px 0 0;color:var(--ok);font-weight:600;display:none;">✓ Copiado</p>
+    <pre id="reporte" style="margin-top:12px;"></pre>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+
+  var LIMITE = 5 * 1024 * 1024;              // ~5 MB por navegador y por dominio
+  var reporte = [];
+  function R(linea){ reporte.push(linea); }
+
+  function bytes(s){ return (s == null ? 0 : String(s).length * 2); }   // UTF-16: 2 bytes por caracter
+  function mb(b){ return (b / 1048576).toFixed(2) + ' MB'; }
+  function esc(t){ return String(t == null ? '' : t)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ── 1 · Espacio ────────────────────────────────────────────────────────────
+  var filas = [], total = 0;
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      var b = bytes(k) + bytes(localStorage.getItem(k));
+      total += b;
+      filas.push({ k: k, b: b });
+    }
+  } catch (e) {
+    document.getElementById('espacio').innerHTML =
+      '<p style="color:var(--bad)"><strong>No pude leer el almacenamiento:</strong> ' + esc(e.message) + '</p>';
+  }
+  filas.sort(function(a, b){ return b.b - a.b; });
+  var pct = Math.min(100, Math.round(total / LIMITE * 100));
+
+  document.getElementById('espacio').innerHTML =
+    '<div class="bar' + (pct >= 85 ? ' alto' : '') + '"><i style="width:' + pct + '%"></i></div>' +
+    '<p style="margin:0"><strong>' + mb(total) + '</strong> usados de ~5 MB · <strong>' + pct + '%</strong>' +
+    '<br><small>' + filas.length + ' llaves guardadas. Las siete apps comparten este mismo espacio.</small></p>';
+  R('Espacio usado: ' + mb(total) + ' de ~5 MB (' + pct + '%) en ' + filas.length + ' llaves');
+
+  // ── 2 · Prueba de escritura ────────────────────────────────────────────────
+  // Se intenta escribir un bloque del tamaño tipico de un guardado del Scheduler.
+  // Si el navegador lo rechaza, es la misma falla que mata a guardarRotacion().
+  var PRUEBA = '__diag_prueba__';
+  var tamanos = [16, 64, 256];       // KB
+  var htmlEsc = '', pasoTodas = true, fallaEn = null;
+  tamanos.forEach(function(kb){
+    var dato = new Array(kb * 512 + 1).join('x');   // kb*512 caracteres = kb KB en UTF-16
+    var ok = true, msg = '';
+    try {
+      localStorage.setItem(PRUEBA, dato);
+      localStorage.removeItem(PRUEBA);
+    } catch (e) {
+      ok = false;
+      msg = (e && e.name ? e.name : 'Error') + (e && e.message ? ': ' + e.message : '');
+      if (pasoTodas) fallaEn = kb;
+      pasoTodas = false;
+    }
+    htmlEsc += '<p style="margin:0 0 6px">' + (ok ? '✅' : '❌') + ' Escribir ' + kb + ' KB — ' +
+               (ok ? 'bien' : '<span style="color:var(--bad)">' + esc(msg) + '</span>') + '</p>';
+    R('Prueba de escritura ' + kb + ' KB: ' + (ok ? 'OK' : 'FALLA (' + msg + ')'));
+  });
+  try { localStorage.removeItem(PRUEBA); } catch (e) {}
+  document.getElementById('escritura').innerHTML = htmlEsc +
+    (pasoTodas
+      ? '<p style="margin:8px 0 0"><small>El navegador sí acepta escrituras de este tamaño.</small></p>'
+      : '<p style="margin:8px 0 0;color:var(--bad)"><strong>El navegador rechaza las escrituras.</strong> ' +
+        'Cuando esto pasa, el Scheduler deja de guardar a medias y no sube nada a Drive.</p>');
+
+  // ── 3 · La rotación ───────────────────────────────────────────────────────
+  function leerJSON(k, def){
+    try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : def; }
+    catch (e) { return def; }
+  }
+  var hist   = leerJSON('v35_gruposHistorial', {}) || {};
+  var grupos = leerJSON('v35_grupos', {}) || {};
+  var emps   = leerJSON('v35_emps', []) || [];
+  var guardado = localStorage.getItem('anaCS_lastSavedAt') || null;
+
+  var nombre = {};
+  emps.forEach(function(e){ if (e && e.id != null) nombre[String(e.id)] = e.name || '(sin nombre)'; });
+  function lista(arr){
+    return (arr || []).filter(Boolean).map(function(id){
+      return nombre[String(id)] || ('¿' + id + '?');
+    }).join(', ') || '(vacío)';
+  }
+
+  var hoy = new Date().toLocaleDateString('en-CA');
+  var todasLasFechas = Object.keys(hist).sort();
+  var fechas = todasLasFechas.slice().reverse().slice(0, 8);
+
+  // Cuántas rotaciones hay y desde cuándo: así se ve de un golpe si falta
+  // historia (por ejemplo, si alguna vez se hizo "Restaurar / Reemplazar todo").
+  var htmlRot = '<p style="margin:0 0 10px"><strong>' + todasLasFechas.length +
+                ' rotaciones guardadas</strong>' +
+                (todasLasFechas.length
+                  ? ', de <strong>' + esc(todasLasFechas[0]) + '</strong> a <strong>' +
+                    esc(todasLasFechas[todasLasFechas.length - 1]) + '</strong>'
+                  : '') +
+                '<br><small>Si la más antigua es sospechosamente reciente, en esta computadora se perdió historia. ' +
+                'Casi siempre vuelve sola al sincronizar, porque el historial se une por fecha con el de Drive.</small></p>';
+  R('Rotaciones guardadas: ' + todasLasFechas.length +
+    (todasLasFechas.length ? ' (de ' + todasLasFechas[0] + ' a ' + todasLasFechas[todasLasFechas.length-1] + ')' : ''));
+
+  htmlRot += '<table><thead><tr><th>Fecha</th><th>Grupos con gente</th><th class="n">Empleadas</th></tr></thead><tbody>';
+  if (!fechas.length) {
+    htmlRot += '<tr><td colspan="3" style="color:var(--bad)"><strong>No hay ninguna rotación guardada.</strong></td></tr>';
+  }
+  fechas.forEach(function(f){
+    var dia = hist[f] || {}, conGente = 0, personas = 0;
+    Object.keys(dia).forEach(function(g){
+      var r = (dia[g] || []).filter(Boolean);
+      if (r.length) { conGente++; personas += r.length; }
+    });
+    htmlRot += '<tr><td>' + esc(f) + (f === hoy ? ' <small>(hoy)</small>' : '') + '</td><td class="n">' +
+               conGente + '</td><td class="n">' + personas + '</td></tr>';
+    R('Rotacion ' + f + ': ' + conGente + ' grupos, ' + personas + ' empleadas');
+  });
+  htmlRot += '</tbody></table>';
+
+  htmlRot += '<p style="margin:12px 0 0"><strong>Último guardado del Scheduler:</strong> ' +
+             (guardado ? esc(new Date(guardado).toLocaleString()) : '<span style="color:var(--bad)">nunca se registró</span>') +
+             '<br><small>Si esta fecha es vieja aunque Ana acabe de guardar, el guardado se está cortando antes de terminar ' +
+             'y por eso no sube a Drive.</small></p>';
+  R('anaCS_lastSavedAt: ' + (guardado || 'ausente'));
+
+  htmlRot += '<p style="margin:12px 0 0"><strong>Grupos de hoy, tal como están guardados:</strong></p><table><tbody>';
+  var nombresG = Object.keys(grupos);
+  if (!nombresG.length) htmlRot += '<tr><td style="color:var(--bad)">No hay grupos guardados.</td></tr>';
+  nombresG.forEach(function(g){
+    htmlRot += '<tr><td><strong>' + esc(g) + '</strong></td><td>' + esc(lista(grupos[g])) + '</td></tr>';
+    R('Grupo ' + g + ': ' + lista(grupos[g]));
+  });
+  htmlRot += '</tbody></table>';
+
+  var hoyEnHist = !!(hist[hoy] && Object.keys(hist[hoy]).length);
+  htmlRot += '<p style="margin:12px 0 0">' + (hoyEnHist
+      ? '✅ Hay registro de rotación para hoy (' + esc(hoy) + ').'
+      : '⚠️ <strong>No hay registro de rotación para hoy</strong> (' + esc(hoy) + ').') + '</p>';
+  R('Rotacion de hoy (' + hoy + ') en historial: ' + (hoyEnHist ? 'SI' : 'NO'));
+
+  document.getElementById('rotacion').innerHTML = htmlRot;
+
+  // ── 4 · Lo que más ocupa ──────────────────────────────────────────────────
+  var htmlK = '<table><thead><tr><th>Llave</th><th class="n">Tamaño</th><th class="n">%</th></tr></thead><tbody>';
+  filas.slice(0, 12).forEach(function(f){
+    htmlK += '<tr><td style="word-break:break-all">' + esc(f.k) + '</td><td class="n">' + mb(f.b) +
+             '</td><td class="n">' + (total ? Math.round(f.b / total * 100) : 0) + '%</td></tr>';
+  });
+  htmlK += '</tbody></table>';
+  document.getElementById('llaves').innerHTML = htmlK;
+  filas.slice(0, 8).forEach(function(f){ R('  ' + f.k + ' = ' + mb(f.b)); });
+
+  // ── Veredicto ─────────────────────────────────────────────────────────────
+  var v = document.getElementById('veredicto'), clase, texto;
+  if (!pasoTodas) {
+    clase = 'bad';
+    texto = '<b>El almacenamiento está lleno.</b>' +
+            'El navegador ya rechaza escrituras desde ' + fallaEn + ' KB. Por eso la rotación no se guarda ' +
+            'completa y no se sube a Drive: el guardado se corta a medio camino y el Scheduler no avisa de ' +
+            'que falló. Hay que liberar espacio en esta computadora antes de cualquier otra cosa.';
+  } else if (pct >= 85) {
+    clase = 'warn';
+    texto = '<b>Espacio casi agotado (' + pct + '%).</b>' +
+            'Las escrituras de prueba pasaron, pero con este nivel un guardado grande puede fallar en cualquier ' +
+            'momento. Conviene liberar espacio igual.';
+  } else if (!hoyEnHist) {
+    clase = 'warn';
+    texto = '<b>Hay espacio, pero no hay rotación de hoy.</b>' +
+            'El almacenamiento no es el problema. Mándale el reporte a Ranulfo: hay que revisar la fusión con Drive.';
+  } else {
+    clase = 'ok';
+    texto = '<b>El almacenamiento está bien (' + pct + '%).</b>' +
+            'La rotación de hoy sí está guardada en esta computadora. Si de todos modos se ve en desorden, ' +
+            'el problema está en la sincronización con Drive, no aquí.';
+  }
+  v.className = 'verdict ' + clase;
+  v.innerHTML = texto;
+  R('VEREDICTO: ' + clase.toUpperCase());
+
+  // ── 5 · Qué versión está publicada en esta carpeta ────────────────────────
+  // Lee version.json (lo mismo que usan las apps para auto-actualizarse) y lo
+  // compara con lo que diga el encabezado del Scheduler en esta computadora.
+  (function versionPublicada(){
+    var caja = document.getElementById('publicada');
+    fetch('version.json?t=' + Date.now(), { cache: 'no-store' })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(v){
+        caja.innerHTML =
+          '<p style="margin:0"><strong>version.json dice: ' + esc(v.version) + '</strong>' +
+          '<br><small>Compáralo con el número que muestra el encabezado del Scheduler en esta computadora. ' +
+          'Si el encabezado dice menos, esa computadora está corriendo una copia vieja: recarga con ' +
+          '<strong>Ctrl+F5</strong> (<strong>Cmd+Shift+R</strong> en Mac).</small></p>' +
+          (v.notas ? '<p style="margin:8px 0 0;color:var(--muted);font-size:.86rem">' + esc(v.notas) + '</p>' : '');
+        R('version.json publicado: ' + v.version);
+      })
+      .catch(function(e){
+        caja.innerHTML = '<p style="margin:0;color:var(--warn)">No pude leer <code>version.json</code>: ' +
+          esc(e.message) + '.<br><small>Pasa si abriste esta página como archivo bajado en vez de ' +
+          'abrirla desde la dirección de las apps.</small></p>';
+        R('version.json publicado: no se pudo leer (' + e.message + ')');
+      });
+  })();
+
+  // ── Reporte copiable ──────────────────────────────────────────────────────
+  var cabecera = [
+    'DIAGNOSTICO AnaCS — ' + new Date().toLocaleString(),
+    'Navegador: ' + navigator.userAgent,
+    'Pagina: ' + location.href,
+    '──────────────────────────────'
+  ];
+  document.getElementById('reporte').textContent = cabecera.concat(reporte).join('\n');
+
+  window.copiar = function(){
+    var txt = document.getElementById('reporte').textContent;
+    function listo(){ var c = document.getElementById('copiado'); c.style.display = 'block'; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(listo, function(){ seleccionar(); });
+    } else { seleccionar(); }
+    function seleccionar(){
+      var pre = document.getElementById('reporte');
+      var r = document.createRange(); r.selectNodeContents(pre);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+      try { document.execCommand('copy'); listo(); } catch (e) {
+        alert('Selecciona el texto de abajo y cópialo a mano.');
+      }
+    }
+  };
+})();
+</script>
+</body>
+</html>
