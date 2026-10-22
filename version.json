@@ -1,4 +1,4 @@
 {
   "version": "185",
-  "notas": "184: corrige el error del 20 de octubre. La barra de grupos editaba la composición sin tocar el registro del día; como ese registro manda, el cambio se revertía solo y los teléfonos nunca lo veían — a una empleada le llegaban los servicios y a sus compañeras no. Ahora toda edición directa se copia al registro del día en el momento. 185: agrega 🩹 Reparar horarios, que corrige los registros de horas que quedaron etiquetados con un grupo equivocado esos días. El grupo correcto se deduce de los servicios que cada empleada registró, no de la rotación, y muestra el antes y el después antes de escribir nada."
+  "notas": "Calendar 2.8.6 corrige la discrepancia entre empleadas del mismo grupo: la rotación por fecha solo se cargaba al iniciar sesión, y las actualizaciones automáticas de cada 3 minutos refrescaban todo menos eso. Cada teléfono repartía los servicios con una rotación de antigüedad distinta. Ahora se actualiza en cada refresco y se conserva en la sesión guardada. Scheduler 185: la barra de grupos ya escribe también el registro del día, y trae la herramienta para reparar etiquetas de horarios."
 }

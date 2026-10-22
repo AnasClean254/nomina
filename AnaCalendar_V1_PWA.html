@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.8.5';
+const APP_VERSION = '2.8.6';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -2091,6 +2091,14 @@ async function refreshData(){
       const data=await wGet('/api/sync');
       if(data&&data.exportType==='anaCS_sync'){
         S.servs=data.servs||[]; S.clis=data.clis||[]; S.grupos=data.grupos||{}; S.emps=data.emps||[];
+        /* ── 22 oct 2026 ──
+           Faltaba esta linea y causo el problema mas dificil de ver de esta
+           semana. La rotacion por fecha solo se cargaba al INICIAR SESION; las
+           actualizaciones de cada 3 minutos refrescaban todo menos esto. Como
+           el reparto de servicios se decide con este dato, cada telefono estaba
+           repartiendo con una rotacion de antiguedad distinta: a una empleada
+           le llegaban los servicios y a su companera del mismo grupo no. */
+        S.gruposHistorial=data.gruposHistorial||{};
         S.cellNotes=data.cellNotes||{};
         S.responsables=data.responsables||{};
         if(data.supervisorPin) S.supervisorPin=data.supervisorPin;
@@ -2603,7 +2611,7 @@ function saveSess(){
     localStorage.setItem(SESS, JSON.stringify({
       empId:S.empId, empName:S.empName, group:S.group,
       selectedDate:S.selectedDate, weekStart:S.weekStart, view:S.view,
-      grupos:S.grupos, servs:S.servs, clis:S.clis, emps:S.emps,
+      grupos:S.grupos, gruposHistorial:S.gruposHistorial, servs:S.servs, clis:S.clis, emps:S.emps,
       reports:S.reports
     }));
   }catch(e){}
