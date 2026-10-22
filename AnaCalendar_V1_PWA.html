@@ -26,7 +26,7 @@ const _blob=new Blob([JSON.stringify(_manifest)],{type:'application/json'});
 document.getElementById('pwaManifest').href=URL.createObjectURL(_blob);
 
 
-const APP_VERSION = '2.8.4';
+const APP_VERSION = '2.8.5';
 const APP_URL = 'https://anasclean254.github.io/nomina/AnaCalendar_V1_PWA.html';
 
 /* ── AVISO DE NUEVA VERSIÓN ──────────────────────────────────────────────
@@ -747,9 +747,16 @@ async function saveHorariosToDrive(){
     var body={
       date: date,
       empId: S.empId,
-      group: miGrupoEnFecha(date),   // el grupo de ESA fecha, no el del login
       services: mine.services||[]
     };
+    /* ── 22 oct 2026 ──
+       El grupo solo se manda si de verdad hay uno. Antes se mandaba siempre, y
+       cuando la rotacion venia incompleta se enviaba cadena vacia: el registro
+       quedaba guardado SIN grupo, y la vista de Ana —que filtra por ese campo—
+       no lo mostraba. El Worker conserva el valor anterior cuando el campo no
+       viene, asi que callar es mas seguro que mandar vacio. */
+    var _grp = miGrupoEnFecha(date);
+    if (_grp) body.group = _grp;
     // shopOut/shopBack: solo se mandan si hay valor, o con bandera explícita
     // de "borrar" cuando el propio usuario lo borró a propósito (nunca por
     // string vacío accidental de un registro recién creado).

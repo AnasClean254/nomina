@@ -1,4 +1,4 @@
 {
-  "version": "183",
-  "notas": "El menú de herramientas abre el Diagnóstico y la Limpieza desde la propia app. Importante en la Mac: cuando el Scheduler está agregado al Dock no hay barra de direcciones, y una página abierta por separado puede caer en otro almacenamiento y no ver los datos. Abriéndolas desde aquí se garantiza que miran los datos correctos. Incluye lo de la 180 a la 182."
+  "version": "185",
+  "notas": "184: corrige el error del 20 de octubre. La barra de grupos editaba la composición sin tocar el registro del día; como ese registro manda, el cambio se revertía solo y los teléfonos nunca lo veían — a una empleada le llegaban los servicios y a sus compañeras no. Ahora toda edición directa se copia al registro del día en el momento. 185: agrega 🩹 Reparar horarios, que corrige los registros de horas que quedaron etiquetados con un grupo equivocado esos días. El grupo correcto se deduce de los servicios que cada empleada registró, no de la rotación, y muestra el antes y el después antes de escribir nada."
 }

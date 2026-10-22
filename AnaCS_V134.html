@@ -167,7 +167,7 @@
        Sin esto, el navegador puede seguir sirviendo una copia vieja durante
        horas y nadie se entera de que hay arreglos publicados.
        ══════════════════════════════════════════════════════════════════════ */
-    window.ANACS_VERSION = '183';
+    window.ANACS_VERSION = '185';
 
     /* Pintar la version en la barra de arriba en cuanto cargue el documento. */
     (function mostrarVersionAnaCS(){
@@ -1015,6 +1015,7 @@
                              abierta aparte puede caer en otro almacenamiento y no ver nada. -->
                         <button onclick="app.abrirHerramienta('diagnostico.html'); closeAllDropdowns();">🧪 Diagnóstico</button>
                         <button onclick="app.abrirHerramienta('limpieza.html'); closeAllDropdowns();">🧹 Limpieza</button>
+                        <button onclick="app.repararGruposHorarios(); closeAllDropdowns();">🩹 Reparar horarios</button>
                         <span id="cobrosBadge" style="display:none"></span>
                     </div>
                 </div>
@@ -2996,6 +2997,225 @@ class Scheduler {
         if (changed) localStorage.setItem('v35_grupos', JSON.stringify(this.grupos));
     }
 
+    /* ══════════════════════════════════════════════════════════════════════
+       REPARAR LA ETIQUETA DE GRUPO DE LOS HORARIOS  ·  22 oct 2026
+       ──────────────────────────────────────────────────────────────────────
+       Entre el 20 y el 22 de octubre, el telefono sellaba cada registro de
+       horas con el grupo que le decia la rotacion — y esa rotacion estaba
+       desactualizada por el error de la barra de grupos. El Scheduler filtra
+       los horarios por ese campo, asi que los registros llegaron a Drive pero
+       quedaron bajo una etiqueta que Ana no mira.
+
+       La etiqueta correcta NO se pregunta ni se adivina: se deduce de los
+       servicios que la empleada de verdad registro ese dia. Si trabajo el
+       servicio de un cliente que pertenece al Grupo A, estuvo en el Grupo A.
+       ══════════════════════════════════════════════════════════════════════ */
+
+    // El grupo al que pertenece un servicio: por su campo grupo, o porque su
+    // empId es el nombre de un grupo (la app admite las dos formas).
+    _grupoDeServicio(sv) {
+        if (!sv) return null;
+        if (sv.grupo && this.grupos[sv.grupo]) return sv.grupo;
+        if (sv.empId && this.grupos[sv.empId]) return String(sv.empId);
+        return null;
+    }
+
+    // Deduce el grupo de una empleada en un dia a partir de lo que registro.
+    // Voto mayoritario por si un dia atendio servicios de dos grupos.
+    _deducirGrupoDeRegistro(empData) {
+        if (!empData || !Array.isArray(empData.services) || !empData.services.length) return null;
+        const votos = {};
+        empData.services.forEach(reg => {
+            const sv = (this.servs || []).find(x => String(x.id) === String(reg && reg.id));
+            const g = this._grupoDeServicio(sv);
+            if (g) votos[g] = (votos[g] || 0) + 1;
+        });
+        const nombres = Object.keys(votos);
+        if (!nombres.length) return null;
+        nombres.sort((a, b) => votos[b] - votos[a]);
+        return nombres[0];
+    }
+
+    // Revisa los dias guardados y arma la lista de correcciones. NO escribe nada.
+    _analizarHorariosParaReparar(desde) {
+        const propuestas = [];
+        const fechas = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            const m = k && /^ana_horarios_(\d{4}-\d{2}-\d{2})$/.exec(k);
+            if (m && (!desde || m[1] >= desde)) fechas.push(m[1]);
+        }
+        fechas.sort();
+        fechas.forEach(fecha => {
+            let dia = null;
+            try { dia = JSON.parse(localStorage.getItem('ana_horarios_' + fecha) || 'null'); } catch (e) {}
+            if (!dia) return;
+            Object.keys(dia).forEach(empId => {
+                const reg = dia[empId];
+                if (!reg) return;
+                const real = this._deducirGrupoDeRegistro(reg);
+                if (!real) return;                       // sin servicios registrados: nada que deducir
+                const guardado = reg.group || '';
+                if (String(guardado) === String(real)) return;   // ya esta bien
+                const emp = (this.emps || []).find(e => String(e.id) === String(empId));
+                propuestas.push({
+                    fecha, empId,
+                    nombre: emp ? emp.name : (reg.empName || empId),
+                    guardado: guardado || '(vacío)',
+                    real,
+                    servicios: (reg.services || []).length
+                });
+            });
+        });
+        return propuestas;
+    }
+
+    repararGruposHorarios() {
+        const desde = prompt('Reparar los registros de horas desde qué fecha (AAAA-MM-DD):',
+                             '2026-10-19');
+        if (!desde) return;
+        let propuestas = [];
+        try { propuestas = this._analizarHorariosParaReparar(desde.trim()); }
+        catch (e) { alert('No pude analizar los horarios: ' + e.message); return; }
+
+        if (!propuestas.length) {
+            alert('✅ Revisé los registros desde ' + desde + ' y todas las etiquetas de grupo coinciden ' +
+                  'con los servicios que registraron. No hay nada que reparar.');
+            return;
+        }
+
+        const filas = propuestas.map(p =>
+            '<tr><td style="padding:6px 10px;border-bottom:1px solid #eee;">' + p.fecha + '</td>' +
+            '<td style="padding:6px 10px;border-bottom:1px solid #eee;">' + p.nombre + '</td>' +
+            '<td style="padding:6px 10px;border-bottom:1px solid #eee;color:#c0392b;">' + p.guardado + '</td>' +
+            '<td style="padding:6px 10px;border-bottom:1px solid #eee;color:#27ae60;font-weight:700;">' + p.real + '</td>' +
+            '<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:right;">' + p.servicios + '</td></tr>').join('');
+
+        document.getElementById('repHorariosModal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'repHorariosModal';
+        modal.className = 'modal';
+        modal.style.display = 'block';
+        modal.innerHTML =
+            '<div class="modal-content" style="max-width:720px;">' +
+            '<div class="modal-header"><h2>🩹 Reparar etiqueta de grupo</h2>' +
+            '<button class="modal-close" onclick="document.getElementById(\'repHorariosModal\').remove()">✕</button></div>' +
+            '<p style="margin:0 0 10px;">Estos registros de horas quedaron guardados con un grupo que no ' +
+            'corresponde a los servicios que la empleada registró ese día. El grupo correcto se dedujo de ' +
+            '<strong>su propio trabajo</strong>, no de la rotación.</p>' +
+            '<div style="max-height:46vh;overflow:auto;border:1px solid #eee;border-radius:8px;">' +
+            '<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">' +
+            '<thead><tr style="background:#34495e;color:#fff;">' +
+            '<th style="padding:7px 10px;text-align:left;">Fecha</th>' +
+            '<th style="padding:7px 10px;text-align:left;">Empleada</th>' +
+            '<th style="padding:7px 10px;text-align:left;">Dice</th>' +
+            '<th style="padding:7px 10px;text-align:left;">Debe decir</th>' +
+            '<th style="padding:7px 10px;text-align:right;">Servicios</th>' +
+            '</tr></thead><tbody>' + filas + '</tbody></table></div>' +
+            '<p style="margin:12px 0 0;font-size:0.86rem;color:#666;">Solo se cambia la etiqueta del grupo. ' +
+            'Las horas, los servicios y todo lo demás quedan intactos.</p>' +
+            '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">' +
+            '<button onclick="document.getElementById(\'repHorariosModal\').remove()" ' +
+            'style="background:#95a5a6;color:#fff;border:none;padding:10px 18px;border-radius:8px;cursor:pointer;font-weight:bold;">Cancelar</button>' +
+            '<button onclick="app._aplicarReparacionHorarios()" ' +
+            'style="background:#27ae60;color:#fff;border:none;padding:10px 22px;border-radius:8px;cursor:pointer;font-weight:bold;">' +
+            'Corregir ' + propuestas.length + ' registro(s)</button></div></div>';
+        document.body.appendChild(modal);
+        this._repPropuestas = propuestas;
+    }
+
+    async _aplicarReparacionHorarios() {
+        const propuestas = this._repPropuestas || [];
+        if (!propuestas.length) return;
+        document.getElementById('repHorariosModal')?.remove();
+
+        // 1) Corregir en localStorage, agrupando por fecha
+        const porFecha = {};
+        propuestas.forEach(p => { (porFecha[p.fecha] = porFecha[p.fecha] || []).push(p); });
+        const fechas = Object.keys(porFecha).sort();
+        let corregidos = 0;
+        fechas.forEach(fecha => {
+            const key = 'ana_horarios_' + fecha;
+            let dia = null;
+            try { dia = JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) {}
+            if (!dia) return;
+            porFecha[fecha].forEach(p => {
+                if (dia[p.empId]) { dia[p.empId].group = p.real; corregidos++; }
+            });
+            try { localStorage.setItem(key, JSON.stringify(dia)); }
+            catch (e) { alert('No se pudo guardar ' + fecha + ': ' + e.name + '. No se subió nada.'); throw e; }
+            if (this._prodReports) this._prodReports[fecha] = dia;
+        });
+
+        // 2) Subirlos a Drive, que es de donde los lee todo el mundo
+        if (!this.driveConnected || !this.driveToken || !this.driveFolderId) {
+            alert('✅ Corregidos ' + corregidos + ' registro(s) en esta computadora.\n\n' +
+                  '⚠️ Drive no está conectado, así que todavía no subieron. Conéctate y vuelve a correr la ' +
+                  'reparación, o sincroniza para que suban.');
+            this.render();
+            return;
+        }
+        let subidos = 0, fallidos = [];
+        for (const fecha of fechas) {
+            const nombre = 'ana_horarios_' + fecha + '.json';
+            try {
+                const q = encodeURIComponent(`name='${nombre}' and '${this.driveFolderId}' in parents and trashed=false`);
+                const br = await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,
+                    { headers: { Authorization: `Bearer ${this.driveToken}` } });
+                const bd = await br.json();
+                const fileId = (bd.files && bd.files[0]) ? bd.files[0].id : null;
+                const contenido = localStorage.getItem('ana_horarios_' + fecha) || '{}';
+                const form = new FormData();
+                const metadata = { name: nombre, parents: fileId ? undefined : [this.driveFolderId] };
+                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+                form.append('file', new Blob([contenido], { type: 'application/json' }));
+                const res = await fetch(
+                    fileId ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+                           : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+                    { method: fileId ? 'PATCH' : 'POST',
+                      headers: { Authorization: `Bearer ${this.driveToken}` }, body: form });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                subidos++;
+            } catch (e) { fallidos.push(fecha + ' (' + e.message + ')'); }
+        }
+
+        alert('✅ Corregidos ' + corregidos + ' registro(s) en ' + fechas.length + ' día(s).\n' +
+              '☁️ Subidos a Drive: ' + subidos + ' de ' + fechas.length +
+              (fallidos.length ? '\n\n⚠️ No subieron: ' + fallidos.join(', ') : ''));
+        this.render();
+    }
+
+    /* ── ARREGLO 22 oct 2026 ─────────────────────────────────────────────────
+       El 20 de octubre hice que el registro del dia mandara sobre this.grupos.
+       Lo que no vi es que la barra de grupos edita this.grupos DIRECTO, sin
+       tocar el historial: Ana movia a alguien de grupo ahi, el historial de hoy
+       se quedaba con la composicion vieja, y al siguiente arranque o sync la
+       promocion le devolvia lo viejo. En los telefonos era peor: leen el
+       registro del dia, asi que ni se enteraban del cambio — a una empleada le
+       llegaban los servicios y a sus companeras no, y un servicio asignado a
+       alguien que el registro no incluia desaparecia para todo el grupo.
+       Desde aqui, cualquier edicion directa se copia al registro del dia. */
+    _espejoHistorialHoy() {
+        try {
+            const hoy = new Date().toLocaleDateString('en-CA');
+            if (!this.gruposHistorial) this.gruposHistorial = {};
+            const limpio = {};
+            Object.keys(this.grupos || {}).forEach(g => {
+                const seen = new Set(), out = [];
+                (this.grupos[g] || []).forEach(id => {
+                    if (!id) return;
+                    const k = String(id);
+                    if (seen.has(k)) return;
+                    seen.add(k); out.push(id);
+                });
+                limpio[g] = out;
+            });
+            this.gruposHistorial[hoy] = limpio;
+            localStorage.setItem('v35_gruposHistorial', JSON.stringify(this.gruposHistorial));
+            this._rotacionPromovidaEl = hoy;   // ya quedaron iguales
+        } catch (e) { console.warn('espejo del historial de hoy:', e); }
+    }
+
     /* La rotación que Ana dejó lista para un día se guarda en
        gruposHistorial[fecha]. Cuando ese día llega, hay que subirla a
        this.grupos, que es la composición "actual" que se ve en la barra de
@@ -3449,7 +3669,7 @@ class Scheduler {
                     const selected = String(e.id) === currentSlotId ? 'selected' : '';
                     return `<option value="${e.id}" ${selected}>${e.name}</option>`;
                 }).join('');
-            sel.onchange = (e) => { this.grupos[nombreGrupo][i]=e.target.value; this.save(); this.render(); };
+            sel.onchange = (e) => { this.grupos[nombreGrupo][i]=e.target.value; this._espejoHistorialHoy(); this.save(); this.render(); };
             panel.appendChild(sel);
         }
         // Panel de sin asignar dentro del panel de edición
@@ -12125,6 +12345,7 @@ Motivo de cancelación (opcional):`);
         if (!name) { alert('Escribe el nombre del grupo'); return; }
         if (this.grupos[name]) { alert('Ya existe un grupo con ese nombre'); return; }
         this.grupos[name] = ['', '', '', '', ''];
+        this._espejoHistorialHoy();
         inp.value = '';
         this.save();
         this.renderGruposSection();
@@ -12144,6 +12365,7 @@ Motivo de cancelación (opcional):`);
             if (!confirm('¿Eliminar grupo "' + name + '"?')) return;
         }
         delete this.grupos[name];
+        this._espejoHistorialHoy();
         this.save();
         this.renderGruposSection();
         if (typeof this.populateGroupDropdowns === 'function') this.populateGroupDropdowns();
